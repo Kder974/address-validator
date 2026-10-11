@@ -298,16 +298,28 @@ réalisées pendant le déploiement (`06:21:18` et `06:26:03`).
    connaître : `deliverability` est dérivé du code DPV (`Y` → `residential`,
    `scorer.py:17-23`), alors que le `rdi` du fournisseur (`Commercial` sur
    l'adresse de test) n'est pas exposé dans la réponse HTTP.
-2. **La preuve de paiement est un HMAC à secret partagé (D15), pas une
-   vérification on-chain.** Toute personne qui connaît `API_SECRET_KEY` peut
-   forger une preuve valide et obtenir un `200` sans payer. C'est documenté
-   (`README.md` §7, `SECURITY.md`) et le chemin de mise à niveau est décrit ;
-   en attendant, l'endpoint payant doit être considéré comme une démonstration.
+2. **La preuve de paiement est un HMAC à secret partagé (D15) par défaut.** Toute
+   personne qui connaît `API_SECRET_KEY` peut forger une preuve valide et obtenir
+   un `200` sans payer. C'est documenté (`README.md` §7, `SECURITY.md`) et le
+   chemin de mise à niveau est décrit ; en attendant, l'endpoint payant doit être
+   considéré comme une démonstration. La confirmation on-chain (D27,
+   `app/onchain.py`) **est désormais déployée** (11/10/2026) mais reste
+   **désactivée** (`X402_ONCHAIN_VERIFY=false`) : l'activer (`.env` → `true`, puis
+   `systemctl restart address-validator`) rend obligatoire un transfert USDC
+   confirmé vers `CDP_WALLET_ADDRESS`, tout échec étant *fail-closed*.
+   Le 11/10/2026, le code exécuté a été aligné sur le dépôt
+   (`app/config.py`, `app/payment.py`, `app/onchain.py`, `tests/test_onchain.py`,
+   `.env.example`, `deploy.sh` — md5 identiques de part et d'autre) : **avant cet
+   alignement, `X402_ONCHAIN_VERIFY=true` était un no-op silencieux** et
+   `scripts/decisions_check.py --all` échouait sur `D27`. `pytest` n'est pas
+   installé dans le venv du serveur (dépendances de dev) : les 61 tests tournent
+   sur le poste, et l'oracle `scripts/decisions_check.py --all` tourne sur le
+   serveur → `DECISION OK D1…D27`.
 3. **Le secret doit être traité comme tel** : `API_SECRET_KEY` vit dans
    `/opt/address-validator/.env` (640, hors dépôt). Rotation :
    `openssl rand -hex 32` → éditer `.env` → `systemctl restart address-validator`.
-   Le jour où la vérification on-chain est ajoutée, **rotatez-le** : il aura
-   circulé en clair dans les journaux de test.
+   La vérification on-chain est désormais déployée (§8.2) et le secret a déjà été
+   tourné le 11/10/2026 : toute rotation ultérieure suit la même procédure.
 4. **Ne jamais passer `.env` en `600 root`.** Le service tourne sous
    `www-data` : `600 root:root` casserait le démarrage. Le bon réglage est
    `640 root:www-data`.
