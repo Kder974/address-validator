@@ -22,3 +22,19 @@ redis==5.1.1
 python-dotenv==1.0.1
 tenacity==9.0.0
 cdp-sdk==1.0.1
+
+# --- Verification du paiement x402 (D34-D38, app/x402.py) -------------------
+# Ces trois paquets etaient deja presents, mais seulement en dependances
+# transitives de `cdp-sdk`/`web3` : la porte de surete du paiement (recuperation
+# de la signature EIP-712/EIP-3009) ne doit pas dependre d'un paquet qu'un
+# `pip install` ulterieur peut retirer. Ils sont donc declarés ici.
+#   * `eth-abi`  : encodage ABI strict du domaine et de l'autorisation ;
+#   * `eth-keys` : recuperation de la cle publique (backend natif Python) ;
+#   * `eth-utils`/`eth-hash` : keccak-256 et bibliotheques communes ;
+#   * `pycryptodome` : backend keccak natif en production (cf. D38 et le repli
+#     Python pur de `tests/keccak_fallback.py`, reserve aux postes de dev).
+eth-abi==6.0.0
+eth-keys==0.8.0
+eth-utils==6.0.0
+eth-hash==0.8.0
+pycryptodome==3.24.0

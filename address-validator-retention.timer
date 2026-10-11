@@ -1,0 +1,15 @@
+[Unit]
+Description=Purge quotidienne du journal de decouverte (retention 30 j)
+Documentation=file:/opt/address-validator/PRIVACY.md
+
+[Timer]
+# 03:30 UTC : heure creuse, et avant le rapport quotidien de 07:10.
+OnCalendar=*-*-* 03:30:00 UTC
+# `Persistent=true` : si le VPS etait eteint a l'heure prevue, la purge est
+# rattrapee au demarrage. Une retention appliquee « quand la machine est la »
+# serait une retention a trous.
+Persistent=true
+Unit=address-validator-retention.service
+
+[Install]
+WantedBy=timers.target

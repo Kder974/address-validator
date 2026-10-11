@@ -34,17 +34,17 @@ Commands are cmd.exe lines anchored beside this ledger, so run them from the `ad
 - [x] D5: the paid route answers from cache before any provider call
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D5
   EXPECT: DECISION OK D5
-  EVIDENCE: automatic-evidence=v1; definition-sha256=aa2208c0bf2cf1ed46bf22750b425618c0be8cd4bbdd423d1522d575f7fa24fe; exit=0; EXPECT=matched; output-sha256=bdc0cdf6d5469fc61162c6ebb67c1ddcd78d65533fe13523c2e72cf52c991029; output-bytes=16; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=aa2208c0bf2cf1ed46bf22750b425618c0be8cd4bbdd423d1522d575f7fa24fe; exit=0; EXPECT=matched; output-sha256=24ccd8261e7a8c5e374f4f5b681ee23e75890dc09390e56a636bc5e30697edbb; output-bytes=77; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
 
 - [x] D6: a missing CDP SDK keeps payment fail-closed and never fail-open
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D6
   EXPECT: DECISION OK D6
-  EVIDENCE: automatic-evidence=v1; definition-sha256=e0096faf99c2f59745a0b2f4fd4f5722cacdcbc22c5eea79cbc50934617a9243; exit=0; EXPECT=matched; output-sha256=360ca3a2d4698e2ace0f810179d268d1c0d15e9df803fb9ec13998b6fa2df626; output-bytes=16; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=e0096faf99c2f59745a0b2f4fd4f5722cacdcbc22c5eea79cbc50934617a9243; exit=0; EXPECT=matched; output-sha256=514483ef21f52b9101159a1158175cca015d92c26dbf9eb351bd6c7ea0be71c4; output-bytes=137; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
 
 - [x] D7: the payment proof is fresh, symmetric, and HMAC-signed
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D7
   EXPECT: DECISION OK D7
-  EVIDENCE: automatic-evidence=v1; definition-sha256=7df93e79c9151239b2561791dec0baa06f287b03b81a9a5432608c6ae83e0306; exit=0; EXPECT=matched; output-sha256=71b2351a057a430c33120f403dc47344142d769610b7b3806cf00cc851fac459; output-bytes=16; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=7df93e79c9151239b2561791dec0baa06f287b03b81a9a5432608c6ae83e0306; exit=0; EXPECT=matched; output-sha256=022973beb864ba58df1a178531ce209f1105bef3e5daa46275f9e334aa47ef2f; output-bytes=77; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
 
 - [x] D8: an unknown environment variable does not break startup
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D8
@@ -64,7 +64,7 @@ Commands are cmd.exe lines anchored beside this ledger, so run them from the `ad
 - [x] D11: payments are recorded in a dedicated idempotent table
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D11
   EXPECT: DECISION OK D11
-  EVIDENCE: automatic-evidence=v1; definition-sha256=a798d4731642016fa48840d932f6fd6f33332803d84b0c9066a09051d85ce782; exit=0; EXPECT=matched; output-sha256=b6d03adfb61817cfaacd9be1c5cb40d8b2f8f6d50dac58fc604b6848d7d5aeb0; output-bytes=17; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=a798d4731642016fa48840d932f6fd6f33332803d84b0c9066a09051d85ce782; exit=0; EXPECT=matched; output-sha256=7bb54985002e9a27ea3ed4a92aaf76903d5a4fc0318ef004c11c92100f88f3b3; output-bytes=78; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
 
 - [x] D12: Redis timeouts are short and cache errors are counted
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D12
@@ -81,15 +81,15 @@ Commands are cmd.exe lines anchored beside this ledger, so run them from the `ad
   EXPECT: DECISION OK D14
   EVIDENCE: automatic-evidence=v1; definition-sha256=57fc5cfee13646831957ec0267fc77dec89eb66164f287e175086806ced7a5a5; exit=0; EXPECT=matched; output-sha256=4e1593dee86db8f5f37e3ed79248621c098122be481d52180464fa480ac5d344; output-bytes=17; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
 
-- [x] D15: payment is a shared-secret proof, not an on-chain verification
+- [x] D15: the shared-secret proof still serves, and the on-chain surface is bounded
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D15
   EXPECT: DECISION OK D15
-  EVIDENCE: automatic-evidence=v1; definition-sha256=799accbdc643a719807dc586e6b09c34870c837adfea32147f0a02a1cc0ecaf0; exit=0; EXPECT=matched; output-sha256=8b78bc2b20656452e81752aac62951f8ab0cbe5b1cbe29116d6be1f9a62e46f7; output-bytes=17; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=799accbdc643a719807dc586e6b09c34870c837adfea32147f0a02a1cc0ecaf0; exit=0; EXPECT=matched; output-sha256=8b1f57b9f64e156adf287aa3edd74301ccffd94b92fa3556053119729eaec353; output-bytes=78; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
 
 - [x] D16: startup creates the schema without depending on the database
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D16
   EXPECT: DECISION OK D16
-  EVIDENCE: automatic-evidence=v1; definition-sha256=32796554801f1c53e3304cb07723b60975b13ba6ae7c8fec6921a90c9899b281; exit=0; EXPECT=matched; output-sha256=b528d3a646bc5d0676174539a4e2146eac0c58868cde714f6a17b769f167ed75; output-bytes=186; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=32796554801f1c53e3304cb07723b60975b13ba6ae7c8fec6921a90c9899b281; exit=0; EXPECT=matched; output-sha256=10509f048e42b17892c49d28ff554caff0b0f81c14c96d129f563da471e8b11c; output-bytes=246; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
 
 - [x] D17: /metrics counters are atomic and free of external dependencies
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D17
@@ -144,7 +144,71 @@ Commands are cmd.exe lines anchored beside this ledger, so run them from the `ad
 - [x] D27: the on-chain payment check is opt-in, fail-closed and library-free
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D27
   EXPECT: DECISION OK D27
-  EVIDENCE: automatic-evidence=v1; definition-sha256=7dcf495a47172d12d8a5084d49af66bf5a6ee620467448aa765eca05eed46430; exit=0; EXPECT=matched; output-sha256=b1a61a915f4eae9d06db01f73b751792454ce7c225c78d8e6831d7d35292c726; output-bytes=93; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=7dcf495a47172d12d8a5084d49af66bf5a6ee620467448aa765eca05eed46430; exit=0; EXPECT=matched; output-sha256=73b1bd07135856a159c5fb7af836bee43769ace51acd816fac4ea731271467ee; output-bytes=153; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
 
+
+- [x] D28: the published discovery files describe only endpoints that answer
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D28
+  EXPECT: DECISION OK D28
+  EVIDENCE: automatic-evidence=v1; definition-sha256=8d6752a64696212280d265152f264bd43f50206874dc7ebbe94ba81cff0fafbe; exit=0; EXPECT=matched; output-sha256=06c5c2c3265fe69555587339eadb0e778075daeeff58906e92817d1a4ca538db; output-bytes=78; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+
+- [x] D29: every accepted payment is recorded once, keyed by its proof hash
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D29
+  EXPECT: DECISION OK D29
+  EVIDENCE: automatic-evidence=v1; definition-sha256=edc72c78446ac700f1a45a1a475275322b17ad43d4e7b8e723a4f7e06ea0eaf9; exit=0; EXPECT=matched; output-sha256=dc8813bbf4496532b5e652cd26f21f9db6e2503f5a3a2f9aad8e295e9cdf2bca; output-bytes=230; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+
+- [x] D30: unpaid attempts are logged for discovery with the client IP pseudonymised
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D30
+  EXPECT: DECISION OK D30
+  EVIDENCE: automatic-evidence=v1; definition-sha256=5345fc80c850194a1e704815ac94fe65d293fc0938d36b87fe0dfafecf66b496; exit=0; EXPECT=matched; output-sha256=74acb564281e1c323bd9cab444660f639361183311466e2984455ee4ef91ced5; output-bytes=17; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+
+- [x] D31: /metrics/revenue reports durable revenue windows and degrades honestly
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D31
+  EXPECT: DECISION OK D31
+  EVIDENCE: automatic-evidence=v1; definition-sha256=10c0ac6162dfee8c46a9e8ea1800ebb9f48d7ff460ced1ee05e7ca89310402b1; exit=0; EXPECT=matched; output-sha256=dbf2fbb5c955d3e7c48c794cdf0eceff0b3ab48c3a1bd409f843af9eb6d5636e; output-bytes=160; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+
+- [x] D32: /dashboard is self-contained, fail-closed and password protected
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D32
+  EXPECT: DECISION OK D32
+  EVIDENCE: automatic-evidence=v1; definition-sha256=abc36b4f1c9cf754669c5ec7c97cae002cbc6c9d7a4399d4d91ce23e31460e02; exit=0; EXPECT=matched; output-sha256=a5a69cfee41a10e80a2bf28a7a340433d6d6ec3c68db4308fb5f2734e0cec46f; output-bytes=591; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+
+- [x] D33: the manifest carries schemas, examples, use cases and explicit limits
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D33
+  EXPECT: DECISION OK D33
+  EVIDENCE: automatic-evidence=v1; definition-sha256=4afd0c17f0ed7e2d74a8fbd3bb24db46c5fb7fddbdeda04a887d9440b9b023f4; exit=0; EXPECT=matched; output-sha256=b8b5cb15a7a86dc53948e7520bc855288bf2c8f53d8e5c41d46405a9c7504328; output-bytes=153; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
 
 A red gate names its own broken assertion, so `DECISION FAIL D7: <reason>` is diagnosable without re-reading the oracle. Replay one decision by id, or the whole ledger with `--all`.
+
+## Lot B gates (D34-D39)
+
+The Lot B gates measure the agent-facing payment and discovery work: the x402 v1 envelope, the offline EIP-712 verification, the settlement rule, the MCP server, the published directory files, and the applied 30-day retention.
+
+- [x] D34: the 402 body is an x402 v1 PaymentRequired document and a settled payment carries its receipt
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D34
+  EXPECT: DECISION OK D34
+  EVIDENCE: automatic-evidence=v1; definition-sha256=f3622bffcde5f8b5285f9ac7af9f6e96099b0649ee8462309e97c57a3ea0bb4d; exit=0; EXPECT=matched; output-sha256=df3cbbc7e83608bfa9cd44f68aedecc49389cc7ba763ab5edb908d42c5cd7c61; output-bytes=1774; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+
+- [x] D35: the EIP-712 signature is verified offline, before any network call
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D35
+  EXPECT: DECISION OK D35
+  EVIDENCE: automatic-evidence=v1; definition-sha256=2e8fac15e096f7f388926e8f4386d84c52338b303a8ac1e3c197f3ad52b102da; exit=0; EXPECT=matched; output-sha256=701e1f54ad5b7d5e154be3cbda9daad4003f9cac4b5b549626e7d47d8e1e8d6d; output-bytes=4225; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+
+- [x] D36: service is rendered only after settlement, and every settlement failure is a refusal
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D36
+  EXPECT: DECISION OK D36
+  EVIDENCE: automatic-evidence=v1; definition-sha256=3ce910ead5e127f7ef1a93762e8a95f4f8d40121c9ce22f7c7165a285157efa2; exit=0; EXPECT=matched; output-sha256=e3a0067be934d87285658cb0a7a30ffe09cd1f98d25a7fbb4b3c68012742a29e; output-bytes=2787; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+
+- [x] D37: the MCP server serves one paid tool and its card describes the live endpoint
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D37
+  EXPECT: DECISION OK D37
+  EVIDENCE: automatic-evidence=v1; definition-sha256=a9e15fb72a7c59adab0fec08a09c61b25181d34a94cf877e82602c96be8d32f9; exit=0; EXPECT=matched; output-sha256=96b73feaa864e718b33e6cf041ab90f2a7d481b4efb7df7156a79bf55c481c02; output-bytes=1708; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+
+- [x] D38: the directory files describe the live endpoint in a sourced format, with the payment primitives pinned
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D38
+  EXPECT: DECISION OK D38
+  EVIDENCE: automatic-evidence=v1; definition-sha256=a4501d13b7fa3263d2792905f5964f60fa7dc0c610d85875470f786256d9ade0; exit=0; EXPECT=matched; output-sha256=1e5bd1538c0c084ed3762e743cb9ddfa6085df5042911cb6fcca5931a8c26349; output-bytes=17; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+
+- [x] D39: the announced retention is applied by a scheduled purge, not promised
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D39
+  EXPECT: DECISION OK D39
+  EVIDENCE: automatic-evidence=v1; definition-sha256=b00ae7972f143a4107192b75b586e15d487c95a31832dd3a19a6bd805c02139d; exit=0; EXPECT=matched; output-sha256=f3cf531ec6c2a09cfc66b377946c42d7be09d561b551f5a91effa697f35fc1c2; output-bytes=17; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries

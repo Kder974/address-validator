@@ -1,11 +1,37 @@
 """GET /manifest — description du service pour la découverte x402 Bazaar / MCP.
 
-Conforme à la spec (Phase 3).
+Conforme à la spec (Phase 3). Décision D33 : le manifest porte désormais des
+schémas complets (entrée, sortie, erreurs), des **exemples** conformes au code,
+des cas d'usage et des **limites explicites**.
+
+Du Lot B (D34, D36, D37) :
+
+* `payment.accepts[]` est produit par `app.x402.payment_requirements` — la
+  **même** fonction que le corps `402` et que la carte MCP : une offre publiée
+  ici ne peut pas diverger de celle qui est facturée ;
+* `payment.x402_standard.compliant` vaut `True` parce que le protocole v1 est
+  réellement implémenté (signature EIP-712 vérifiée hors ligne, règlement par
+  facilitateur, `X-PAYMENT-RESPONSE`), et `verified[]` liste ce qui est mesuré
+  plutôt que de le proclamer ;
+* `endpoints.mcp` décrit le serveur MCP et sa carte de découverte.
+
+Pourquoi insister sur les limites : un agent qui découvre un endpoint sans
+savoir ce qu'il ne fait pas produit des appels perdus. Les cas les plus coûteux
+sont écrits noir sur blanc (mode dégradé, couverture internationale partielle,
+voie héritée à secret partagé réservée à l'exploitant).
 """
 
 from fastapi import APIRouter
 
 from app.config import get_settings
+from app.payment import PROOF_HEADER, generate_payment_required_response
+from app.schemas import ValidationRequest, ValidationResponse
+from app.x402 import (
+    PAYMENT_HEADER,
+    PAYMENT_RESPONSE_HEADER,
+    X402_VERSION,
+    payment_requirements,
+)
 
 router = APIRouter()
 settings = get_settings()
@@ -15,44 +41,241 @@ settings = get_settings()
 async def manifest():
     return {
         "name": "AddressValidator",
-        "description": "Valide les adresses de livraison et retourne un score de livrabilité",
+        "description": (
+            "Valide une adresse de livraison brute : parsing, standardisation, "
+            "vérification auprès du fournisseur, géocodage, puis score de "
+            "livrabilité (residential / commercial / unknown / invalid) avec "
+            "niveau de confiance."
+        ),
         "version": "1.0.0",
         "category": "data",
-        "tags": ["address", "validation", "delivery", "logistics", "ecommerce"],
+        "tags": [
+            "address",
+            "validation",
+            "delivery",
+            "logistics",
+            "ecommerce",
+            "geocoding",
+        ],
         "price": settings.x402_price,
         "currency": "USDC",
         "protocol": "x402",
+        # Bloc de vérité : ce qui est réellement accepté aujourd'hui, et ce qui
+        # reste vrai en parallèle (la preuve HMAC de D15, outillage exploitant).
+        "payment": {
+            "protocol": "x402",
+            "x402_version": X402_VERSION,
+            # En-tête client et en-tête de règlement : ceux de la spécification
+            # x402 v1 (`specs/transports-v1/http.md`), pas un en-tête maison.
+            "header": PAYMENT_HEADER,
+            "response_header": PAYMENT_RESPONSE_HEADER,
+            "encoding": "base64(json)",
+            "freshness_window_seconds": 300,
+            "wallet": settings.cdp_wallet_address,
+            "network": settings.x402_network,
+            "usdc_contract": settings.x402_usdc_contract,
+            # L'offre publiée ici est *la même* que celle du corps 402 : une seule
+            # fonction la produit, donc une seule vérité.
+            "accepts": [payment_requirements(settings.x402_price)],
+            "facilitator": settings.x402_facilitator_url,
+            "settlement_required": bool(settings.x402_require_settlement),
+            "settlement_confirmations": settings.x402_min_confirmations,
+            # Voie héritée, conservée pour l'outillage de l'exploitant : elle
+            # n'est pas publiable auprès d'un agent tiers (secret partagé).
+            "legacy_proof": {
+                "header": PROOF_HEADER,
+                "format": "tx_hash:timestamp:hmac_sha256",
+                "audience": "operator-tooling",
+            },
+            "x402_standard": {
+                "compliant": True,
+                "missing": [],
+                "verified": [
+                    "corps 402 au format PaymentRequired (x402Version + accepts[])",
+                    "signature EIP-712 TransferWithAuthorization (EIP-3009) verifiee hors ligne",
+                    "reglement par facilitateur (/verify puis /settle) avant tout service",
+                    "en-tete X-PAYMENT-RESPONSE publie sur les appels payes",
+                ],
+            },
+        },
         "endpoints": {
             "validate": {
                 "method": "POST",
                 "path": "/validate",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "address": {
-                            "type": "object",
-                            "properties": {
-                                "street": {"type": "string"},
-                                "city": {"type": "string"},
-                                "state": {"type": "string"},
-                                "zip": {"type": "string"},
-                                "country": {"type": "string", "default": "US"},
+                "price": settings.x402_price,
+                "currency": "USDC",
+                # Schémas dérivés des modèles Pydantic : ils ne peuvent pas
+                # s'écarter du contrat réel, contrairement à un schéma recopié.
+                "input_schema": ValidationRequest.model_json_schema(),
+                "output_schema": ValidationResponse.model_json_schema(),
+                "errors": {
+                    "402": {
+                        "description": (
+                            "Paiement absent ou refusé : en-tête X-PAYMENT "
+                            "(signature EIP-712 EIP-3009) illisible, périmé, mal "
+                            "dirigé, montant insuffisant, ou règlement refusé par "
+                            "le facilitateur. Le corps porte l'offre exacte dans "
+                            "`accepts[]`, et `X-PAYMENT-RESPONSE` dit pourquoi."
+                        ),
+                        # Généré par la même fonction que la route : l'exemple ne
+                        # peut pas se désynchroniser du corps réel.
+                        "body_example": generate_payment_required_response(
+                            settings.x402_price
+                        ),
+                    },
+                    "422": {
+                        "description": (
+                            "Corps JSON invalide : `address` et ses champs "
+                            "`street`, `city`, `state`, `zip` sont requis."
+                        ),
+                    },
+                },
+                "examples": [
+                    {
+                        "name": "adresse residentielle US",
+                        "request": {
+                            "address": {
+                                "street": "1600 Amphitheatre Parkway",
+                                "city": "Mountain View",
+                                "state": "CA",
+                                "zip": "94043",
+                                "country": "US",
+                            }
+                        },
+                        "response_200": {
+                            "result": {
+                                "validated": True,
+                                "standardized": {
+                                    "line1": "1600 Amphitheatre Parkway",
+                                    "line2": "",
+                                    "city": "Mountain View",
+                                    "state": "CA",
+                                    "zip": "94043",
+                                    "country": "US",
+                                },
+                                "latitude": 37.422,
+                                "longitude": -122.084,
+                                "deliverability": "residential",
+                                "confidence": 1.0,
+                                "degraded": False,
+                                "cache_key": "<sha256 de l'adresse brute>",
                             },
-                        }
+                            "price_paid": settings.x402_price,
+                            "transaction_id": None,
+                        },
                     },
-                },
-                "output_schema": {
-                    "type": "object",
-                    "properties": {
-                        "validated": {"type": "boolean"},
-                        "standardized": {"type": "object"},
-                        "latitude": {"type": "number"},
-                        "longitude": {"type": "number"},
-                        "deliverability": {"type": "string"},
-                        "confidence": {"type": "number"},
+                    {
+                        "name": "adresse hors couverture, mode degrade (degraded=true)",
+                        "request": {
+                            "address": {
+                                "street": "12 rue de la Paix",
+                                "city": "Paris",
+                                "state": "IDF",
+                                "zip": "75002",
+                                "country": "FR",
+                            }
+                        },
+                        "response_200": {
+                            "result": {
+                                "validated": False,
+                                "standardized": {
+                                    "line1": "12 rue de la Paix",
+                                    "line2": "",
+                                    "city": "Paris",
+                                    "state": "IDF",
+                                    "zip": "75002",
+                                    "country": "FR",
+                                },
+                                "latitude": None,
+                                "longitude": None,
+                                "deliverability": "unknown",
+                                "confidence": 0.2,
+                                "degraded": True,
+                                "cache_key": "<sha256 de l'adresse brute>",
+                            },
+                            "price_paid": settings.x402_price,
+                            "transaction_id": None,
+                        },
                     },
+                ],
+            },
+            "mcp": {
+                "method": "POST",
+                "path": "/mcp",
+                "protocol": "json-rpc-2.0",
+                "transport": "streamable-http",
+                "tool": "validate_address",
+                "discovery_card": f"{settings.public_base_url.rstrip('/')}/.well-known/mcp-server",
+                "price": settings.x402_price,
+                "currency": "USDC",
+                # Le schéma MCP est celui de l'API : un seul contrat, deux transports.
+                "input_schema": ValidationRequest.model_json_schema(),
+                "output_schema": ValidationResponse.model_json_schema(),
+                "free_methods": [
+                    "initialize",
+                    "ping",
+                    "tools/list",
+                    "resources/list",
+                    "prompts/list",
+                ],
+                "paid_methods": ["tools/call"],
+                "errors": {
+                    "402": {
+                        "description": (
+                            "Outil payant appele sans paiement : erreur JSON-RPC "
+                            "-32002 dont data.accepts porte l'offre x402."
+                        ),
+                    }
                 },
-            }
+            },
+        },
+        "use_cases": [
+            {
+                "secteur": "e-commerce",
+                "besoin": "verifier une adresse de livraison avant expedition",
+                "valeur": "reduire les echecs de livraison et les retours",
+            },
+            {
+                "secteur": "logistique",
+                "besoin": "nettoyer un lot de commandes avant preparation",
+                "valeur": "eviter les colis non distribuables",
+            },
+            {
+                "secteur": "marketplaces",
+                "besoin": "valider les adresses vendeurs ou acheteurs a l'inscription",
+                "valeur": "fiabiliser la base d'adresses",
+            },
+            {
+                "secteur": "agents IA",
+                "besoin": "verifier une adresse demandee par un utilisateur",
+                "valeur": "un appel paye, sans abonnement ni compte",
+            },
+        ],
+        "limitations": [
+            "Couverture : le fournisseur est optimise pour les adresses des Etats-Unis ; les adresses internationales sont acceptees mais leur verification est partielle.",
+            "Mode degrade : si le fournisseur est injoignable, la reponse reste un 200 avec degraded=true et confidence basse. Lire degraded avant de conclure.",
+            "Paiement : protocole x402 v1 (en-tete X-PAYMENT, base64 d'un PaymentPayload signe EIP-712) regle par le facilitateur avant tout service : 0,02 USDC sur Base. La voie heritage a secret partage (X-Payment-Proof) reste ouverte pour l'outillage de l'exploitant, mais elle n'est pas publiable : un agent tiers paie en x402.",
+            "Aucun identifiant de personne n'est traite : pas de compte, pas de nom, pas d'e-mail. Le revenu est publie sous forme d'agregats (/metrics/revenue), sans adresse IP.",
+            "Pas de limitation de debit dans l'application : elle est tenue en amont par Nginx (10 req/s par IP, rafale 20, 429 au-dela).",
+            "Les paiements anterieurs au deploiement de D29 ne figurent pas dans le registre durable : les fenetres 24 h / 7 j / 30 j ne sont pas retroactives.",
+            "Serveur MCP : un seul outil (validate_address), sans etat et sans flux SSE (GET /mcp repond 405). La decouverte (tools/list) est gratuite, l'appel de l'outil est paye. Un client MCP qui n'envoie pas X-PAYMENT recoit un 402 JSON-RPC portant l'offre.",
+        ],
+        "deliverability_values": {
+            "residential": "adresse complete ou voie reconnue, usage residentiel (code DPV Y ou S)",
+            "commercial": "boite commerciale identifiee (code DPV D)",
+            "unknown": "information insuffisante pour conclure (code DPV X)",
+            "invalid": "adresse inexistante ou verification echouee (code DPV N)",
+        },
+        "discovery": {
+            "documentation": "https://kder-ai.com/docs",
+            "openapi": "https://kder-ai.com/openapi.json",
+            "health": "https://kder-ai.com/health",
+            "metrics": "https://kder-ai.com/metrics",
+            "revenue": "https://kder-ai.com/metrics/revenue",
+            "manifest": "https://kder-ai.com/manifest",
+            "mcp": f"{settings.public_base_url.rstrip('/')}/mcp",
+            "mcp_server_card": f"{settings.public_base_url.rstrip('/')}/.well-known/mcp-server",
+            "llms_txt": f"{settings.public_base_url.rstrip('/')}/llms.txt",
         },
         "contact": {
             "email": settings.contact_email,

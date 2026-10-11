@@ -1,0 +1,15 @@
+# Fichier de securite RFC 9116 — Address Validator API (kder-ai.com).
+# Sert a un agent ou a un chercheur : a qui signaler un incident, selon quelles
+# regles, et jusqu'a quand ce fichier est valable.
+# Le champ Expires est OBLIGATOIRE (RFC 9116 §2.5) et doit etre une date
+# FUTURE : un security.txt perime est pire qu'aucun. La porte D28 echoue des
+# cette date depassee, ce qui force la mise a jour au lieu de laisser un
+# fichier mort en ligne.
+Contact: mailto:Kdera597420@gmail.com
+Expires: 2027-04-10T00:00:00.000Z
+Preferred-Languages: fr, en
+Canonical: https://kder-ai.com/.well-known/security.txt
+
+# Champ Policy volontairement absent : la RFC 9116 le rend optionnel, et
+# l'annoncer vers une page qui n'existe pas encore serait une fausse promesse.
+# A ajouter le jour ou une page de politique de securite est publiee.

@@ -14,6 +14,7 @@ reste à la charge de l'exploitant.
 | Preuve de paiement : `tx_hash`, horodatage, signature HMAC | en-tête `X-Payment-Proof` | `app/payment.py:37,102-127` |
 | Adresse standardisée, latitude/longitude, code DPV, confiance | produite par le pipeline | `app/validation/__init__.py:33-41` |
 | Clé de cache = SHA-256 de l'adresse brute canonisée | produite par l'API | `app/routes/validate.py:32-34` |
+| Métadonnées de requête en cas de refus `402` : horodatage, endpoint, prix, `User-Agent`, `Referer`, **IP pseudonymisée** | produite par l'API (jamais l'adresse validée) | `app/observability.py:89-113` |
 
 L'API ne traite **aucun identifiant de personne** : pas de compte, pas de nom,
 pas d'e-mail, pas de cookie, pas d'identifiant d'appareil. L'adresse postale est
@@ -29,6 +30,7 @@ adresse en clair.
 | Facturer à la requête (0,02 USDC) | `tx_hash`, montant | exécution du contrat (1-b) |
 | Éviter de payer deux fois le même appel fournisseur | clé SHA-256 + résultat | intérêt légitime : maîtrise des coûts (1-f) |
 | Superviser la disponibilité et les pannes | compteurs agrégés | intérêt légitime : sécurité du service (1-f) |
+| Mesurer si le service est **trouvé**, et qualifier les tentatives non payées | métadonnées de requête, IP pseudonymisée | intérêt légitime : sécurité et mesure d'usage (1-f) |
 
 Aucun profilage, aucune décision automatisée produisant un effet juridique,
 aucune revente, aucune publicité, aucune donnée transmise à des régies.
@@ -41,6 +43,7 @@ aucune revente, aucune publicité, aucune donnée transmise à des régies.
 | PostgreSQL `payment_transactions` | `tx_hash`, montant, devise, clé de cache | non purgé : **aucune politique de rétention dans le code** | `app/database.py:43-51`, `app/payment.py:140-145` |
 | PostgreSQL `address_validations` | schéma prévu (`raw_address JSONB`, `standardized JSONB`, …) | **table jamais alimentée** : le dépôt ne contient qu'un seul `INSERT`, et il vise `payment_transactions` | `app/database.py:27-39`, vérifié le 10/10/2026 |
 | `/metrics` | compteurs agrégés en mémoire (aucune adresse) | durée du processus, perdu au redémarrage | `app/routes/metrics.py` |
+| Journal de découverte (JSONL) | métadonnées des requêtes refusées en `402` : horodatage, endpoint, prix, `User-Agent`, `Referer`, IP **pseudonymisée** (sha256 + sel) | **30 jours** — purge appliquée par `scripts/daily_report.sh`, pas seulement annoncée | `app/observability.py:142-158`, `app/config.py:47-65` |
 | Journaux applicatifs | avertissements d'échecs non bloquants | selon le journal de journald (non défini dans le code) | `app/payment.py:148-149` |
 
 Points de vigilance assumés :
@@ -55,6 +58,12 @@ Points de vigilance assumés :
   brique future qui l'alimenterait persisterait l'adresse brute. La
   vérification du 10/10/2026 a montré qu'aucun code ne l'écrit aujourd'hui ; ce
   document devra être mis à jour si cela change.
+- Le journal de découverte n'écrit **rien sur disque** tant que
+  `DISCOVERY_LOG_PATH` est vide (journald seul). Quand il est actif, l'IP est
+  pseudonymisée : le pseudonyme est stable (même sel ⇒ même valeur) mais non
+  réversible sans le sel. `DISCOVERY_LOG_RAW_IP=true` la met en clair : cette
+  activation doit rester une enquête d'abus **datée**, jamais un réglage de
+  confort, et le journal doit être purgé à la fin de l'enquête.
 
 ## 4. Destinataires, sous-traitants et transferts
 

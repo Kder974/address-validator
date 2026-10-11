@@ -46,7 +46,29 @@ Nominatim, du portefeuille CDP et de l'hébergeur.
 
 ## 3. Authentification du paiement et anti-rejeu
 
-Format de la preuve (`app/payment.py:96-99`) :
+Depuis le Lot B, le service authentifie le paiement par le **protocole x402 v1**
+(`specs/transports-v1/http.md` du dépôt `coinbase/x402`) : le client signe une
+autorisation EIP-712 et le facilitateur l'encaisse avant que le service soit
+rendu (`app/x402.py`). La preuve à secret partagé reste servie comme voie de
+compatibilité.
+
+**Voie x402 (par défaut pour un agent).**
+
+| Contrôle | Implémentation |
+|----------|----------------|
+| Enveloppe | `X-PAYMENT` : base64 d'un `PaymentPayload` `{x402Version, scheme, network, payload}` ; enveloppe v2 (`accepted`, CAIP-2) acceptée et normalisée |
+| Signature | EIP-712 `TransferWithAuthorization` (EIP-3009) : digest recalculé explicitement (`eth_abi` + `eth_hash.auto.keccak`), signataire récupéré par `eth_keys` et comparé à `authorization.from` |
+| Domaine | `name`/`version` annoncés dans `accepts[].extra`, `chainId` et contrat USDC issus de la configuration ; divergence = refus (`scripts/test_x402_payment.py --check-domain` le prouve on-chain) |
+| Destination | `authorization.to` doit être `CDP_WALLET_ADDRESS` (comparaison insensible à la casse, adresse validée avant tout appel) |
+| Montant | `authorization.value` ≥ `accepts[].maxAmountRequired` (unités atomiques, 6 décimales) |
+| Fenêtre | `validAfter` ≤ maintenant < `validBefore` : ni prématurée, ni périmée |
+| Ordre | tout ceci est vérifié **hors ligne** : le facilitateur n'est appelé que si la signature est déjà bonne (mesuré : aucun appel réseau sur un paiement falsifié) |
+| Règlement | `POST /verify` puis `POST /settle` au facilitateur (défaut Coinbase CDP), JWT signé avec `CDP_API_KEY_*` (`cdp.auth.generate_jwt`, ES256 ou EdDSA) |
+| Service | rendu **seulement** après un règlement réussi ; tout échec (refus, panne, hash absent, nonce déjà réglé) vaut `402` |
+| Traçabilité | `X-PAYMENT-RESPONSE` (base64 de `{success, transaction, network, payer}`) sur les appels payés ; le hash du règlement alimente le registre durable (D29) |
+| Anti-rejeu | nonce mémorisé après règlement réussi (cache borné en mémoire) ; la garantie dure est le nonce EIP-3009 consommé par la chaîne au premier règlement |
+
+**Voie héritée à secret partagé (D15, outillage de l'exploitant).**
 
 ```
 X-Payment-Proof: <tx_hash>:<timestamp>:<hmac_sha256_hex(tx_hash:timestamp)>
@@ -54,37 +76,28 @@ X-Payment-Proof: <tx_hash>:<timestamp>:<hmac_sha256_hex(tx_hash:timestamp)>
 
 | Contrôle | Implémentation |
 |----------|----------------|
-| Signature | HMAC-SHA256 sur `tx_hash:timestamp`, clé = `api_secret_key` (`:88-93`) |
-| Comparaison | `hmac.compare_digest` — temps constant, pas de fuite par timing (`:125`) |
-| Fraîcheur | fenêtre **symétrique** ±300 s : rejette le périmé *et* le futur (`:121`) |
-| Malformation | `len(parts) != 3`, `tx_hash` ou `signature` vide → refus (`:110-116`) |
-| Comportement par défaut | `False` — toute exception renvoie `False` (`:106-107,126-127`) |
-
-**Limite assumée et documentée (D15)** : la preuve HMAC repose sur un secret
-partagé. Un `tx_hash` arbitraire, signé par un client qui connaît ce secret,
-suffit à obtenir une réponse 200 : c'est le comportement **par défaut** du
-service, et il est conforme à la décision D15.
+| Signature | HMAC-SHA256 sur `tx_hash:timestamp`, clé = `api_secret_key` (`app/payment.py`) |
+| Comparaison | `hmac.compare_digest` — temps constant, pas de fuite par timing |
+| Fraîcheur | fenêtre **symétrique** ±300 s : rejette le périmé *et* le futur |
+| Malformation | `len(parts) != 3`, `tx_hash` ou `signature` vide → refus |
+| Comportement par défaut | `False` — toute exception renvoie `False` (*fail-closed*) |
+| `X-PAYMENT-RESPONSE` | **jamais** émis : un paiement HMAC n'est pas un règlement x402 |
 
 **Couche on-chain optionnelle (D27)** : quand `X402_ONCHAIN_VERIFY=true`, la
 signature HMAC ne suffit plus. Le `tx_hash` doit désigner, sur Base (chaîne
-8453), une transaction confirmée (`status == 0x1`) dont un reçu contient un
+8453), une transaction confirmée (`status == 0x1`) dont le reçu contient un
 événement ERC-20 `Transfer` émis par le contrat USDC vers `CDP_WALLET_ADDRESS`,
 pour au moins `X402_PRICE`, avec `X402_MIN_CONFIRMATIONS` blocs. La lecture est
 un **JSON-RPC en lecture seule** (`eth_getTransactionReceipt`,
 `eth_blockNumber`) borné à 2 s connect / 4 s read, sans paquet web3 et sans
-authorization EIP-3009 : le reçu est décodé à la main
-(`app/onchain.py:120-156`) et un `tx_hash` malformé est refusé **avant** tout
-appel réseau. Tout échec — réseau, reçu absent, transaction rejetée, mauvais
-destinataire (adresse malformée incluse), mauvais contrat, montant insuffisant,
-confirmations insuffisantes — vaut refus : la vérification est *fail-closed*.
-Elle est **désactivée par défaut** parce qu'aucun client ne sait encore produire
-une autorisation x402 réelle : l'activer couperait immédiatement les clients à
-preuve HMAC. En l'absence de clés CDP, le SDK n'est pas configuré et le mode
-« preuve seule » est annoncé au démarrage (`app/payment.py:66-84`). Chemin de
-mise à niveau : `README.md` §7.
+paquet de magasin de clés : le reçu est décodé à la main (`app/onchain.py`) et un
+`tx_hash` malformé est refusé **avant** tout appel réseau. Tout échec vaut refus.
 
-Second point : la preuve n'est **pas consommée** une fois utilisée — la même
-preuve reste acceptée pendant 300 s (rejeu possible dans la fenêtre). Voir §6.
+**Anti-rejeu, limite résiduelle.** La voie héritée ne consomme pas la preuve : la
+même preuve reste acceptée pendant sa fenêtre de 300 s, et le registre la
+déduplique (`ON CONFLICT DO NOTHING`), donc elle n'est pas facturée deux fois —
+mais elle rend le service deux fois. La voie x402, elle, refuse un nonce déjà
+réglé et s'appuie sur la chaîne comme source de vérité. Voir `README.md` §7.
 
 ## 4. Transport, chiffrement et réseau
 

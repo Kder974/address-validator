@@ -20,6 +20,8 @@ venv/
 *.log
 logs/
 *.err
+# Journal de decouverte (D30) : donnees d'exploitation, jamais dans le depot.
+*.jsonl
 
 # --- divers ---
 .DS_Store

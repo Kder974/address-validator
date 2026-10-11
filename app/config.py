@@ -44,6 +44,61 @@ class Settings(BaseSettings):
     x402_usdc_contract: str = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
     x402_min_confirmations: int = 1
 
+    # Paiement x402 **standard** (D34 a D36, app/x402.py). Le protocole v1 est
+    # decrit par `specs/transports-v1/http.md` du depot coinbase/x402 :
+    #   * corps 402 = {"x402Version": 1, "error": ..., "accepts": [ ... ]} ;
+    #   * le client renvoie sa signature dans l'en-tete `X-PAYMENT` (base64) ;
+    #   * la reponse porte `X-PAYMENT-RESPONSE` (base64) avec le hash reglé.
+    #
+    # Reseau annonce : le nom historique v1 ("base") ; la variante CAIP-2
+    # ("eip155:8453") est acceptee en entree pour les clients v2.
+    x402_network: str = "base"
+    x402_chain_id: int = 8453
+    # Domaine EIP-712 du jeton : `name`/`version` doivent etre ceux du contrat,
+    # sinon la signature d'un client honnete est rejetee. Valeurs du FiatTokenV2
+    # (USDC) sur Base, verifiables on-chain : `scripts/test_x402_payment.py
+    # --check-domain`. Un ecart est un refus, jamais un service rendu.
+    x402_domain_name: str = "USD Coin"
+    x402_domain_version: str = "2"
+    # Facilitateur : /verify (droit de payer) et /settle (encaissement). Defaut
+    # = celui de Coinbase (CDP), authentifie par un JWT signe avec la cle CDP.
+    x402_facilitator_url: str = "https://api.cdp.coinbase.com/platform/v2/x402"
+    x402_facilitator_verify: bool = True
+    # `true` (defaut) : un paiement n'est accepte que *regle* par le
+    # facilitateur. `false` rendrait le service contre une autorisation signee
+    # non encaissee : reserve au diagnostic local, jamais a la production.
+    x402_require_settlement: bool = True
+    # URL publique du service, citee dans `accepts[].resource` et dans la carte
+    # MCP : un agent doit voir exactement l'URL qu'il a appelee.
+    public_base_url: str = "https://kder-ai.com"
+    mcp_public_url: str = "https://kder-ai.com/mcp"
+
+    # Observabilité de la découverte (D30). Chaque requête refusée en 402 est
+    # tracée pour mesurer si l'API est *trouvée* (et par qui), sans jamais
+    # stocker l'adresse validée. L'IP est **pseudonymisée** par défaut
+    # (sha256 + sel) : le dépôt pseudonymise déjà les adresses (PRIVACY.md §1),
+    # la même minimisation s'applique au client réseau.
+    discovery_log_enabled: bool = True
+    # Chemin du journal JSONL. Vide = journalisation applicative seule (journald
+    # en production) : aucune écriture disque n'est imposée à l'exploitant.
+    discovery_log_path: str = ""
+    # False (défaut) = IP pseudonymisée ; true = IP en clair, pour une enquête
+    # d'abus limitée dans le temps (à justifier, cf. PRIVACY.md §3).
+    discovery_log_raw_ip: bool = False
+    # Sel dédié. Vide = dérivé de API_SECRET_KEY (dépannage) ; un sel propre est
+    # préférable car il survit à une rotation du secret.
+    discovery_log_salt: str = ""
+    # Purge automatique : le rapport quotidien supprime les entrées plus vieilles
+    # que ce délai. Une conservation annoncée mais non appliquée serait un
+    # mensonge (PRIVACY.md §3).
+    discovery_log_retention_days: int = 30
+
+    # Tableau de bord d'exploitation (D32). Mot de passe vide = endpoint
+    # *fermé* (503), jamais ouvert : un tableau de bord public exposerait le
+    # chiffre d'affaires et les dernières transactions.
+    dashboard_user: str = "kder"
+    dashboard_password: str = ""
+
     # Environnement
     environment: str = "development"
     log_level: str = "INFO"

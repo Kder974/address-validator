@@ -1,0 +1,38 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.kder974/address-validator",
+  "title": "Address Validator",
+  "description": "Valide une adresse de livraison brute et renvoie sa forme standardisee, ses coordonnees et un score de livrabilite (residential / commercial / unknown / invalid) avec un niveau de confiance. Paye a l'appel par le protocole x402 (0.02 USDC sur Base).",
+  "version": "1.0.0",
+  "websiteUrl": "https://kder-ai.com",
+  "repository": {
+    "url": "https://github.com/Kder974/address-validator",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://kder-ai.com/mcp"
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "payment": {
+        "protocol": "x402",
+        "version": 1,
+        "network": "base",
+        "asset": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+        "price_usdc": 0.02,
+        "header": "X-PAYMENT"
+      },
+      "discovery": {
+        "card": "https://kder-ai.com/.well-known/mcp-server",
+        "manifest": "https://kder-ai.com/manifest",
+        "llms_txt": "https://kder-ai.com/llms.txt"
+      },
+      "tools": [
+        "validate_address"
+      ]
+    }
+  }
+}

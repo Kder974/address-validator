@@ -85,6 +85,14 @@ Toutes les valeurs viennent de l'environnement ou de `.env` (pydantic-settings,
 | `base_rpc_url` | `BASE_RPC_URL` | `https://mainnet.base.org` | nœud JSON-RPC Base (chaîne 8453) utilisé quand D27 est actif |
 | `x402_usdc_contract` | `X402_USDC_CONTRACT` | `0x833589…4bda02913` | contrat USDC natif de Base |
 | `x402_min_confirmations` | `X402_MIN_CONFIRMATIONS` | `1` | confirmations minimales exigées avant d'accepter le paiement |
+| `x402_network` / `x402_chain_id` | `X402_NETWORK` / `X402_CHAIN_ID` | `base` / `8453` | reseau et chaine annonces dans `accepts[]` |
+| `x402_domain_name` / `x402_domain_version` | `X402_DOMAIN_NAME` / `X402_DOMAIN_VERSION` | `USD Coin` / `2` | domaine EIP-712 du jeton - **verifie on-chain** par `scripts/test_x402_payment.py --check-domain` |
+| `x402_facilitator_url` | `X402_FACILITATOR_URL` | `https://api.cdp.coinbase.com/platform/v2/x402` | facilitateur (`/verify` puis `/settle`) |
+| `x402_facilitator_verify` | `X402_FACILITATOR_VERIFY` | `true` | appel de `/verify` avant le reglement |
+| `x402_require_settlement` | `X402_REQUIRE_SETTLEMENT` | `true` | **ne rendre le service qu'apres encaissement** (`false` = jamais en production) |
+| `public_base_url` / `mcp_public_url` | `PUBLIC_BASE_URL` / `MCP_PUBLIC_URL` | `https://kder-ai.com` / `.../mcp` | URLs publiees dans `accepts[].resource`, la carte MCP et les annuaires |
+| `discovery_log_*` | `DISCOVERY_LOG_ENABLED`, `DISCOVERY_LOG_PATH`, `DISCOVERY_LOG_RAW_IP`, `DISCOVERY_LOG_SALT`, `DISCOVERY_LOG_RETENTION_DAYS` | journal actif, chemin vide (journald), IP pseudonymisee, 30 j | journal des refus `402` et retention appliquee (`PRIVACY.md` 3) |
+| `dashboard_user` / `dashboard_password` | `DASHBOARD_USER` / `DASHBOARD_PASSWORD` | `kder` / vide | `/dashboard` - vide = endpoint **ferme** (`503`) |
 | `environment` / `log_level` | `ENVIRONMENT` / `LOG_LEVEL` | `development` / `INFO` | contexte et verbosité |
 
 ## 4. Endpoints et contrat de données
@@ -95,8 +103,17 @@ Toutes les valeurs viennent de l'environnement ou de `.env` (pydantic-settings,
 | `GET` | `/manifest` | description x402 (prix, devise, schémas) | `app/routes/manifest.py` |
 | `GET` | `/health` | état réel de PostgreSQL et Redis, borné à 2 s | `app/routes/health.py` |
 | `GET` | `/metrics` | compteurs, état du disjoncteur, état du cache | `app/routes/metrics.py` |
+| `GET` | `/metrics/revenue` | revenu agrégé 24 h / 7 j / 30 j et disponibilité du registre | `app/routes/revenue.py` |
+| `GET` | `/dashboard` | tableau de bord d'exploitation — **privé** (Basic Auth ; `503` si `DASHBOARD_PASSWORD` est absent) | `app/routes/dashboard.py` |
 | `POST` | `/validate` | **payant** — validation complète | `app/routes/validate.py` |
 | `GET` | `/docs` | documentation interactive (FastAPI) | auto |
+| `GET` | `/llms.txt`, `/AGENTS.md`, `/.well-known/security.txt` | fichiers de découverte pour agents, servis en statique par Nginx (voir `DISCOVERY.md`) | `nginx-discovery.conf` |
+| `POST` | `/mcp` | serveur MCP (JSON-RPC 2.0) : decouverte gratuite, `tools/call` **payant** | `app/routes/mcp.py` |
+| `GET` | `/.well-known/mcp-server` | carte de decouverte MCP (servie par l'application) | `app/routes/mcp.py` |
+
+Chaque requête refusée en `402` est journalisée sous forme de métadonnées
+(horodatage, endpoint, `User-Agent`, IP **pseudonymisée**) : jamais l'adresse
+validée. Réglages et rétention : `PRIVACY.md` §3, `DISCOVERY.md` §4.
 
 Requête (`app/schemas.py:11-16`) : `{"address": {"street", "city", "state",
 "zip", "country"}}` — `country` vaut `US` par défaut, les autres champs sont
@@ -202,57 +219,61 @@ dans le code (`15,2 s` avant D23, `6,03 s` avant D22) n'ont **pas** été
 re-mesurées aujourd'hui : elles sont citées comme historique dans
 `TEST_REPORT.md`.
 
-## 7. Paiement x402 : ce qui est vérifié, et le chemin de mise à niveau
+## 7. Paiement x402 : ce qui est vérifié, réglé, et ce qui reste hérité
 
-Ce qui est réellement vérifié aujourd'hui (`app/payment.py:102-127`) :
+Le service parle **x402 v1** (spécification `specs/transports-v1/http.md` du dépôt
+`coinbase/x402`) et règle réellement les paiements en USDC sur Base. Le corps du
+`402` est un document `PaymentRequired` :
 
-- l'en-tête `X-Payment-Proof` a la forme `tx_hash:timestamp:signature` ;
-- la signature est un **HMAC-SHA256** de `tx_hash:timestamp` avec
-  `API_SECRET_KEY`, comparé en temps constant ;
-- l'horodatage est dans une fenêtre **symétrique de 300 s** (le périmé *et* le
-  futur sont rejetés) ;
-- toute anomalie renvoie `402` (*fail-closed*).
+```json
+{ "x402Version": 1, "error": "...", "accepts": [ { "scheme": "exact",
+  "network": "base", "maxAmountRequired": "20000", "asset": "0x833589…2913",
+  "payTo": "0x0fe9…d339", "resource": "https://kder-ai.com/validate",
+  "mimeType": "application/json", "maxTimeoutSeconds": 300,
+  "extra": { "name": "USD Coin", "version": "2" } } ] }
+```
 
-Le service a **deux niveaux** de contrôle du paiement, empilés : le premier est
-actif par défaut, le second est disponible mais désactivé.
+Le client renvoie sa signature dans `X-PAYMENT` (base64 d'un `PaymentPayload`
+`{signature, authorization:{from,to,value,validAfter,validBefore,nonce}}`) et
+reçoit `X-PAYMENT-RESPONSE` (base64 de `{success, transaction, network, payer}`).
 
-**Niveau 1 — preuve HMAC (défaut, D15).** Ce qui n'est **pas** vérifié : aucune
-signature EIP-712, aucune `TransferWithAuthorization` (EIP-3009), aucun solde
-USDC. Un `tx_hash` inventé est accepté s'il est correctement signé. Le service
-est donc « payant par convention » ; l'annonce `protocol: "x402"` et le
-portefeuille (`CDP_WALLET_ADDRESS`) figurent déjà dans la réponse `402`, mais le
-règlement n'est pas contrôlé.
+**Deux contrôles, dans cet ordre** (`app/x402.py`) :
 
-**Niveau 2 — confirmation on-chain (optionnel, D27).**
-`X402_ONCHAIN_VERIFY=true` exige en plus que le `tx_hash` désigne, sur Base
-(chaîne 8453), une transaction confirmée (`status == 0x1`) dont le reçu contient
-un `Transfer` ERC-20 du contrat USDC vers `CDP_WALLET_ADDRESS`, d'un montant ≥
-`X402_PRICE`, avec `X402_MIN_CONFIRMATIONS` blocs. Implémentation :
-`app/onchain.py` — JSON-RPC en **lecture seule** (`eth_getTransactionReceipt`,
-`eth_blockNumber`), borné à 2 s connect / 4 s read, **sans paquet `web3`** et
-sans EIP-3009 ; le reçu est décodé à la main. Tout doute vaut refus
-(*fail-closed*), et un `tx_hash` malformé est rejeté avant tout appel réseau.
-**Pourquoi c'est désactivé** : aucun client ne sait encore produire une
-authorization x402 réelle ; l'activer aujourd'hui rendrait le service inutilisable
-pour les clients à preuve HMAC. L'activer suppose donc de basculer aussi le client
-(points 1 et 2 ci-dessous).
+1. **local, hors ligne** — le digest EIP-712 (`TransferWithAuthorization`,
+   EIP-3009) est recalculé explicitement (`eth_abi`, `eth_hash`, `eth_keys`), la
+   signature récupérée est comparée à `authorization.from`, et destination,
+   montant, jeton, réseau et fenêtre de validité sont confrontés à l'offre
+   publiée. Rien ne sort du serveur avant que ce contrôle passe ;
+2. **règlement** — `POST /verify` puis `POST /settle` au facilitateur (défaut :
+   celui de Coinbase, authentifié par un JWT CDP signé avec `CDP_API_KEY_ID` /
+   `CDP_API_KEY_SECRET`). Le hash du règlement alimente le registre durable
+   (D29) ; tout échec (refus explicite, panne, hash absent, nonce déjà réglé)
+   vaut un refus.
 
-Chemin de mise à niveau, sans changer le contrat public :
+Le domaine EIP-712 annoncé (`extra.name` / `extra.version`) est celui du contrat :
+`scripts/test_x402_payment.py --check-domain` le vérifie on-chain — mesuré le
+11/10/2026 sur Base : `name() = "USD Coin"`, `version() = "2"`, `decimals() = 6`.
 
-1. **Authorization EIP-3009 complète** : valider la `TransferWithAuthorization`
-   signée par le payeur — domaine EIP-712, `payer`, `amount`,
-   `validAfter`/`validBefore`, `nonce` — **en plus** du reçu déjà lu par D27.
-2. **Facilitateur x402** : si un facilitateur est utilisé, appeler ses points
-   `/verify` puis `/settle` au lieu de la vérification locale. Le reste de la
-   route (`record_transaction`, `transaction_id`) ne change pas.
-3. **Anti-rejeu réel** : consommer le `tx_hash`/`nonce` (`SETNX` Redis avec TTL
-   300 s) — aujourd'hui une même preuve reste valide pendant toute la fenêtre.
-4. **Garder le mode HMAC comme repli de développement uniquement**, jamais en
-   production, et le rendre explicite dans la configuration.
+**Ce qui reste hérité (D15).** L'en-tête `X-Payment-Proof`
+(`tx_hash:timestamp:hmac_sha256`) reste accepté pour l'outillage de l'exploitant
+et les clients déjà intégrés : fenêtre symétrique de 300 s, HMAC comparé en temps
+constant, et — si `X402_ONCHAIN_VERIFY=true` — confirmation du reçu sur Base par
+lecture JSON-RPC (`app/onchain.py`, sans paquet `web3` ni paquet de magasin de
+clés). Un paiement HMAC n'est jamais présenté comme un règlement x402 : il ne
+porte pas `X-PAYMENT-RESPONSE`.
 
-Le SDK Coinbase CDP est déjà importé de façon défensive et configuré dès que
-`CDP_API_KEY_ID` / `CDP_API_KEY_SECRET` sont fournis (`app/payment.py:66-84`) :
-l'infrastructure de configuration est en place.
+**MCP.** Le même outil est exposé en MCP sur `POST /mcp` (JSON-RPC 2.0, sans état,
+sans flux SSE) : `tools/list` est gratuit, `tools/call` est payé par le même
+en-tête `X-PAYMENT` et rend `structuredContent` + `content`. La carte
+`GET /.well-known/mcp-server` est servie par l'application, donc elle ne peut pas
+décrire un endpoint éteint. Publication annuaire : `server.json`,
+`.mcp.json`, `smithery.yaml` (voir `DISCOVERY.md` §1).
+
+**Recette réelle.** `scripts/test_x402_payment.py` a trois modes : plan (vérifie
+que `/manifest`, le corps `402` et la carte MCP publient la **même** offre),
+`--check-domain` (compare le domaine annoncé au contrat on-chain) et `--pay`
+(paiement réel ; exige un portefeuille acheteur financé en USDC sur Base et
+dépense 0,02 USDC).
 
 ## 8. Tests et vérification
 

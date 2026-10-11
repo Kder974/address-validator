@@ -20,6 +20,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# Défaut d'environnement mesuré : sur ce Windows, une stratégie de contrôle
+# d'application bloque `Crypto/Hash/_keccak.pyd` ([WinError 4551]), ce qui rend
+# `eth_account`/`eth_utils` inutilisables. On installe alors un keccak Python pur
+# (tests/keccak_fallback.py) AVANT tout import de `eth_account`, sinon les tests
+# du protocole x402 ne mesurent plus rien. Sur Linux, le backend natif est
+# utilisé et ce filet n'est pas installé (voir TEST_REPORT.md).
+from tests.keccak_fallback import install_if_needed  # noqa: E402
+
+KECCAK_FALLBACK_INSTALLED = install_if_needed()
+
 os.environ.setdefault("API_SECRET_KEY", "test_secret_key")
 os.environ.setdefault("DATABASE_URL", "postgresql://user:password@127.0.0.1:5433/address_validator_test")
 os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6399/0")
@@ -28,7 +38,10 @@ os.environ.setdefault("SMARTY_AUTH_ID", "")
 os.environ.setdefault("SMARTY_AUTH_TOKEN", "")
 os.environ.setdefault("CDP_API_KEY_ID", "")
 os.environ.setdefault("CDP_API_KEY_SECRET", "")
-os.environ.setdefault("CDP_WALLET_ADDRESS", "0xTESTWALLET0000000000000000000000000000000")
+# Adresse de test volontairement valide (40 hex) : les chemins x402 (D34-D36)
+# refusent une adresse malformee *avant* tout appel reseau, donc une adresse
+# bidon interdirait de tester tout ce qui suit ce refus.
+os.environ.setdefault("CDP_WALLET_ADDRESS", "0x1234567890abcdef1234567890abcdef12345678")
 
 import pytest  # noqa: E402
 
@@ -87,3 +100,33 @@ def fake_redis(monkeypatch):
     client = FakeRedis()
     monkeypatch.setattr(cache, "redis_client", client)
     return client
+
+
+@pytest.fixture
+def facilitator(monkeypatch):
+    """Facilitateur x402 simulé : `/verify` et `/settle` répondent comme le vrai.
+
+    Partagé (`conftest`) pour que la route HTTP et l'outil MCP soient testés avec
+    exactement le même double. Aucun octet ne sort : c'est le protocole qui est
+    mesuré, pas la disponibilité de la chaîne.
+    """
+    from app import x402
+
+    calls: list[tuple[str, dict]] = []
+
+    def fake_post(suffix: str, body: dict) -> dict:
+        calls.append((suffix, body))
+        payer = body["paymentPayload"]["payload"]["authorization"]["from"]
+        if suffix == "/verify":
+            return {"isValid": True, "payer": payer}
+        return {
+            "success": True,
+            "transaction": "0x" + "cd" * 32,
+            "network": "base",
+            "payer": payer,
+        }
+
+    monkeypatch.setattr(x402, "_post_facilitator", fake_post)
+    x402.reset_nonce_cache()
+    yield calls
+    x402.reset_nonce_cache()

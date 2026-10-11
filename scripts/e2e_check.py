@@ -168,6 +168,51 @@ def main() -> int:
     bad = client.post("/validate", json={"address": {"street": "x"}}, headers=headers)
     check("charge utile incomplete -> 422", bad.status_code == 422, f"HTTP {bad.status_code}")
 
+    print("\n8. Decouverte MCP et offre x402 (Lot B)")
+    check(
+        "  402 publie une offre x402 v1 (accepts[0].maxAmountRequired)",
+        ubody.get("x402Version") == 1
+        and ubody["accepts"][0]["maxAmountRequired"] == "20000"
+        and ubody["accepts"][0]["network"] == "base",
+        f"x402Version={ubody.get('x402Version')}",
+    )
+    card = client.get("/.well-known/mcp-server")
+    check(
+        "GET /.well-known/mcp-server -> 200 et annonce /mcp",
+        card.status_code == 200 and card.json().get("endpoint", "").endswith("/mcp"),
+        f"HTTP {card.status_code}",
+    )
+    tools = client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    check(
+        "POST /mcp tools/list -> 200 (decouverte gratuite)",
+        tools.status_code == 200
+        and tools.json()["result"]["tools"][0]["name"] == "validate_address",
+        f"HTTP {tools.status_code}",
+    )
+    unpaid_tool = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {"name": "validate_address", "arguments": PAYLOAD},
+        },
+    )
+    check(
+        "POST /mcp tools/call sans paiement -> 402 JSON-RPC -32002",
+        unpaid_tool.status_code == 402 and unpaid_tool.json()["error"]["code"] == -32002,
+        f"HTTP {unpaid_tool.status_code}",
+    )
+    check(
+        "  le refus MCP porte la meme offre que le 402 HTTP",
+        unpaid_tool.json()["error"]["data"]["accepts"][0]
+        == ubody["accepts"][0],
+    )
+    check(
+        "GET /mcp -> 405 (pas de flux SSE)",
+        client.get("/mcp").status_code == 405,
+    )
+
     failed = [label for ok, label in RESULTS if not ok]
     total = len(RESULTS)
     print(f"\n=== {total - len(failed)}/{total} verifications OK ===")

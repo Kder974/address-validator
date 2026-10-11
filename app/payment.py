@@ -23,9 +23,22 @@ La spec (Phase 3) fournit un squelette. Décisions de durcissement :
       défaut : D15 reste la référence du service, `verify_payment` accepte la
       preuve HMAC seule tant que `X402_ONCHAIN_VERIFY` n'est pas vrai.
 
-  Limite assumée : ceci est une preuve à secret partagé, pas une vérification
-  on-chain de l'autorisation EIP-3009. Le chemin de mise à niveau vers un
-  facilitateur x402 réel est décrit dans README.md §7 et DECISIONS.md (D15).
+  D34 Le protocole x402 **standard** est implémenté (app/x402.py) : le corps du
+      `402` publie `accepts[]`, le client paie par l'en-tête `X-PAYMENT`, et la
+      réponse porte `X-PAYMENT-RESPONSE` avec le hash du règlement. `/validate`
+      connaît donc trois issues : paiement x402 réglé, preuve HMAC héritée
+      (D15 — outillage de l'exploitant), refus.
+  D35 La signature EIP-712 (`TransferWithAuthorization`, EIP-3009) est
+      récupérée **hors ligne** et confrontée à l'offre publiée avant tout appel
+      réseau : destination, montant, jeton, réseau, fenêtre de validité.
+  D36 Le règlement passe par un facilitateur (`/verify` puis `/settle`) dont le
+      hash de transaction alimente le registre durable (D29). Un règlement en
+      échec vaut un refus : jamais de service contre une autorisation non
+      encaissée.
+
+  Limite assumée : la preuve HMAC (D15) reste un secret partagé. Elle est
+  conservée pour l'outillage de l'exploitant et les clients déjà intégrés, mais
+  elle n'est plus la seule voie : un agent autonome peut désormais payer seul.
 """
 
 import hashlib
@@ -38,6 +51,14 @@ from sqlalchemy import text
 
 from app.config import get_settings
 from app.onchain import check_usdc_transfer
+from app.x402 import (
+    PAYMENT_HEADER,
+    PAYMENT_RESPONSE_HEADER,
+    PaymentDecision,
+    authorize_and_settle,
+    payment_required_body,
+    resource_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,15 +104,24 @@ def configure_cdp() -> bool:
 CDP_CONFIGURED = configure_cdp()
 
 
-def generate_payment_required_response(price: float) -> dict:
-    return {
-        "error": "Payment Required",
-        "price": price,
-        "currency": "USDC",
-        "wallet": settings.cdp_wallet_address,
-        "protocol": "x402",
-        "version": "1.0",
-    }
+def generate_payment_required_response(price: float, error: str | None = None) -> dict:
+    """Corps du `402` : x402 v1 (`x402Version` + `accepts[]`) + clés historiques.
+
+    Les clés hors spec (`price`, `currency`, `wallet`, `protocol`, `version`)
+    restent publiées : l'outillage interne les lit, et le manifeste D33 les
+    montre en exemple. Un client x402 les ignore sans se plaindre.
+    """
+    body = payment_required_body(price, error)
+    body.update(
+        {
+            "price": price,
+            "currency": "USDC",
+            "wallet": settings.cdp_wallet_address,
+            "protocol": "x402",
+            "version": "1.0",
+        }
+    )
+    return body
 
 
 def sign_proof(tx_hash: str, timestamp: str) -> str:
@@ -108,33 +138,50 @@ def build_payment_proof(tx_hash: str, timestamp: float | None = None) -> str:
     return f"{tx_hash}:{ts}:{sign_proof(tx_hash, ts)}"
 
 
-def verify_payment(request: Request) -> bool:
-    """Vérifie la preuve de paiement x402. Fail-closed : False par défaut."""
-    proof = request.headers.get(PROOF_HEADER)
+def tx_hash_from_proof(proof: str | None) -> str | None:
+    """Extrait le hash de transaction d'une preuve bien formée, sinon None.
 
+    D29 : c'est ce hash qui identifie le paiement dans le registre durable
+    (`payment_transactions`). Le lire ici évite de dépendre d'un en-tête
+    optionnel (`X-Transaction-Id`) pour compter ce qui a été réellement payé.
+    """
     if not proof:
-        return False
+        return None
+    parts = proof.split(":")
+    if len(parts) != 3 or not parts[0]:
+        return None
+    return parts[0]
+
+
+def legacy_proof_result(request: Request) -> PaymentDecision:
+    """Preuve à secret partagé (D7, D15, D27) — chemin de compatibilité.
+
+    Conservée pour l'outillage de l'exploitant et les clients déjà intégrés :
+    `X-Payment-Proof: tx_hash:timestamp:hmac_sha256(tx_hash:timestamp)`.
+    """
+    proof = request.headers.get(PROOF_HEADER)
+    if not proof:
+        return PaymentDecision(False, "aucune preuve de paiement fournie", protocol="none")
 
     try:
         parts = proof.split(":")
         if len(parts) != 3:
-            return False
-
+            return PaymentDecision(False, "preuve malformee", protocol="hmac")
         tx_hash, timestamp, signature = parts
         if not tx_hash or not signature:
-            return False
+            return PaymentDecision(False, "preuve malformee", protocol="hmac")
 
         ts = float(timestamp)
 
         # Fenêtre de fraîcheur symétrique : ni périmé, ni venu du futur (anti-rejeu).
         if abs(time.time() - ts) > PROOF_MAX_AGE_SECONDS:
-            return False
+            return PaymentDecision(False, "preuve hors fenetre de fraicheur", protocol="hmac")
 
         expected = sign_proof(tx_hash, timestamp)
         if not hmac.compare_digest(expected, signature):
-            return False
+            return PaymentDecision(False, "signature HMAC invalide", protocol="hmac")
     except Exception:
-        return False
+        return PaymentDecision(False, "preuve illisible", protocol="hmac")
 
     # Confirmation on-chain (D27) : désactivée par défaut, D15 s'applique alors.
     # Activée, elle est *fail-closed* : un refus de la chaîne vaut un refus.
@@ -142,9 +189,34 @@ def verify_payment(request: Request) -> bool:
         confirmed, reason = check_usdc_transfer(tx_hash)
         if not confirmed:
             logger.warning("Preuve de paiement refusee (on-chain) : %s", reason)
-            return False
+            return PaymentDecision(False, reason, protocol="hmac")
 
-    return True
+    return PaymentDecision(
+        True,
+        f"preuve HMAC valide pour {tx_hash}",
+        protocol="hmac",
+        transaction=tx_hash,
+    )
+
+
+def payment_result(request: Request) -> PaymentDecision:
+    """Verdict de paiement : x402 standard d'abord, preuve HMAC ensuite.
+
+    L'ordre est explicite et vaut contrat : un agent autonome présente
+    `X-PAYMENT` ; l'en-tête hérité `X-Payment-Proof` n'est examiné qu'en son
+    absence, ce qui interdit de faire passer une preuve HMAC pour un paiement
+    x402 — et inversement.
+    """
+    header = request.headers.get(PAYMENT_HEADER) or request.headers.get("PAYMENT-SIGNATURE")
+    if header:
+        path = getattr(getattr(request, "url", None), "path", "") or "/validate"
+        return authorize_and_settle(header, settings.x402_price, resource_url(path))
+    return legacy_proof_result(request)
+
+
+def verify_payment(request: Request) -> bool:
+    """Vérifie la preuve de paiement x402. Fail-closed : False par défaut."""
+    return payment_result(request).paid
 
 
 def record_transaction(tx_hash: str, amount: float, address: str) -> bool:

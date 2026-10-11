@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "address-validator": {
+      "type": "http",
+      "url": "https://kder-ai.com/mcp"
+    }
+  }
+}

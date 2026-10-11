@@ -35,31 +35,34 @@ même chose :
 
 ## 2. Inventaire des tests
 
-`pytest --collect-only -q` — 46 tests dans 10 fichiers :
+`pytest --collect-only -q` — 85 tests dans 13 fichiers :
 
 | Fichier | Tests | Ce qu'il couvre |
 |---------|-------|-----------------|
 | `tests/test_app_smoke.py` | 3 | `/`, `/openapi.json`, `/docs` répondent |
 | `tests/test_cache.py` | 7 | cache chaud/froid, ratio, Redis absent, cooldown D25 (dont sa levée) |
 | `tests/test_circuit_breaker.py` | 4 | ouverture au seuil, `half-open`, remise à zéro, seuil non atteint |
+| `tests/test_discovery.py` | 11 | fichiers publiés (présents, LF, sans BOM), chemins cités qui répondent, `security.txt` non périmé, absence de manifeste MCP, journal des `402` (pseudonymisation, aucune adresse), purge de rétention |
 | `tests/test_latency_budget.py` | 2 | rafale en panne totale (3 appels fournisseur / 1 accès Redis), retour du cache après cooldown |
-| `tests/test_manifest.py` | 4 | `/manifest`, prix, schémas, protocole |
+| `tests/test_manifest.py` | 9 | `/manifest`, prix, schémas dérivés des modèles, exemple `402` identique au corps réel, exemples valides (dont mode dégradé), limites explicites, valeurs de `deliverability` |
+| `tests/test_onchain.py` | 16 | paiement on-chain : reçu absent, hash malformé, transfert non confirmé, confirmation valide |
 | `tests/test_parser.py` | 5 | analyse et canonisation de l'adresse |
 | `tests/test_payment.py` | 8 | preuve valide, périmée, future, falsifiée, malformée, secret, forme du `402` |
+| `tests/test_revenue_dashboard.py` | 7 | fenêtres 24 h / 7 j / 30 j, lecture du registre durable, panne avouée, `/metrics/revenue`, `/dashboard` fermé par défaut puis Basic Auth, page autonome et sans injection |
 | `tests/test_routes_extra.py` | 4 | `/health` (+ borne de temps), `/metrics` (+ compteur d'appels non payés) |
 | `tests/test_standardizer.py` | 4 | abréviations, casse, `line2` (appartement) |
 | `tests/test_validation.py` | 5 | pipeline complet : adresse invalide, abréviations, `degraded`, chemin nominal simulé, intégration réelle |
-| **Total** | **46** | |
+| **Total** | **85** | |
 
 ## 3. Résultats des tests automatisés
 
 Commande : `.\.venv\Scripts\python.exe scripts\run_tests.py`
 
 ```text
-GATE OK pytest: 45 passed, 0 failed, 1 skipped (46 collectés, exit=0)
+GATE OK pytest: 84 passed, 0 failed, 1 skipped (85 collectés, exit=0)
 ```
 
-- **45 passés, 1 ignoré, 0 échec**, code de sortie `0`.
+- **84 passés, 1 ignoré, 0 échec**, code de sortie `0` (mesuré le 10/10/2026).
 - Le test ignoré est `tests/test_validation.py::test_valid_us_address`, protégé
   par `pytest.mark.skipif(not settings.smarty_auth_id, ...)` et marqué
   `integration` (`tests/test_validation.py:21-29`). Raison : il exige de vrais
@@ -231,7 +234,7 @@ Ces limites sont énoncées explicitement plutôt que dissimulées derrière un
    réseau » produisent tous deux `degraded = true`. L'information n'existe que
    dans `/metrics` (D24).
 
-## 8. Ledger de portes : G0 + D1–D26
+## 8. Ledger de portes : G0 + D1–D33
 
 `GATES.md` ne contient plus que des oracles exécutables : **une porte par décision**
 de `DECISIONS.md`, chaque `CHECK:` appelant `scripts/decisions_check.py <id>`, qui
@@ -244,22 +247,23 @@ Rejeu intégral du 10/10/2026, après réécriture du ledger :
 LINT OK
 
 > node .cline\skills\unlazy\scripts\gate-check.mjs --approve --jobs 4 address-validator\GATES.md
-GATES.md: 27 gates
-ALL MET (27 met)
-exit=0, 13,7 s
+GATES.md: 34 gates
+ALL MET (34 met, reran: 34, previously met reverified: 34)
+exit=0, 16,8 s
 ```
 
-Les 27 portes sont **G0** (le ledger se lint lui-même, zéro *finding* d'erreur) puis
-**D1 à D26**. Chaque `EVIDENCE:` du ledger est écrite par `gate-check.mjs` : elle
+Les 34 portes sont **G0** (le ledger se lint lui-même, zéro *finding* d'erreur) puis
+**D1 à D33**. Chaque `EVIDENCE:` du ledger est écrite par `gate-check.mjs` : elle
 porte le `sha256` de la définition de la porte, le code de sortie, le `sha256` de la
 sortie observée et la correspondance exacte avec l'`EXPECT:`. Une porte dont la ligne
 `CHECK:` change après coup est donc détectée comme non rejouée, et une porte absente
-compte comme un échec, jamais comme un succès silencieux.
+compte comme un échec, jamais comme un succès silencieux. Les six portes du chantier
+de découvrabilité (D28–D33) ont été approuvées explicitement (`--approve`), une par
+une, après inspection de la commande : aucune n'est exécutée sans approbation.
 
 Mesures de la même session que ce rejeu (§5.1 et §6) : `scripts/run_tests.py`
-→ **45 passed, 0 failed, 1 skipped** (46 collectés, `GATE OK pytest`, exit 0) et
-`scripts/e2e_check.py` → **22/22 vérifications OK** (exit 0), appel payant en
-**13,864 s**.
+→ **84 passed, 0 failed, 1 skipped** (85 collectés, `GATE OK pytest`, exit 0) et
+`scripts/e2e_check.py` → **22/22 vérifications OK** (exit 0, 22,8 s).
 
 ### 8.1 Défaut trouvé en durcissant l'oracle : `deploy.sh` en CRLF
 
@@ -282,7 +286,140 @@ DECISION FAIL D20: deploy.sh contient des fins de ligne CRLF (/bin/bash^M sur le
 exit=1
 ```
 
-Le ledger complet, rejoué après ces changements, reste vert : **27 portes,
-`ALL MET`** (`reran: 27`), exit 0, 13,5 s.
+Le ledger complet, rejoué après ces changements, reste vert : **34 portes,
+`ALL MET`** (`reran: 34`, `previously met reverified: 34`), exit 0, 16,8 s.
 
+### 8.2 Défaut trouvé en durcissant D29 : l'oracle sortait sur Internet
+
+Le premier jet de l'oracle D29 traversait réellement `POST /validate` sans couper
+la couche fournisseur. Exécuté, il a émis deux requêtes sortantes réelles :
+
+```text
+INFO:httpx:HTTP Request: GET https://us-street.api.smarty.com/street-address?... "HTTP/1.1 401 Unauthorized"
+INFO:httpx:HTTP Request: GET https://nominatim.openstreetmap.org/search?q=... "HTTP/1.1 200 OK"
+```
+
+Deux conséquences, toutes deux fatales pour un oracle :
+
+1. l'en-tête du fichier promet « aucun accès réseau … hors sondes bornées » : la
+   promesse était fausse, et le document qui décrit les portes mentait ;
+2. le verdict dépendait de la disponibilité et de la latence de deux services
+   tiers — un fournisseur lent ou un Nominatim qui limite le débit aurait fait
+   rougir une porte qui mesure le **registre de paiement**, pas le géocodage.
+
+Correction : D29 coupe désormais `validate_full`, `get_cached_result` et
+`store_in_cache` par `mock.patch`. La porte ne mesure plus que ce qu'elle
+annonce — l'écriture du paiement, une fois, sous le hash de la preuve — et elle
+redevient reproductible hors ligne. Les I/O restantes du ledger sont toutes
+locales (`init_db`, `/health`, `/metrics/revenue`, `/dashboard`).
+
+### 8.3 Défaut trouvé en durcissant D32 : la docstring du tableau de bord mentait
+
+La porte D32 a échoué dès sa première exécution sur sa propre assertion :
+
+```text
+> .\.venv\Scripts\python.exe scripts\decisions_check.py D32
+DECISION FAIL D32: aucun graphique embarque : la page ne montre rien
+exit=1
+```
+
+Vérification faite, `app/routes/dashboard.py` annonçait « le graphique est du SVG
+en ligne » alors que le code produit des **barres en CSS** (`_bar()` rend des
+`div`). La porte a donc attrapé un écart entre le commentaire et le code, pas un
+bug d'affichage. Le code a été corrigé (docstring aligné sur la réalité) et
+l'assertion remplacée par une mesure de ce qui existe vraiment
+(`class="bar"` présent).
+
+Deux durcissements ont été ajoutés au même endroit, et sont désormais mesurés :
+
+- `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline';
+  form-action 'none'; frame-ancestors 'none'; base-uri 'none'` plus
+  `Cache-Control: no-store` et `X-Content-Type-Options: nosniff` sur les trois
+  réponses (`503`, `401`, `200`) : « page autonome » devient vérifiable par le
+  navigateur, pas seulement par lecture du code ;
+- l'échappement du message d'erreur du registre est testé avec une charge
+  hostile (`<script>alert(1)</script>` injecté dans `ledger.error`) : la page
+  doit contenir `&lt;script&gt;` et **aucun** `<script` — sans quoi un message
+  d'erreur de base de données deviendrait une injection dans une page
+  authentifiée.
+
+
+---
+
+## Lot B — paiement x402 réel, serveur MCP, exploitation (D34–D39)
+
+Mesuré le 11/10/2026, localement (Windows, Python 3.12.10) **et** sur le VPS
+(`v37`, Debian, nginx 1.22.1). Les six portes `D34`–`D39` ont été ajoutées au
+ledger : `node .../gate-check.mjs GATES.md --approve` puis `--reverify` →
+**ALL MET (40 met)**.
+
+### Ce qui a été construit
+
+| Livrable | Fichier | Mesure |
+|---|---|---|
+| Corps `402` x402 v1 (`x402Version` + `accepts[]`) et en-tête `X-PAYMENT-RESPONSE` | `app/x402.py`, `app/payment.py`, `app/routes/validate.py` | D34 : 20 assertions |
+| Vérification EIP-712 hors ligne (EIP-3009) | `app/x402.py` (`eip712_digest`, `recover_signer`) | D35 : vecteur externe + 8 refus locaux sans appel réseau |
+| Règlement par facilitateur, JWT CDP, anti-rejeu | `app/x402.py` (`facilitator_verify`, `facilitator_settle`) | D36 : refus, panne, hash absent, rejeu, JWT décodé |
+| Serveur MCP + carte `.well-known/mcp-server` | `app/routes/mcp.py`, `app/main.py` | D37 : découverte gratuite, appel payant, carte sans champ inventé |
+| Fichiers d'annuaire et pins crypto | `server.json`, `.mcp.json`, `smithery.yaml`, `requirements.txt` | D38 : format sourcé, aucun schéma inventé |
+| Purge 30 j planifiée | `scripts/prune_discovery_log.py`, `address-validator-retention.{service,timer}` | D39 : purge exécutée sur journal daté |
+
+### Trois défauts d'environnement trouvés (et corrigés)
+
+1. **`Crypto/Hash/_keccak.pyd` bloqué par une politique Windows**
+   (`[WinError 4551] Une stratégie de contrôle d'application a bloqué ce
+   fichier`) : `eth_account`, `eth_utils` et `web3` sont **inutilisables sur ce
+   poste**, car `eth_account` importe `eth_keyfile` → `Crypto.Protocol.KDF`, dont
+   le repli cffi de pycryptodome échoue (`multiple declarations of function
+   Salsa20_8_core`). Décision : le calcul EIP-712 est **explicite**
+   (`eth_abi.encode` + `eth_hash.auto.keccak` + `eth_keys`), sans magasin de clés
+   ni compilateur à la volée. Le filet `tests/keccak_fallback.py` (keccak Python
+   pur, réservé au poste de dev) est validé **contre le keccak natif du VPS** sur
+   six cas, dont les cas limites de remplissage (135 et 136 octets) :
+   `egal=True` partout.
+2. **Le vecteur externe a attrapé deux bugs réels** dans la première version du
+   keccak pur (remplissage non minimal) et de la dérivation d'adresse
+   (`public_key.to_bytes()[1:]` au lieu de `to_bytes()`). La charge utile publiée
+   par la spécification x402 (signature documentée → adresse documentée) ne
+   pouvait pas passer par accident : c'est elle qui a tranché.
+3. **L'éditeur de fichiers écrit en CRLF** : détecté par la porte D39 (« les
+   unités systemd refusent les fins de ligne Windows »), puis par un balayage
+   complet du dépôt. 14 fichiers créés ont été normalisés en LF ; le contrôle
+   final ne trouve plus aucun `\r`.
+
+### Preuves en production (VPS)
+
+- `pytest` local : **105 tests** (104 réussis, 1 ignoré), `pytest` indisponible
+  sur le VPS (paquet non installé : recette faite avec `scripts/e2e_check.py` et
+  `scripts/test_x402_payment.py`).
+- `e2e_check.py` contre un serveur local : **28/28 OK** (22 critères d'origine +
+  6 pour l'offre x402, la carte MCP, `tools/list`, `tools/call` non payé et
+  `GET /mcp`).
+- `doc_check.py` : README 10 sections, PRIVACY 6, SECURITY 6.
+- URLs publiques : `/health` 200, `/manifest` 200 (`compliant: true`,
+  `missing: []`), `/llms.txt` 200, `/AGENTS.md` 200, `/metrics/revenue` 200,
+  `/.well-known/security.txt` 200 (`Expires: 2027-04-10`),
+  `/.well-known/mcp-server` 200, `/dashboard` **401** (protégé).
+- `POST /mcp` : `tools/list` 200 (gratuit), `tools/call` sans paiement → **402**
+  JSON-RPC `-32002` portant `data.accepts`, `GET /mcp` → 405.
+- `scripts/test_x402_payment.py --url https://kder-ai.com` → `PLAN OK` (le
+  manifeste, le corps 402 et la carte MCP publient la **même** offre).
+- `--check-domain` sur le VPS → `DOMAIN OK` : le contrat USDC de Base annonce
+  `name() = "USD Coin"`, `version() = "2"`, `symbol() = "USDC"`,
+  `decimals() = 6`, exactement ce que l'offre publie dans `extra`.
+- Rétention : `systemctl start address-validator-retention.service` →
+  `PRUNE OK 3 entree(s) conservee(s), 0 supprimee(s), retention 30 j` ; le
+  minuteur est armé (prochaine exécution 03:30 UTC, `Persistent=true`).
+
+### Ce qui reste hors de portée aujourd'hui
+
+- **Aucun paiement on-chain réel n'a encore été exécuté** : il faut un
+  portefeuille acheteur financé en USDC sur Base. Le mode `--pay` de
+  `scripts/test_x402_payment.py` est prêt et documenté ; il dépense 0,02 USDC.
+  Tant qu'il n'a pas tourné, « le service encaisse » reste prouvé par le
+  facilitateur simulé et par la chaîne de vérification, pas par un encaissement
+  observé.
+- Le facilitateur n'est pas non plus sollicité en recette locale (aucune
+  transaction envoyée) : le contrat `/verify` + `/settle` est mesuré par double,
+  et l'authentification JWT CDP est vérifiée en décodant le jeton produit.
 

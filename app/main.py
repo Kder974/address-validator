@@ -13,7 +13,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import init_db
-from app.routes import health, manifest, metrics, validate
+from app.observability import configure_logging
+from app.routes import dashboard, health, manifest, mcp, metrics, revenue, validate
 
 settings = get_settings()
 
@@ -23,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # D30 : le journal de découverte est ouvert une fois au démarrage quand un
+    # chemin est configuré ; sans chemin, rien n'est écrit sur disque.
+    configure_logging()
     if init_db():
         logger.info("Schéma de base de données initialisé.")
     else:
@@ -52,6 +56,10 @@ app.include_router(validate.router, tags=["validation"])
 app.include_router(health.router, tags=["health"])
 app.include_router(manifest.router, tags=["discovery"])
 app.include_router(metrics.router, tags=["metrics"])
+app.include_router(revenue.router, tags=["metrics"])
+app.include_router(dashboard.router, tags=["dashboard"])
+# D37 : serveur MCP (JSON-RPC 2.0 sur POST /mcp) + carte /.well-known/mcp-server.
+app.include_router(mcp.router, tags=["mcp"])
 
 
 @app.get("/")
@@ -62,4 +70,5 @@ async def root():
         "documentation": "/docs",
         "manifest": "/manifest",
         "health": "/health",
+        "mcp": "/mcp",
     }

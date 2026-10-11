@@ -1,0 +1,44 @@
+# Smithery — descripteur du serveur MCP Address Validator.
+#
+# CE FICHIER N'EST PAS UN SCHEMA DE LANCEMENT LOCAL.
+# Pourquoi : le 11/10/2026, la seule source officielle verifiable (README du CLI
+# officiel, depot smithery-ai/cli) documente la publication d'un serveur
+# **heberge** par URL, sans passer par ce fichier :
+#
+#     npx @smithery/cli mcp publish https://kder-ai.com/mcp -n kder974/address-validator
+#
+# Le schema YAML des serveurs *locaux* (commande de demarrage, schema de
+# configuration, fonction de commande) n'a pas pu etre confirme a une source
+# officielle ce jour-la : il n'est donc pas reproduit ici, sous aucune forme.
+# Inventer un format ferait exactement ce que la decision D28 interdit —
+# publier une promesse non verifiable.
+#
+# Les champs ci-dessous sont volontairement descriptifs et sans effet : ils
+# servent a un lecteur humain (ou a un mainteneur qui reprend ce depot).
+
+name: address-validator
+description: >-
+  Valide une adresse de livraison brute et renvoie sa forme standardisee, ses
+  coordonnees et un score de livrabilite avec un niveau de confiance.
+version: 1.0.0
+license: MIT
+repository: https://github.com/Kder974/address-validator
+
+# Endpoint MCP reellement servi (verifie par GET /.well-known/mcp-server).
+transport: http
+endpoint: https://kder-ai.com/mcp
+protocol_version: "2025-06-18"
+tools:
+  - validate_address
+
+# Paiement : protocole x402 v1, regle avant tout service.
+payment:
+  protocol: x402
+  version: 1
+  network: base
+  asset: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+  price_usdc: 0.02
+  header: X-PAYMENT
+
+# Publication (commande officielle, a executer par l'exploitant) :
+#   npx @smithery/cli mcp publish https://kder-ai.com/mcp -n kder974/address-validator

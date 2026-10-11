@@ -1,0 +1,18 @@
+[Unit]
+Description=Purge du journal de decouverte (retention DISCOVERY_LOG_RETENTION_DAYS)
+Documentation=file:/opt/address-validator/PRIVACY.md
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/address-validator
+# `-` : le fichier est optionnel, un .env absent ne doit pas faire echouer la
+# purge (les valeurs par defaut de app/config.py s'appliquent alors).
+EnvironmentFile=-/opt/address-validator/.env
+ExecStart=/opt/address-validator/venv/bin/python /opt/address-validator/scripts/prune_discovery_log.py
+# La purge ne doit rien laisser derriere elle : ni fichier temporaire, ni
+# privilege eleve, ni service resident.
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true

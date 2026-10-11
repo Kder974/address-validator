@@ -1,0 +1,100 @@
+# Address Validator API — kder-ai.com
+
+> Validation et standardisation d'adresses postales a l'appel, payees a l'usage.
+> Une requete HTTP, pas d'inscription, pas de cle d'API a negocier.
+
+## Appel principal
+
+POST https://kder-ai.com/validate
+
+    {
+      "address": {
+        "street": "1600 Amphitheatre Parkway",
+        "city": "Mountain View",
+        "state": "CA",
+        "zip": "94043",
+        "country": "US"
+      }
+    }
+
+Reponse 200 : `result.validated`, `result.standardized` (line1, line2, city,
+state, zip, country), `result.latitude`, `result.longitude`,
+`result.deliverability`, `result.confidence`, `result.degraded`.
+
+Prix : 0,02 USDC par validation. Pas d'abonnement, pas de compte.
+
+## Payer
+
+Le service parle **x402 v1**. Le corps du 402 enonce l'offre exacte
+(`accepts[]` : reseau `base`, jeton USDC `0x833589…2913`, montant `20000`
+unites, adresse de destination, fenetre). Le client renvoie sa signature dans
+l'en-tete `X-PAYMENT` : base64 d'un objet
+
+    {
+      "x402Version": 1,
+      "scheme": "exact",
+      "network": "base",
+      "payload": {
+        "signature": "0x…",
+        "authorization": { "from": "0x…", "to": "0x…", "value": "20000",
+                           "validAfter": 0, "validBefore": 0, "nonce": "0x…" }
+      }
+    }
+
+- Signature EIP-712 `TransferWithAuthorization` (EIP-3009) : le domaine est
+  annonce dans `accepts[].extra` (`name`, `version`) pour le contrat USDC de
+  Base.
+- Le reglement est execute par un facilitateur avant que le service soit rendu :
+  un paiement non encaisse est refuse (402).
+- La reponse 200 porte `X-PAYMENT-RESPONSE` : base64 de
+  `{success, transaction, network, payer}`.
+- Cout : 0,02 USDC par validation. Pas d'abonnement, pas de compte.
+
+## Reponse 402
+
+Un 402 signifie « non paye », pas « requete invalide » : le corps JSON est un
+document `PaymentRequired` conforme a x402 v1 —
+
+    { "x402Version": 1, "error": "…", "accepts": [ { "scheme": "exact",
+      "network": "base", "maxAmountRequired": "20000", "asset": "0x…",
+      "payTo": "0x…", "resource": "https://kder-ai.com/validate",
+      "mimeType": "application/json", "maxTimeoutSeconds": 300,
+      "extra": { "name": "USD Coin", "version": "2" } } ] }
+
+Les cles historiques (`price`, `currency`, `wallet`, `protocol`, `version`)
+restent publiees pour l'outillage. Chaque 402 est journalise cote service sous
+forme de metadonnees de requete (IP pseudonymisee), jamais avec l'adresse
+envoyee.
+
+## Points d'entree publies
+
+- https://kder-ai.com/manifest : manifeste machine-lisible — schemas derives des
+  modeles, exemples, cas d'usage, limites.
+- https://kder-ai.com/health : etat du service et de ses dependances.
+- https://kder-ai.com/metrics : compteurs du processus (format texte).
+- https://kder-ai.com/metrics/revenue : revenu agrege sur 24 h / 7 j / 30 j, et
+  disponibilite du registre de paiement.
+- https://kder-ai.com/docs : documentation interactive.
+- https://kder-ai.com/openapi.json : contrat OpenAPI.
+- https://kder-ai.com/.well-known/security.txt : contact securite (RFC 9116).
+- https://kder-ai.com/mcp : serveur MCP (JSON-RPC 2.0) — outil payant
+  `validate_address`, decouverte gratuite (`tools/list`).
+- https://kder-ai.com/.well-known/mcp-server : carte de decouverte du serveur MCP.
+- https://kder-ai.com/llms.txt : ce fichier.
+- https://kder-ai.com/AGENTS.md : guide d'integration pour agents autonomes.
+
+## Limites
+
+- Fournisseur optimise pour les adresses des Etats-Unis ; les adresses hors US
+  sont acceptees mais leur verification est partielle.
+- Mode degrade honnete : si le fournisseur est injoignable, la reponse reste un
+  HTTP 200 avec `degraded: true` et une confiance basse. Lire `degraded`.
+- Serveur MCP : un seul outil, sans etat, sans flux SSE (`GET /mcp` repond 405)
+  et sans ressources ni prompts (`resources/list` et `prompts/list` rendent des
+  listes vides). L'appel de l'outil exige `X-PAYMENT` ; un appel non paye recoit
+  un 402 JSON-RPC dont `data.accepts` porte l'offre.
+- La voie heritagee `X-Payment-Proof` (secret partage) reste acceptee pour
+  l'outillage de l'exploitant, mais un agent tiers doit payer en x402.
+- Limitation de debit tenue en amont par le reverse proxy : 10 requetes par
+  seconde et par IP (rafale 20), HTTP 429 au-dela.
+- Le tableau de bord d'exploitation n'est pas public.
