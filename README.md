@@ -135,6 +135,11 @@ recette de ce jour-là). Rien n'est déduit du montant ni de l'adresse : une lig
 non marquée reste du revenu réel. `/dashboard` affiche le réel en avant et la
 recette dans sa propre carte.
 
+Sur un registre déjà écrit, le rattrapage se fait sans redéploiement :
+`venv/bin/python scripts/migrate_test_mode.py` (simulation, ligne par ligne) puis
+`--apply`. Le rejeu n'écrit plus rien (idempotent) ; le résultat se contrôle avec
+`curl -s http://127.0.0.1:8000/metrics/revenue`.
+
 Requête (`app/schemas.py:11-16`) : `{"address": {"street", "city", "state",
 "zip", "country"}}` — `country` vaut `US` par défaut, les autres champs sont
 obligatoires (un champ manquant donne `422`).

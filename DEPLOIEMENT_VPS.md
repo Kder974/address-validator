@@ -258,7 +258,9 @@ Toutes les commandes ci-dessous sont exécutées en `root@87.76.197.38`
 | Voir les sauvegardes | `ls -l /opt/backups` |
 | Prochaines échéances planifiées | `systemctl list-timers address-validator-backup certbot` |
 | Certificat | `certbot certificates` |
-| Mettre le code à jour | recopier les sources dans `/opt/address-validator` (hors `venv/`, `.env`), puis `systemctl restart address-validator` |
+| Mettre le code à jour | recopier les sources dans `/opt/address-validator` (hors `venv/`, `.env`), puis `systemctl restart address-validator` — procédure exacte, vérifiée au §11 |
+| Marquer les essais de recette déjà écrits | `cd /opt/address-validator && venv/bin/python scripts/migrate_test_mode.py` (simulation) puis `--apply` (écriture) — idempotent, voir §11.2 |
+| Revenu réel (chiffre publiable) | `curl -s http://127.0.0.1:8000/metrics/revenue` → `real_revenue_usdc` ; les essais de recette sont dans `test_*`, le registre entier dans `total_*` (D40) |
 | Rejouer tout le déploiement | `bash /opt/address-validator/deploy-kder-ai.sh` (copie du script versionné, idempotent) |
 | Durcissement Nginx | `cat /etc/nginx/conf.d/address-validator-hardening.conf` |
 | Écoute de l'API | `ss -ltn` → seule la ligne `127.0.0.1:8000` doit apparaître |
@@ -307,6 +309,19 @@ réalisées pendant le déploiement (`06:21:18` et `06:26:03`).
    **désactivée** (`X402_ONCHAIN_VERIFY=false`) : l'activer (`.env` → `true`, puis
    `systemctl restart address-validator`) rend obligatoire un transfert USDC
    confirmé vers `CDP_WALLET_ADDRESS`, tout échec étant *fail-closed*.
+   **État mesuré le 11/10/2026 à 17 h 55 UTC : la vérification on-chain est
+   active en production**, contrairement à la phrase ci-dessus
+   (`X402_ONCHAIN_VERIFY=true`, `X402_FACILITATOR_VERIFY=true`,
+   `X402_REQUIRE_SETTLEMENT=true` dans `/opt/address-validator/.env`). La voie
+   HMAC n'est donc plus une porte d'entrée : une preuve signée avec le secret
+   partagé, sans règlement x402 confirmé, est refusée en `402`. C'est exactement
+   ce que mesurent les **cinq portes restées rouges** sur le serveur (D7, D15,
+   D27, D29, D34 : toutes des variantes de « la preuve HMAC historique ne sert
+   plus »). Le `--all` du serveur donne `DECISION OK` sur les 35 autres portes,
+   D40 comprise ; l'oracle **pré-D40**, extrait du snapshot et rejoué sur le même
+   service, échoue sur *les mêmes cinq* (`diff` vide) ⇒ écart d'exploitation
+   assumé, pas régression du code. À surveiller : la vente est *fail-closed*,
+   elle exige le facilitateur CDP **et** un RPC Base joignables.
    Le 11/10/2026, le code exécuté a été aligné sur le dépôt
    (`app/config.py`, `app/payment.py`, `app/onchain.py`, `tests/test_onchain.py`,
    `.env.example`, `deploy.sh` — md5 identiques de part et d'autre) : **avant cet
@@ -407,9 +422,10 @@ Par ordre de valeur.
 4. **Supervision externe** : un minuteur systemd qui interroge
    `https://kder-ai.com/health` et alerte (Telegram) en cas d'échec complète le
    dispositif — même esprit que les agents de supervision trading du dépôt.
-5. **Vérification on-chain du paiement x402** (chemin décrit dans `README.md`
-   §7) avant toute exposition commerciale, puis rotation de
-   `API_SECRET_KEY`.
+5. ~~**Vérification on-chain du paiement x402** (chemin décrit dans `README.md`
+   §7) avant toute exposition commerciale.~~ **Fait le 11/10/2026** :
+   `X402_ONCHAIN_VERIFY=true` en production (mesuré au §8.2). Reste la rotation
+   de `API_SECRET_KEY` au moment de l'exposition commerciale.
 6. **Sauvegarde hors site** (copie chiffrée des dumps vers un stockage distant).
 7. **Inscrire le service dans un annuaire x402** : `/manifest` est déjà prêt.
 8. Nettoyer les fichiers temporaires listés au §9 et ajouter `_tmp*` au
@@ -420,3 +436,71 @@ Par ordre de valeur.
 > dépôt réserve `DECISIONS.md`/`GATES.md` aux décisions du produit vérifiables
 > par un oracle exécutable. Ce sont des choix d'exploitation, ils appartiennent
 > à ce rapport.
+
+## 11. Mise à jour du 11/10/2026 (17 h UTC) — D40 : la recette n'est plus du revenu
+
+Le registre de paiement publiait **0,04 USDC de revenu fictif** : les deux essais
+de recette payés par l'exploitant le 11/10/2026 (`06:30:43` et `06:56:43` UTC)
+étaient comptés par `/metrics/revenue` comme des paiements clients. Le correctif
+D40 (commit `b48c165`, porte D40 dans `GATES.md`) marque ces lignes `test_mode` et
+sépare les trois lectures du registre. Procédure rejouable et preuves mesurées :
+
+### 11.1 Code déployé
+
+| Contrôle | Commande | Résultat mesuré |
+|---|---|---|
+| Artefact | `git archive --format=tar -o av-d40.tar address-validator-export` (arbre **identique** à `main:address-validator`, commit `b48c165`) | `sha256=f7fd755b1944f7e802900227764d0071d73bcbcbde92eebc98a0aaa385b3fcbc` |
+| Transfert | `sha256sum /tmp/av-d40.tar` sur le VPS | **identique** au local |
+| Snapshot de retour | `tar czf /opt/backups/code_avant_d40.tgz --exclude=./venv --exclude=./__pycache__ -C /opt/address-validator .` | 281 051 o |
+| Empreinte avant/après | `find . -path ./venv -prune -o -type f -print0 \| sort -z \| xargs -0 sha256sum`, puis `diff` | **18 fichiers modifiés ou ajoutés** (15 modifiés + 3 nouveaux : `LICENSE`, `TEST_PAYMENT_REEL.md`, `scripts/migrate_test_mode.py`) ; `.env` **absent du diff** (intact) ; `requirements.txt` **inchangé** ⇒ aucun `pip install` |
+| Code en place | `sha256sum app/routes/revenue.py app/database.py app/payment.py app/config.py scripts/migrate_test_mode.py scripts/decisions_check.py` | **6/6 identiques** au dépôt |
+| Redémarrage | `systemctl restart address-validator` | `active`, `Schéma de base de données initialisé`, `/health` → `200` `{"status":"ok","database":"ok","redis":"ok"}` |
+
+Retour arrière : `tar xzf /opt/backups/code_avant_d40.tgz -C /opt/address-validator
+&& systemctl restart address-validator`.
+
+### 11.2 Rattrapage des lignes déjà écrites (`migrate_test_mode.py`)
+
+| Étape | Commande | Résultat mesuré |
+|---|---|---|
+| Simulation | `venv/bin/python scripts/migrate_test_mode.py` | `COLONNE test_mode ajoutee`, `CANDIDATES 2` (`0xe2e-tx-1` et `0x-tache1`, 0,02 USDC, 06:30:43 / 06:56:43), `MIGRATE DRY-RUN candidates=2 cutoff=2026-10-11 12:00:00`, « rien n'a ete ecrit » |
+| Écriture | `venv/bin/python scripts/migrate_test_mode.py --apply` | `MIGRATE OK applied=2 candidates=2` puis `VERIF marquees=2 non_marquees=0` |
+| Rejeu | idem | `applied=0 candidates=0`, `marquees=2` ⇒ **idempotence prouvée en production** |
+
+Le seuil `TEST_MODE_CUTOFF_UTC` (défaut `2026-10-11T12:00:00+00:00`) date le
+rattrapage : rien n'est deviné depuis le montant ni depuis l'adresse. Le `.env`
+de production ne porte **pas** `TEST_MODE` ⇒ `recording_now: false` : le service
+n'enregistre pas de recette et un vrai paiement ne peut pas être marqué `test_mode`
+par accident.
+
+### 11.3 Ce que publie `/metrics/revenue`
+
+| | Avant (11/10 17:51 UTC) | Après (11/10 17:53 UTC) |
+|---|---|---|
+| `revenue_usdc` (alias D31) | 0,04 | **0** |
+| `real_revenue_usdc` / `real_validations_paid` | (champ absent) | **0** / **0** |
+| `total_revenue_usdc` / `total_validations_paid` | 0,04 / 2 | 0,04 / 2 |
+| `test_revenue_usdc` / `test_validations_paid` | (champ absent) | 0,04 / 2 |
+
+`real + test = total` (0 + 0,04 = 0,04) ✓, HTTP `200` en local **et** sur
+`https://kder-ai.com/metrics/revenue` (même document, `cutoff_utc` et
+`recording_now` publiés). `/dashboard` met le réel en avant, la recette dans sa
+propre carte.
+
+### 11.4 Oracle sur le serveur
+
+| Contrôle | Commande | Résultat mesuré |
+|---|---|---|
+| Porte D40 | `venv/bin/python scripts/decisions_check.py D40` | `DECISION OK D40` |
+| Oracle complet | `venv/bin/python scripts/decisions_check.py --all` | **35 portes `DECISION OK`** (D1…D40) ; 5 rouges : D7, D15, D27, D29, D34 — voir §8.2, durcissement on-chain assumé |
+| Test discriminant | oracle **pré-D40** rejoué depuis le snapshot sur le même service | **mêmes 5 échecs**, `diff` vide ⇒ pré-existant |
+| Tests unitaires | `pytest` sur le serveur | **impossible** : `No module named pytest` (dépendances de dev absentes du venv de production) — les **122 passés / 1 sauté** sont mesurés sur le poste, l'oracle tourne sur le serveur |
+
+### 11.5 Registre MCP
+
+`io.github.Kder974/address-validator` **version 1.0.0** est publiée :
+`GET registry.modelcontextprotocol.io/v0/servers?search=address-validator` → `200`,
+entrée `status: active`, `publishedAt: 2026-10-11T17:49:24Z`, `isLatest: true`,
+`remotes[] = https://kder-ai.com/mcp`. Le `publish` a été fait depuis l'arbre plat
+de la branche `address-validator-export` (dépôt `github.com/Kder974/address-validator`,
+`server.json` servi à la racine) — donc le même contenu que celui déployé ici.
