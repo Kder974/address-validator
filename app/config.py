@@ -33,6 +33,18 @@ class Settings(BaseSettings):
     cdp_wallet_address: str = ""
     x402_price: float = 0.02
 
+    # Recette contre revenu (D40). `TEST_MODE=true` marque `test_mode` les
+    # paiements enregistres pendant une recette de l'exploitant : ils restent au
+    # registre (tracabilite, audit) mais sont exclus de `real_revenue_usdc` et de
+    # `real_validations_paid` publies par /metrics/revenue. Defaut `false` : un
+    # service en production compte ce qu'il encaisse.
+    test_mode: bool = False
+    # Instant de bascule (UTC, ISO 8601) : `scripts/migrate_test_mode.py` marque
+    # toute transaction *anterieure* a cette date — les essais de recette du
+    # 11/10/2026 (06:30 et 06:56 UTC). Le seuil vit ici, date et modifiable,
+    # jamais enfoui dans un script.
+    test_mode_cutoff_utc: str = "2026-10-11T12:00:00+00:00"
+
     # Vérification on-chain du paiement (D27). Désactivée par défaut : la preuve
     # HMAC de D15 reste celle du service. Quand elle est activée, le reçu de la
     # transaction citée dans `X-Payment-Proof` doit contenir un transfert USDC

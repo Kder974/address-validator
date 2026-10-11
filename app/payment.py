@@ -39,6 +39,13 @@ La spec (Phase 3) fournit un squelette. Décisions de durcissement :
   Limite assumée : la preuve HMAC (D15) reste un secret partagé. Elle est
   conservée pour l'outillage de l'exploitant et les clients déjà intégrés, mais
   elle n'est plus la seule voie : un agent autonome peut désormais payer seul.
+
+  D40 Une transaction de recette n'est pas du revenu. `record_transaction`
+    enregistre donc `test_mode` : vrai quand `TEST_MODE=true` (recette en cours,
+    le temps d'un test de bout en bout payé), faux sinon. La ligne reste au
+    registre — la tracer est utile — mais /metrics/revenue l'exclut de `real_*`
+    et la compte dans `test_*`. Sans cette distinction, deux validations de
+    recette du 11/10/2026 apparaissaient comme 0,04 USDC de chiffre d'affaires.
 """
 
 import hashlib
@@ -219,21 +226,34 @@ def verify_payment(request: Request) -> bool:
     return payment_result(request).paid
 
 
-def record_transaction(tx_hash: str, amount: float, address: str) -> bool:
-    """Enregistre la transaction de paiement (meilleur effort, jamais bloquant)."""
+def record_transaction(
+    tx_hash: str, amount: float, address: str, test_mode: bool | None = None
+) -> bool:
+    """Enregistre la transaction de paiement (meilleur effort, jamais bloquant).
+
+    `test_mode=None` (défaut) suit `TEST_MODE` : un service en production compte
+    ce qu'il encaisse, une recette se marque explicitement. Une ligne marquée
+    reste au registre mais sort du revenu réel publié (D40).
+    """
     if not tx_hash:
         return False
+    marque = settings.test_mode if test_mode is None else bool(test_mode)
     try:
         from app.database import engine
 
         with engine.connect() as conn:
             conn.execute(
                 text(
-                    "INSERT INTO payment_transactions (tx_hash, amount, address) "
-                    "VALUES (:tx_hash, :amount, :address) "
+                    "INSERT INTO payment_transactions (tx_hash, amount, address, test_mode) "
+                    "VALUES (:tx_hash, :amount, :address, :test_mode) "
                     "ON CONFLICT (tx_hash) DO NOTHING"
                 ),
-                {"tx_hash": tx_hash, "amount": amount, "address": address},
+                {
+                    "tx_hash": tx_hash,
+                    "amount": amount,
+                    "address": address,
+                    "test_mode": marque,
+                },
             )
             conn.commit()
         return True

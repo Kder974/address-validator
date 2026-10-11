@@ -1,7 +1,7 @@
 # Décisions — address-validator
 
 Journal des écarts assumés par rapport à la spécification d'origine et des
-correctifs issus de la recette. Les identifiants `D1..D39` sont **chronologiques**
+correctifs issus de la recette. Les identifiants `D1..D40` sont **chronologiques**
 (ordre de décision), pas des numéros de phase.
 
 Règle de provenance : chaque ligne cite le fichier qui **contient** la décision
@@ -50,6 +50,7 @@ référence vérifiable dans le dépôt.
 | D37 | Serveur MCP **réel** (`POST /mcp`, JSON-RPC 2.0) exposant l'outil `validate_address`, et carte `/.well-known/mcp-server` **servie par l'application** | la découverte MCP annonçait un endpoint inexistant (constat D28) ; l'endpoint existe désormais : sans état, sans flux SSE, gratuit à la découverte et payant à l'appel. La carte est une route de l'application, jamais une copie statique : elle disparaît avec l'endpoint qu'elle décrit | `app/routes/mcp.py`, `app/main.py`, `nginx-discovery.conf` |
 | D38 | Fichiers d'annuaire (`server.json`, `.mcp.json`, `smithery.yaml`) et primitives de la porte de paiement **épinglées** (`eth-abi`, `eth-keys`, `eth-utils`, `eth-hash`, `pycryptodome`) | publier un format dont la source n'est pas vérifiable est précisément ce que D28 interdit : `server.json` suit le schéma officiel du registre MCP, `.mcp.json` est la configuration cliente documentée, et `smithery.yaml` ne reproduit **pas** le schéma local non confirmé (la publication distante se fait par `smithery mcp publish <url>`). Ces paquets n'étaient que des dépendances transitives : la porte de sûreté du paiement ne peut pas dépendre d'un `pip install` ultérieur | `server.json`, `.mcp.json`, `smithery.yaml`, `requirements.txt` |
 | D39 | Rétention de 30 jours appliquée par `scripts/prune_discovery_log.py` et le couple `address-validator-retention.{service,timer}` (03:30 UTC, `Persistent=true`) | une durée de conservation annoncée mais jamais appliquée est un mensonge (`PRIVACY.md` §3). La purge est une tâche planifiée et mesurée (l'oracle la lance sur un journal daté), et `Persistent=true` rattrape une purge manquée VPS éteint | `scripts/prune_discovery_log.py`, `address-validator-retention.service`, `address-validator-retention.timer` |
+| D40 | Le registre distingue un paiement **encaissé** d'un essai de **recette** : colonne `test_mode`, publication `real_*` / `total_*` / `test_*`, seuil de rattrapage daté et migration idempotente | deux validations payées par l'exploitant lui-même (11/10/2026, 06:30 et 06:56 UTC) comptaient en production comme **0,04 USDC de revenu client**. La marque vit dans la donnée, pas dans une convention de lecture : `real_*` exclut la recette, `total_*` inclut tout, `test_*` chiffre l'écart (`real_*` + `test_*` = `total_*`), et les alias D31 (`validations_paid`, `revenue_usdc`) pointent sur le réel — un consommateur qui ignore D40 ne peut pas lire un chiffre d'affaires fictif. La colonne est ajoutée par une migration idempotente (`ADD COLUMN IF NOT EXISTS`) : une base déjà en service ne dépend pas d'une intervention manuelle | `app/database.py`, `app/models.py`, `app/config.py`, `app/payment.py`, `app/routes/revenue.py`, `app/routes/dashboard.py`, `scripts/migrate_test_mode.py` |
 
 ## Notes de provenance
 

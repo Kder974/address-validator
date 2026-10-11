@@ -12,6 +12,10 @@ Trois exigences, dans cet ordre de priorité :
    barres en CSS : ni image, ni police distante, ni script.
 3. **Honnête.** Les chiffres viennent de `revenue_stats` (D31) ; si la base est
    muette, la page l'affiche au lieu d'un zéro trompeur.
+4. **Séparé.** Le chiffre mis en avant est le revenu **réel** (D40) : les essais
+   de recette sont exclus du revenu et affichés dans leur propre carte. Un
+   tableau de bord d'exploitation qui gonflerait le chiffre d'affaires avec ses
+   propres tests serait un instrument de mensonge.
 
 L'authentification est le couple `DASHBOARD_USER` / `DASHBOARD_PASSWORD` du
 `.env`, comparé en temps constant (`secrets.compare_digest`).
@@ -86,6 +90,11 @@ def _bar(label: str, value: float, ceiling: float) -> str:
     )
 
 
+def _origine(item: dict) -> str:
+    """Origine d'une transaction : « recette, exclue » ou « client » (D40)."""
+    return "recette, exclue" if item.get("test_mode") else "client"
+
+
 def _page(stats: dict) -> str:
     """Construit la page. Aucune ressource externe, aucune donnee inventee."""
     ledger = stats.get("ledger", {})
@@ -95,7 +104,8 @@ def _page(stats: dict) -> str:
     if ledger.get("available"):
         status = (
             f'<p class="ok">Registre PostgreSQL : disponible — '
-            f'{ledger.get("validations_paid", 0)} paiements enregistrés.</p>'
+            f'{ledger.get("total_validations_paid", ledger.get("validations_paid", 0))} '
+            f'paiements enregistrés.</p>'
         )
     else:
         status = (
@@ -105,9 +115,15 @@ def _page(stats: dict) -> str:
             f'(seuls les compteurs de la session en cours restent).</p>'
         )
 
-    ceiling = max([w.get("revenue_usdc", 0) for w in windows.values()] or [0])
+    def _reel(bloc: dict) -> float:
+        """Revenu publiable d'un bloc (D40) ; repli sur l'alias D31."""
+        return float(bloc.get("real_revenue_usdc", bloc.get("revenue_usdc", 0)) or 0)
+
+    # D40 : le graphique montre le revenu **publiable**. La recette a sa propre
+    # carte, chiffrée : elle n'est jamais mélangée au réel, ni visuellement.
+    ceiling = max([_reel(w) for w in windows.values()] or [0])
     bars = "".join(
-        _bar(name, windows.get(name, {}).get("revenue_usdc", 0), ceiling)
+        _bar(name, _reel(windows.get(name, {})), ceiling)
         for name in ("24h", "7d", "30d")
     )
 
@@ -117,12 +133,13 @@ def _page(stats: dict) -> str:
             f'<td class="mono">{html.escape(str(item.get("tx_hash")))}</td>'
             f'<td>{html.escape(str(item.get("created_at")))}</td>'
             f'<td class="num">{item.get("amount_usdc", 0):.2f}</td>'
+            f'<td>{html.escape(_origine(item))}</td>'
             "</tr>"
             for item in recent
         )
         table = (
             "<table><thead><tr><th>Preuve (tx_hash)</th><th>Horodatage</th>"
-            "<th class=\"num\">USDC</th></tr></thead>"
+            "<th class=\"num\">USDC</th><th>Origine</th></tr></thead>"
             f"<tbody>{rows}</tbody></table>"
         )
     else:
@@ -170,10 +187,14 @@ prix unitaire {html.escape(str(stats.get("price_per_validation_usdc")))} USDC ·
 source {html.escape(str(stats.get("source")))}</p>
 {status}
 <div class="grid">
-  <div class="card"><div class="k">Validations payées</div>
-    <div class="v">{ledger.get("validations_paid", 0)}</div></div>
-  <div class="card"><div class="k">Revenu total</div>
-    <div class="v">{ledger.get("revenue_usdc", 0.0):.2f} USDC</div></div>
+  <div class="card"><div class="k">Validations payées (réelles)</div>
+    <div class="v">{ledger.get("real_validations_paid", ledger.get("validations_paid", 0))}</div></div>
+  <div class="card"><div class="k">Revenu réel</div>
+    <div class="v">{_reel(ledger):.2f} USDC</div></div>
+  <div class="card"><div class="k">dont recette, exclue (D40)</div>
+    <div class="v">{ledger.get("test_validations_paid", 0)} · {ledger.get("test_revenue_usdc", 0.0):.2f} USDC</div></div>
+  <div class="card"><div class="k">Revenu total du registre</div>
+    <div class="v">{ledger.get("total_revenue_usdc", ledger.get("revenue_usdc", 0.0)):.2f} USDC</div></div>
   <div class="card"><div class="k">Preuves uniques</div>
     <div class="v">{ledger.get("unique_proofs", 0)}</div></div>
   <div class="card"><div class="k">Clés d'adresse</div>
@@ -184,7 +205,8 @@ source {html.escape(str(stats.get("source")))}</p>
 <h2 style="font-size:15px">Dernières transactions</h2>
 {table}
 <footer>Protégé par HTTP Basic Auth (DASHBOARD_USER / DASHBOARD_PASSWORD).
-Aucune ressource externe. Les adresses IP ne figurent pas ici : cf. /metrics/revenue.</footer>
+Aucune ressource externe. Les adresses IP ne figurent pas ici : cf. /metrics/revenue.
+Les essais de recette (D40) sont exclus du revenu réel et comptés à part.</footer>
 </body>
 </html>
 """

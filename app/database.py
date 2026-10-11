@@ -6,7 +6,9 @@ Conforme à la spec (Phase 4). Ajouts documentés (D14) :
   * `pool_pre_ping` : recycle les connexions coupées ;
   * `init_db()` est idempotent et appelé au démarrage, mais son échec est
     non bloquant (l'API reste up et le signale sur /health) ;
-  * table `payment_transactions` ajoutée pour la couche paiement (D11).
+  * table `payment_transactions` ajoutée pour la couche paiement (D11) ;
+  * colonne `test_mode` et son `ALTER TABLE ... IF NOT EXISTS` ajoutées pour
+    séparer le revenu réel des essais de recette (D40).
 """
 
 from sqlalchemy import create_engine, text
@@ -46,9 +48,20 @@ CREATE TABLE IF NOT EXISTS payment_transactions (
     amount FLOAT NOT NULL,
     currency VARCHAR(10) NOT NULL DEFAULT 'USDC',
     address VARCHAR(255),
+    test_mode BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_tx_hash ON payment_transactions(tx_hash);
+
+-- D40 : un paiement encaisse et un essai de recette sont deux choses
+-- differentes. La colonne `test_mode` le dit dans la donnee, pas dans un
+-- commentaire : le revenu publie (real_*) exclut les essais, le registre les
+-- conserve (total_*), et l'ecart entre les deux est toujours explicable.
+CREATE INDEX IF NOT EXISTS idx_payment_test_mode ON payment_transactions(test_mode);
+
+-- Migration idempotente : une base deja en service recoit la colonne au
+-- demarrage (init_db est appele par le lifespan), une base neuve l'a ci-dessus.
+ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS test_mode BOOLEAN NOT NULL DEFAULT FALSE;
 """
 
 

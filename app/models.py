@@ -37,4 +37,7 @@ class PaymentTransaction(Base):
     amount = Column(Float, nullable=False)
     currency = Column(String(10), nullable=False, default="USDC")
     address = Column(String(255))
+    #: D40 : vrai pour un essai de recette (jamais du revenu client). La colonne
+    #: existe aussi dans le DDL de `app/database.py` (D13 : les deux cotes).
+    test_mode = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, server_default=func.current_timestamp(), index=True)

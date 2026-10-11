@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D39, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D40, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 39
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 40
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -39,6 +39,11 @@ EIP-712 hors ligne adossee a un vecteur externe, refus de tout echec de
 reglement, serveur MCP et sa carte de decouverte, fichiers d'annuaire publies
 dans un format source, et retention de 30 jours appliquee par une tache
 planifiee.
+
+La porte D40 couvre le correctif de metriques : le registre distingue un
+paiement encaisse d'un essai de recette (`test_mode`), /metrics/revenue publie
+`real_*` hors recette et `total_*` en tout, et le DDL comme l'ORM portent la
+colonne.
 """
 
 from __future__ import annotations
@@ -1262,20 +1267,23 @@ def d31() -> None:
         conn.execute(
             text(
                 "CREATE TABLE payment_transactions "
-                "(tx_hash TEXT PRIMARY KEY, amount REAL, address TEXT, created_at TEXT)"
+                "(tx_hash TEXT PRIMARY KEY, amount REAL, address TEXT, created_at TEXT, "
+                "test_mode BOOLEAN)"
             )
         )
         for ligne in lignes:
             conn.execute(
                 text(
-                    "INSERT INTO payment_transactions (tx_hash, amount, address, created_at) "
-                    "VALUES (:t, :a, :k, :c)"
+                    "INSERT INTO payment_transactions "
+                    "(tx_hash, amount, address, created_at, test_mode) "
+                    "VALUES (:t, :a, :k, :c, :m)"
                 ),
                 {
                     "t": ligne["tx_hash"],
                     "a": ligne["amount"],
                     "k": ligne["address"],
                     "c": ligne["created_at"],
+                    "m": ligne.get("test_mode", False),
                 },
             )
     charge = revenue_stats(engine=engine, now=now)
@@ -2181,8 +2189,15 @@ def d38() -> None:
         == "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
         f"schema du registre inattendu : {serveur.get('$schema')}",
     )
+    # Le registre MCP derive le namespace du compte GitHub authentifie, casse
+    # comprise : `mcp-publisher validate` n'accepte que la graphie rendue par
+    # l'API GitHub (`io.github.Kder974`, verifie le 12/10/2026). L'oracle ne peut
+    # pas rejouer cette authentification ; il verifie donc ce qui lui appartient :
+    # aucun autre proprietaire ni depot ne peut se faire passer pour ce projet,
+    # la casse du proprietaire etant arbitree par le registre lui-meme.
+    proprietaire, _, depot = serveur["name"].partition("/")
     guard(
-        serveur["name"] == "io.github.kder974/address-validator",
+        proprietaire.lower() == "io.github.kder974" and depot == "address-validator",
         f"nom de registre inattendu : {serveur['name']} (forme io.github.<proprietaire>/<depot>)",
     )
     guard(serveur["version"] == "1.0.0", f"version publiee : {serveur['version']}")
@@ -2342,7 +2357,150 @@ def d39() -> None:
     guard("D39" in read("DECISIONS.md"), "la decision D39 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 40)}
+def d40() -> None:
+    """Un paiement encaisse se distingue d'un essai de recette, et c'est publie."""
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import create_engine, text
+
+    from app.routes.revenue import _is_test, aggregate, revenue_stats
+
+    # --- 1. L'agregation separe le reel du registre ------------------------
+    moment = datetime(2026, 10, 11, 7, 0, tzinfo=timezone.utc)
+    lignes = [
+        {
+            "tx_hash": "0xclient",
+            "amount": 0.02,
+            "address": "cle-client",
+            "created_at": (moment - timedelta(hours=1)).isoformat(),
+            "test_mode": False,
+        },
+        {
+            "tx_hash": "0xessai",
+            "amount": 0.02,
+            "address": "cle-recette",
+            "created_at": (moment - timedelta(hours=2)).isoformat(),
+            "test_mode": True,
+        },
+        {
+            # Ligne anterieure a la migration : ni marquee, ni recette.
+            "tx_hash": "0xancienne",
+            "amount": 0.02,
+            "address": "cle-ancienne",
+            "created_at": (moment - timedelta(hours=3)).isoformat(),
+        },
+    ]
+    stats = aggregate(lignes, moment)
+    guard(
+        stats["real_validations_paid"] == 2 and stats["real_revenue_usdc"] == 0.04,
+        f"revenu reel faux : {stats['real_validations_paid']} / {stats['real_revenue_usdc']}",
+    )
+    guard(
+        stats["total_validations_paid"] == 3 and stats["total_revenue_usdc"] == 0.06,
+        f"registre entier faux : {stats['total_validations_paid']} / {stats['total_revenue_usdc']}",
+    )
+    guard(
+        stats["test_validations_paid"] == 1 and stats["test_revenue_usdc"] == 0.02,
+        f"recette non chiffree : {stats['test_validations_paid']} / {stats['test_revenue_usdc']}",
+    )
+    guard(
+        stats["validations_paid"] == stats["real_validations_paid"]
+        and stats["revenue_usdc"] == stats["real_revenue_usdc"],
+        "les alias D31 ne pointent plus sur le reel : un lecteur qui ignore D40 lirait un chiffre fictif",
+    )
+    guard(
+        stats["windows"]["24h"]["real_revenue_usdc"] == 0.04
+        and stats["windows"]["24h"]["test_revenue_usdc"] == 0.02,
+        "les fenetres ne portent plus la distinction recette / reel",
+    )
+    guard(
+        _is_test({"test_mode": "true"}) and _is_test({"test_mode": 1}),
+        "la lecture tolerante de test_mode a disparu (bool / int / texte)",
+    )
+    guard(
+        not _is_test({}) and not _is_test({"test_mode": None}),
+        "une ligne sans marque est classee en recette : la migration ne doit marquer personne a la place de l'exploitant",
+    )
+
+    # --- 2. La marque est lue en base, jamais devinee depuis la date -------
+    engine = create_engine("sqlite://")
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "CREATE TABLE payment_transactions "
+                "(tx_hash TEXT PRIMARY KEY, amount REAL, address TEXT, created_at TEXT, "
+                "test_mode BOOLEAN)"
+            )
+        )
+        for ligne in lignes:
+            conn.execute(
+                text(
+                    "INSERT INTO payment_transactions "
+                    "(tx_hash, amount, address, created_at, test_mode) "
+                    "VALUES (:t, :a, :k, :c, :m)"
+                ),
+                {
+                    "t": ligne["tx_hash"],
+                    "a": ligne["amount"],
+                    "k": ligne["address"],
+                    "c": ligne["created_at"],
+                    "m": ligne.get("test_mode"),
+                },
+            )
+    charge = revenue_stats(engine=engine, now=moment, include_recent=True)
+    guard(
+        charge["ledger"]["available"] is True,
+        f"une base joignable est annoncee indisponible : {charge['ledger']['error']}",
+    )
+    guard(
+        charge["ledger"]["real_revenue_usdc"] == 0.04
+        and charge["ledger"]["total_revenue_usdc"] == 0.06
+        and charge["ledger"]["test_validations_paid"] == 1,
+        f"la lecture SQL ne separe plus recette et reel : {charge['ledger']}",
+    )
+    marques = {ligne["tx_hash"]: ligne["test_mode"] for ligne in charge["recent"]}
+    guard(
+        marques.get("0xessai") is True and marques.get("0xclient") is False,
+        f"la marque de recette n'est plus publiee ligne a ligne : {marques}",
+    )
+    guard(
+        "recording_now" in charge["test_mode"] and "cutoff_utc" in charge["test_mode"],
+        "la reponse ne dit plus si la recette est en cours ni depuis quel seuil",
+    )
+
+    # --- 3. Le schema et le code portent tous les deux la colonne ----------
+    ddl = read("app/database.py")
+    guard(
+        "test_mode BOOLEAN NOT NULL DEFAULT FALSE" in ddl,
+        "le DDL ne cree pas la colonne test_mode : une base neuve serait incomplete",
+    )
+    guard(
+        "ADD COLUMN IF NOT EXISTS test_mode" in ddl,
+        "aucune migration idempotente : une base deja en service n'aurait pas la colonne",
+    )
+    guard("test_mode" in read("app/models.py"), "l'ORM et le DDL ne decrivent plus la meme table (D13)")
+    guard("test_mode" in read("app/payment.py"), "record_transaction n'enregistre plus la marque de recette")
+    guard(
+        "real_revenue_usdc" in read("app/routes/revenue.py"),
+        "l'endpoint ne publie plus le revenu reel",
+    )
+    guard(
+        not re.search(r"^\s*test_mode: bool = True", read("app/config.py"), re.M),
+        "TEST_MODE est actif par defaut : une production compterait ses essais comme du revenu",
+    )
+    guard(
+        "TEST_MODE_CUTOFF_UTC" in read(".env.example")
+        and "test_mode_cutoff_utc" in read("app/config.py"),
+        "le seuil de rattrapage n'est documente ni dans .env.example ni dans la configuration",
+    )
+    guard(
+        (ROOT / "scripts" / "migrate_test_mode.py").is_file(),
+        "le script de rattrapage a disparu : les lignes deja ecrites ne pourraient plus etre marquees",
+    )
+    guard("D40" in read("DECISIONS.md"), "la decision D40 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 41)}
 
 
 def catalog() -> list[tuple[str, str]]:

@@ -85,10 +85,14 @@ else:
 print()
 print("Revenu : registre durable (payment_transactions)")
 if registre.get("available"):
-    print(f"  validations payees 24 h : {fenetre.get('validations_paid', 0)}")
-    print(f"  revenu 24 h             : {fenetre.get('revenue_usdc', 0.0)} USDC")
-    print(f"  validations payees (cumul) : {registre.get('validations_paid', 0)}")
-    print(f"  revenu (cumul)             : {registre.get('revenue_usdc', 0.0)} USDC")
+    print(f"  validations payees 24 h : {fenetre.get('real_validations_paid', fenetre.get('validations_paid', 0))}")
+    print(f"  revenu 24 h             : {fenetre.get('real_revenue_usdc', fenetre.get('revenue_usdc', 0.0))} USDC")
+    print(f"  validations payees (cumul) : {registre.get('real_validations_paid', registre.get('validations_paid', 0))}")
+    print(f"  revenu (cumul)             : {registre.get('real_revenue_usdc', registre.get('revenue_usdc', 0.0))} USDC")
+    # D40 : un essai de recette n'est pas du revenu client. Le rapport separe les
+    # deux, sinon il gonflerait le chiffre d'affaires avec nos propres tests.
+    print(f"  dont recette (exclue)      : {registre.get('test_validations_paid', 0)} essai(s) / {registre.get('test_revenue_usdc', 0.0)} USDC")
+    print(f"  revenu total du registre   : {registre.get('total_revenue_usdc', registre.get('revenue_usdc', 0.0))} USDC")
     print(f"  prix unitaire              : {stats.get('price_per_validation_usdc')} USDC")
 else:
     print(f"  REGISTRE INDISPONIBLE : {registre.get('error')}")

@@ -16,6 +16,13 @@ Deux choix d'implémentation, tous deux pour rester vérifiable :
 * **Appel bloquant exécuté hors boucle** avec une borne, exactement comme la
   leçon de D22 sur `/health` : une base lente ne doit pas geler toutes les
   requêtes concurrentes, encore moins la route payante située à côté.
+
+Ajout D40 — ce qui est encaissé n'est pas ce qui a été essayé. Une transaction
+marquée `test_mode` (recette de l'exploitant) reste au registre : la tracer est
+utile. Mais elle est exclue des nombres publiables, préfixés `real_`. Les
+`total_*` incluent tout, les `test_*` chiffrent l'écart, et les alias de D31
+(`validations_paid`, `revenue_usdc`) valent le réel : un lecteur qui ne connaît
+pas D40 ne peut donc pas lire un chiffre d'affaires fictif.
 """
 
 from __future__ import annotations
@@ -72,30 +79,82 @@ def fetch_rows(engine=None) -> list[dict]:
     from app import database
 
     target = engine if engine is not None else database.engine
+    # `test_mode` est lu avec les autres colonnes (D40) : l'agrégat doit voir la
+    # distinction, pas la deviner.
     sql = (
-        f"SELECT tx_hash, amount, address, created_at FROM {LEDGER_TABLE} "
+        f"SELECT tx_hash, amount, address, created_at, test_mode FROM {LEDGER_TABLE} "
         f"ORDER BY created_at DESC LIMIT {LEDGER_LIMIT}"
     )
     with target.connect() as conn:
         return [dict(row) for row in conn.execute(text(sql)).mappings()]
 
 
+#: Valeurs textuelles considérées comme vraies par `_is_test`. PostgreSQL rend
+#: un booléen, SQLite peut rendre 0/1 ou 'true' : la lecture doit rester la même
+#: quel que soit le moteur (tests sur SQLite, production sur PostgreSQL).
+VALEURS_VRAIES = {"1", "t", "true", "vrai", "oui", "yes", "y"}
+
+
+def _is_test(row: dict) -> bool:
+    """Vrai si la ligne est marquée comme essai de recette (D40).
+
+    Une colonne absente ou NULL vaut « non marquée » : une ancienne ligne, ou
+    une base antérieure à la migration, ne doit pas basculer en recette par
+    accident — c'est `scripts/migrate_test_mode.py` qui marque, explicitement.
+    """
+    valeur = row.get("test_mode")
+    if valeur is None:
+        return False
+    if isinstance(valeur, bool):
+        return valeur
+    if isinstance(valeur, (int, float)):
+        return valeur != 0
+    return str(valeur).strip().lower() in VALEURS_VRAIES
+
+
 def aggregate(rows: list[dict], now: datetime) -> dict:
-    """Compte les paiements et additionne le revenu (bornes : `now - delta`)."""
+    """Compte les paiements et additionne le revenu (bornes : `now - delta`).
+
+    Chaque compteur existe en trois exemplaires (D40) : `real_*` hors recette,
+    `total_*` tout le registre, `test_*` l'écart. Les alias `validations_paid` et
+    `revenue_usdc` de D31 valent le réel.
+    """
     enriched = []
     for row in rows:
         stamp = _as_datetime(row.get("created_at"))
         enriched.append((stamp, row))
 
     def _bucket(subset) -> dict:
-        proofs = {row.get("tx_hash") for _, row in subset if row.get("tx_hash")}
-        keys = {row.get("address") for _, row in subset if row.get("address")}
-        total = sum(float(row.get("amount") or 0) for _, row in subset)
+        # D40 : deux populations dans une même table. `real` est publiable (un
+        # client a payé), `total` est le registre entier.
+        real = [(stamp, row) for stamp, row in subset if not _is_test(row)]
+        essais = [(stamp, row) for stamp, row in subset if _is_test(row)]
+
+        def _somme(pairs) -> float:
+            return round(sum(float(row.get("amount") or 0) for _, row in pairs), 6)
+
         return {
-            "validations_paid": len(subset),
-            "revenue_usdc": round(total, 6),
-            "unique_proofs": len(proofs),
-            "unique_address_keys": len(keys),
+            # Nombres publiables : la recette de l'exploitant est exclue.
+            "real_validations_paid": len(real),
+            "real_revenue_usdc": _somme(real),
+            # Registre entier, recette comprise : pour l'audit, pas la vitrine.
+            "total_validations_paid": len(subset),
+            "total_revenue_usdc": _somme(subset),
+            # Ce qui est exclu, chiffré : `real_*` + `test_*` = `total_*`.
+            "test_validations_paid": len(essais),
+            "test_revenue_usdc": _somme(essais),
+            # Alias historiques (D31) : ils pointent sur le réel — seule lecture
+            # qui ne trompe pas un consommateur qui ignore D40.
+            "validations_paid": len(real),
+            "revenue_usdc": _somme(real),
+            # Preuves et clés restent comptées sur tout le registre, comme avant
+            # D40 : aucun changement silencieux de ces deux compteurs.
+            "unique_proofs": len(
+                {row.get("tx_hash") for _, row in subset if row.get("tx_hash")}
+            ),
+            "unique_address_keys": len(
+                {row.get("address") for _, row in subset if row.get("address")}
+            ),
         }
 
     result = _bucket(enriched)
@@ -129,6 +188,16 @@ def revenue_stats(
         "currency": "USDC",
         "generated_at": moment.isoformat(timespec="seconds"),
         "source": f"postgresql:{LEDGER_TABLE}",
+        # La règle de lecture voyage avec les chiffres : un écart entre `real_*`
+        # et `total_*` doit toujours pouvoir s'expliquer, jamais se deviner (D40).
+        "test_mode": {
+            "policy": (
+                "real_* exclut les paiements marques test_mode (recette de "
+                "l'exploitant) ; total_* les inclut ; test_* chiffre l'ecart."
+            ),
+            "recording_now": bool(settings.test_mode),
+            "cutoff_utc": settings.test_mode_cutoff_utc,
+        },
         "ledger": {"available": False, "error": None},
         "windows": {},
         # Compteurs du processus en cours (D17) : utiles entre deux écritures en
@@ -155,6 +224,7 @@ def revenue_stats(
             {
                 "tx_hash": row.get("tx_hash"),
                 "amount_usdc": float(row.get("amount") or 0),
+                "test_mode": _is_test(row),
                 "address_key": row.get("address"),
                 "created_at": (
                     _as_datetime(row.get("created_at")).isoformat()
@@ -181,6 +251,14 @@ async def safe_revenue_stats(include_recent: bool = False) -> dict:
             "currency": "USDC",
             "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "source": f"postgresql:{LEDGER_TABLE}",
+            "test_mode": {
+                "policy": (
+                    "real_* exclut les paiements marques test_mode (recette de "
+                    "l'exploitant) ; total_* les inclut ; test_* chiffre l'ecart."
+                ),
+                "recording_now": bool(settings.test_mode),
+                "cutoff_utc": settings.test_mode_cutoff_utc,
+            },
             "ledger": {
                 "available": False,
                 "error": f"timeout after {QUERY_TIMEOUT_SECONDS}s",

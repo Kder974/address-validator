@@ -93,6 +93,7 @@ Toutes les valeurs viennent de l'environnement ou de `.env` (pydantic-settings,
 | `public_base_url` / `mcp_public_url` | `PUBLIC_BASE_URL` / `MCP_PUBLIC_URL` | `https://kder-ai.com` / `.../mcp` | URLs publiees dans `accepts[].resource`, la carte MCP et les annuaires |
 | `discovery_log_*` | `DISCOVERY_LOG_ENABLED`, `DISCOVERY_LOG_PATH`, `DISCOVERY_LOG_RAW_IP`, `DISCOVERY_LOG_SALT`, `DISCOVERY_LOG_RETENTION_DAYS` | journal actif, chemin vide (journald), IP pseudonymisee, 30 j | journal des refus `402` et retention appliquee (`PRIVACY.md` 3) |
 | `dashboard_user` / `dashboard_password` | `DASHBOARD_USER` / `DASHBOARD_PASSWORD` | `kder` / vide | `/dashboard` - vide = endpoint **ferme** (`503`) |
+| `test_mode` / `test_mode_cutoff_utc` | `TEST_MODE` / `TEST_MODE_CUTOFF_UTC` | `false` / `2026-10-11T12:00:00+00:00` | une transaction marquée `test_mode` est un essai de recette : exclue de `real_*`, comptée dans `test_*` et `total_*` (D40) |
 | `environment` / `log_level` | `ENVIRONMENT` / `LOG_LEVEL` | `development` / `INFO` | contexte et verbosité |
 
 ## 4. Endpoints et contrat de données
@@ -103,7 +104,7 @@ Toutes les valeurs viennent de l'environnement ou de `.env` (pydantic-settings,
 | `GET` | `/manifest` | description x402 (prix, devise, schémas) | `app/routes/manifest.py` |
 | `GET` | `/health` | état réel de PostgreSQL et Redis, borné à 2 s | `app/routes/health.py` |
 | `GET` | `/metrics` | compteurs, état du disjoncteur, état du cache | `app/routes/metrics.py` |
-| `GET` | `/metrics/revenue` | revenu agrégé 24 h / 7 j / 30 j et disponibilité du registre | `app/routes/revenue.py` |
+| `GET` | `/metrics/revenue` | revenu agrégé 24 h / 7 j / 30 j — `real_*` hors recette, `total_*` registre entier (D40) — et disponibilité du registre | `app/routes/revenue.py` |
 | `GET` | `/dashboard` | tableau de bord d'exploitation — **privé** (Basic Auth ; `503` si `DASHBOARD_PASSWORD` est absent) | `app/routes/dashboard.py` |
 | `POST` | `/validate` | **payant** — validation complète | `app/routes/validate.py` |
 | `GET` | `/docs` | documentation interactive (FastAPI) | auto |
@@ -114,6 +115,25 @@ Toutes les valeurs viennent de l'environnement ou de `.env` (pydantic-settings,
 Chaque requête refusée en `402` est journalisée sous forme de métadonnées
 (horodatage, endpoint, `User-Agent`, IP **pseudonymisée**) : jamais l'adresse
 validée. Réglages et rétention : `PRIVACY.md` §3, `DISCOVERY.md` §4.
+
+### 4.1 Revenu réel contre revenu du registre (D40)
+
+`/metrics/revenue` publie trois lectures du même registre, jamais mélangées :
+
+| Champ | Contenu |
+|-------|---------|
+| `real_validations_paid`, `real_revenue_usdc` | ce qu'un **client** a payé — le chiffre publiable |
+| `total_validations_paid`, `total_revenue_usdc` | tout le registre, essais de recette compris (audit) |
+| `test_validations_paid`, `test_revenue_usdc` | ce qui est exclu du réel, chiffré : `real_*` + `test_*` = `total_*` |
+
+Les alias `validations_paid` et `revenue_usdc` (D31) pointent sur le **réel**.
+Une transaction est marquée `test_mode` de deux façons, et de deux seulement :
+`TEST_MODE=true` au moment où le service l'enregistre (recette en cours), ou
+`scripts/migrate_test_mode.py` pour les lignes **déjà écrites** — seuil
+`TEST_MODE_CUTOFF_UTC` (défaut `2026-10-11T12:00:00+00:00`, les deux essais de
+recette de ce jour-là). Rien n'est déduit du montant ni de l'adresse : une ligne
+non marquée reste du revenu réel. `/dashboard` affiche le réel en avant et la
+recette dans sa propre carte.
 
 Requête (`app/schemas.py:11-16`) : `{"address": {"street", "city", "state",
 "zip", "country"}}` — `country` vaut `US` par défaut, les autres champs sont

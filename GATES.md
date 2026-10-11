@@ -186,22 +186,22 @@ The Lot B gates measure the agent-facing payment and discovery work: the x402 v1
 - [x] D34: the 402 body is an x402 v1 PaymentRequired document and a settled payment carries its receipt
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D34
   EXPECT: DECISION OK D34
-  EVIDENCE: automatic-evidence=v1; definition-sha256=f3622bffcde5f8b5285f9ac7af9f6e96099b0649ee8462309e97c57a3ea0bb4d; exit=0; EXPECT=matched; output-sha256=df3cbbc7e83608bfa9cd44f68aedecc49389cc7ba763ab5edb908d42c5cd7c61; output-bytes=1774; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=f3622bffcde5f8b5285f9ac7af9f6e96099b0649ee8462309e97c57a3ea0bb4d; exit=0; EXPECT=matched; output-sha256=65e67a6f8f7fa4d2a80d7e119fdb66101394baec7724a94d3db9c5a49d4f6e0f; output-bytes=1774; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
 
 - [x] D35: the EIP-712 signature is verified offline, before any network call
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D35
   EXPECT: DECISION OK D35
-  EVIDENCE: automatic-evidence=v1; definition-sha256=2e8fac15e096f7f388926e8f4386d84c52338b303a8ac1e3c197f3ad52b102da; exit=0; EXPECT=matched; output-sha256=701e1f54ad5b7d5e154be3cbda9daad4003f9cac4b5b549626e7d47d8e1e8d6d; output-bytes=4225; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=2e8fac15e096f7f388926e8f4386d84c52338b303a8ac1e3c197f3ad52b102da; exit=0; EXPECT=matched; output-sha256=ffc6c1d6dce2a54187f579cacaf3a2846cd2b1116bacc11171bce1a3a3b6ae15; output-bytes=4225; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
 
 - [x] D36: service is rendered only after settlement, and every settlement failure is a refusal
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D36
   EXPECT: DECISION OK D36
-  EVIDENCE: automatic-evidence=v1; definition-sha256=3ce910ead5e127f7ef1a93762e8a95f4f8d40121c9ce22f7c7165a285157efa2; exit=0; EXPECT=matched; output-sha256=e3a0067be934d87285658cb0a7a30ffe09cd1f98d25a7fbb4b3c68012742a29e; output-bytes=2787; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=3ce910ead5e127f7ef1a93762e8a95f4f8d40121c9ce22f7c7165a285157efa2; exit=0; EXPECT=matched; output-sha256=38421bebf93eacff39e90ec5ad463c066538a59fd6a7b6b252f25c9300019fc2; output-bytes=2787; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
 
 - [x] D37: the MCP server serves one paid tool and its card describes the live endpoint
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D37
   EXPECT: DECISION OK D37
-  EVIDENCE: automatic-evidence=v1; definition-sha256=a9e15fb72a7c59adab0fec08a09c61b25181d34a94cf877e82602c96be8d32f9; exit=0; EXPECT=matched; output-sha256=96b73feaa864e718b33e6cf041ab90f2a7d481b4efb7df7156a79bf55c481c02; output-bytes=1708; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+  EVIDENCE: automatic-evidence=v1; definition-sha256=a9e15fb72a7c59adab0fec08a09c61b25181d34a94cf877e82602c96be8d32f9; exit=0; EXPECT=matched; output-sha256=85cbaf9cff7c86458c7149814f81fd58edb68bef9b67049df4dfa915d23f448a; output-bytes=1708; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
 
 - [x] D38: the directory files describe the live endpoint in a sourced format, with the payment primitives pinned
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D38
@@ -212,3 +212,12 @@ The Lot B gates measure the agent-facing payment and discovery work: the x402 v1
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D39
   EXPECT: DECISION OK D39
   EVIDENCE: automatic-evidence=v1; definition-sha256=b00ae7972f143a4107192b75b586e15d487c95a31832dd3a19a6bd805c02139d; exit=0; EXPECT=matched; output-sha256=f3cf531ec6c2a09cfc66b377946c42d7be09d561b551f5a91effa697f35fc1c2; output-bytes=17; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries
+
+## Lot C gate (D40)
+
+The Lot C gate measures the revenue split added once the operator's own paid acceptance tests had written two rows in the production registry: the ledger keeps every row, `/metrics/revenue` publishes the customer figure separately from the test figure, and the migration that marks the already-written rows is idempotent.
+
+- [x] D40: a paid acceptance test is stored as a test row, the published real revenue ignores it, and the catch-up migration is idempotent
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D40
+  EXPECT: DECISION OK D40
+  EVIDENCE: automatic-evidence=v1; definition-sha256=cfc6ebe65a636e6ac7a6d31922d6d8882f1daa19bf0e4dbdc8e327c3cea52c9b; exit=0; EXPECT=matched; output-sha256=f1f10bceaf0c6d4a593de4ddb662c4c04e0dbb274d02eb7ea9c396dc2a0fc4aa; output-bytes=17; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=dec308870448/20 entries

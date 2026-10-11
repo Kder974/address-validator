@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.kder974/address-validator",
+  "name": "io.github.Kder974/address-validator",
   "title": "Address Validator",
   "description": "Valide une adresse de livraison : normalisation, geocodage, score de livrabilite. x402.",
   "version": "1.0.0",
