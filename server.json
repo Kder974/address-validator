@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.kder974/address-validator",
   "title": "Address Validator",
-  "description": "Valide une adresse de livraison brute et renvoie sa forme standardisee, ses coordonnees et un score de livrabilite (residential / commercial / unknown / invalid) avec un niveau de confiance. Paye a l'appel par le protocole x402 (0.02 USDC sur Base).",
+  "description": "Valide une adresse de livraison : normalisation, geocodage, score de livrabilite. x402.",
   "version": "1.0.0",
   "websiteUrl": "https://kder-ai.com",
   "repository": {
@@ -17,6 +17,7 @@
   ],
   "_meta": {
     "io.modelcontextprotocol.registry/publisher-provided": {
+      "description_longue": "Valide une adresse de livraison brute et renvoie sa forme standardisee, ses coordonnees et un score de livrabilite (residential / commercial / unknown / invalid) avec un niveau de confiance. Paye a l'appel par le protocole x402 (0.02 USDC sur Base).",
       "payment": {
         "protocol": "x402",
         "version": 1,
