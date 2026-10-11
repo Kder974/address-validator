@@ -1,0 +1,6 @@
+# address-validator — dépendances de développement / test
+# Séparées de requirements.txt pour ne pas alourdir l'image de production.
+# Voir DECISIONS.md (D3, D18).
+
+pytest==8.3.3
+pytest-cov==6.0.0

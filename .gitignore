@@ -1,0 +1,26 @@
+# --- adresses IP ---
+# (le rate limiting par IP est décrit dans SECURITY.md ; à brancher via le
+#  reverse proxy Nginx ou un middleware — voir DECISIONS.md D21)
+#
+# --- cache / artefacts ---
+.pytest_cache/
+__pycache__/
+*.py[cod]
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# --- secrets / environnement ---
+.env
+*.env
+!.env.example
+
+# --- journaux ---
+*.log
+logs/
+*.err
+
+# --- divers ---
+.DS_Store
+diag_*.txt

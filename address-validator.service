@@ -1,0 +1,17 @@
+[Unit]
+Description=Address Validator API
+After=network.target postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/address-validator
+Environment="PATH=/opt/address-validator/venv/bin"
+# Ecoute sur la boucle locale uniquement : Nginx publie l'API sur 443, le port
+# 8000 n'a pas a etre joignable en direct (ufw le bloquait deja depuis
+# l'exterieur ; ceci ferme aussi l'acces depuis le reseau local du VPS).
+ExecStart=/opt/address-validator/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

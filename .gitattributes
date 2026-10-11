@@ -1,0 +1,8 @@
+# Ces fichiers sont déployés sur un serveur Linux : ils doivent rester en LF
+# dans la copie de travail, sinon le scp depuis Windows transporte des CRLF et
+# les scripts bash échouent (`bash: $'\r': command not found`). Le dépôt n'a
+# pas de .gitattributes global ; ce fichier ne couvre que address-validator/.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
