@@ -1,0 +1,23 @@
+# prospection/.gitignore — la prospection manipule des coordonnées de tiers :
+# rien de tout cela n'a sa place dans le dépôt (RGPD, cf. README.md §7).
+#
+# Liste blanche volontaire : tout ce qui entre dans data/ est exclu, puis on
+# réautorise les quatre pièces d'exemple ci-dessous. Une liste noire de motifs
+# (`campagne_*`, `sourcing_*`…) laisse passer le jour où un outil nomme son export
+# autrement — `responses_20261017.csv`, `relance_20261017.csv`, « export (2).csv » —
+# et c'est exactement le fichier qu'il ne faut pas committer.
+data/*
+!data/prospects.csv
+!data/prospects_exemple.csv
+!data/campagne_exemple.csv
+!data/exemple_reponses.csv
+
+# Rapports : générés à chaque passage, donc hors dépôt (sauf l'exemple rédigé).
+reports/*.html
+reports/*.json
+reports/*.md
+!reports/exemple_campagne.md
+
+# Marqueur de dossier et secret local éventuel.
+!reports/.gitkeep
+.env

@@ -1,0 +1,13 @@
+Objet : Re: Question rapide sur vos livraisons {nom_boutique}
+
+Bonjour {prenom},
+
+Je me permets de revenir vers vous car je n'ai pas eu de réponse à mon précédent message.
+
+En résumé : mon outil vérifie les adresses de livraison avant expédition. Ça évite les retours coûteux (17-30 $ par échec).
+
+Si vous voulez tester gratuitement pendant 14 jours, c'est possible. Il suffit de me répondre "OK".
+
+{signature}
+
+{desinscription}

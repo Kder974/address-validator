@@ -1,0 +1,176 @@
+# prospection/config/settings.yaml — réglages de la prospection commerciale.
+#
+# Fichier unique : les scripts ne codent aucune de ces valeurs en dur. Modifier
+# ici, jamais dans le code (même règle que `app/config.py` : le réglage vit dans
+# un fichier, pas enfoui dans une fonction).
+#
+# Un `nom` de secteur porte un `code` court (utilisable en ligne de commande :
+# `--secteur mode`) et, quand il en existe un, les codes NAF de l'INSEE qui
+# servent au sourcing public (`scripts/sourcer_prospects.py`). Les `mots_cles`
+# servent à deux choses : qualifier un prospect à partir de son site, et
+# fabriquer la phrase personnalisée `{produit}` de l'email.
+
+prospection:
+  nom: "Address Validator"
+  url_produit: "https://kder-ai.com"
+  # Offre réellement publiée : 0,02 USDC par validation (cf. /manifest).
+  prix_unitaire_usdc: 0.02
+  # Argument chiffré : 22 % des échecs de livraison viennent d'une adresse
+  # inexacte, et un échec coûte 17 à 30 $ au commerçant (fourchette logistique).
+  part_echecs_lies_adresse: 0.22
+  cout_echec_usd_min: 17
+  cout_echec_usd_max: 30
+  # Identité utilisée dans la signature et dans les User-Agent des requêtes
+  # sortantes (l'enrichissement s'identifie, comme le géocodeur de l'API).
+  signature_fichier: "config/prompts/signature.txt"
+  email_contact: "contact@kder-ai.com"
+  # Objectif de volume : 100 prospects qualifiés par semaine.
+  objectif_prospects_semaine: 100
+  # Garde-fou de délivrabilité : plafond d'envois par jour et par boîte.
+  envois_max_par_jour: 50
+
+# Cadence des relances, en jours après l'introduction. Deux relances par défaut
+# (J+3 et J+7) : au-delà, le taux de réponse chute et le risque de plainte monte.
+sequence:
+  relances_jours: [3, 7]
+
+secteurs:
+  - nom: "Mode et accessoires"
+    code: mode
+    mots_cles: ["vêtements", "chaussures", "sacs", "bijoux", "montres"]
+    taille_cible: "PME"
+    naf: ["47.91B", "47.71Z", "47.72A"]
+    produit_par_defaut: "articles de mode"
+    exemple_boutiques: ["Sézane", "Atelier Particulier", "Le Slip Français"]
+
+  - nom: "High-tech et gadgets"
+    code: high-tech
+    mots_cles: ["électronique", "smartphone", "accessoires", "gaming"]
+    taille_cible: "PME"
+    naf: ["47.91B", "47.41Z", "47.43Z"]
+    produit_par_defaut: "produits high-tech"
+    exemple_boutiques: ["Fnac", "LDLC", "Materiel.net"]
+
+  - nom: "Décoration et maison"
+    code: decoration
+    mots_cles: ["meubles", "décoration", "cuisine", "literie"]
+    taille_cible: "PME"
+    naf: ["47.91B", "47.53Z", "47.59B"]
+    produit_par_defaut: "articles de décoration et de maison"
+    exemple_boutiques: ["Maisons du Monde", "Westwing", "Made.com"]
+
+  - nom: "Cosmétiques et beauté"
+    code: cosmetiques
+    mots_cles: ["cosmétique", "parfum", "soin", "maquillage"]
+    taille_cible: "PME"
+    naf: ["47.91B", "47.75Z"]
+    produit_par_defaut: "produits de beauté"
+    exemple_boutiques: ["Sephora", "Nocibé", "Yves Rocher"]
+
+  - nom: "Sport et loisirs"
+    code: sport
+    mots_cles: ["sport", "fitness", "randonnée", "vélo", "outdoor"]
+    taille_cible: "PME"
+    naf: ["47.91B", "47.64Z"]
+    produit_par_defaut: "articles de sport"
+    exemple_boutiques: ["Decathlon", "Alltricks", "Snowleader"]
+
+plateformes:
+  # `url_pattern` : indice lisible dans l'URL du site (détection hors ligne).
+  # `indice_site` : indice à chercher dans le HTML servi (détection avec
+  # `--enrichir`, qui visite le site). Un doute n'invente rien : la plateforme
+  # reste « Inconnue ».
+  - nom: "Shopify"
+    url_pattern: "myshopify.com"
+    indice_site: "cdn.shopify.com"
+  - nom: "WooCommerce"
+    url_pattern: "wp-content/plugins/woocommerce"
+    indice_site: "wp-content"
+  - nom: "PrestaShop"
+    url_pattern: "prestashop"
+    indice_site: "prestashop"
+  - nom: "Wix"
+    url_pattern: "wixsite.com"
+    indice_site: "static.wixstatic.com"
+  - nom: "Squarespace"
+    url_pattern: "squarespace.com"
+    indice_site: "squarespace"
+  - nom: "BigCommerce"
+    url_pattern: "bigcommerce.com"
+    indice_site: "bigcommerce"
+  - nom: "Inconnue"
+    url_pattern: ""
+    indice_site: ""
+
+criteres_qualification:
+  min_commandes_mois: 100
+  min_chiffre_affaires: 10000
+  pays: ["FR", "BE", "CH", "CA"]
+  langue: "fr"
+  # Un prospect sans site joignable n'est pas disqualifié, mais il n'est pas
+  # personnalisable : il reste à compléter, il n'est pas écarté.
+  exiger_site_web: false
+
+# Trois objets pour l'A/B testing. Le premier sert de sujet par défaut quand
+# l'outil d'envoi ne gère pas les variantes.
+emails:
+  objets_ab:
+    - "Question sur vos livraisons {nom_boutique}"
+    - "Problème d'adresses chez {nom_boutique} ?"
+    - "{prenom}, une question rapide sur {nom_boutique}"
+  # Mention de désinscription : obligatoire en prospection (RGPD / CNIL). Elle
+  # est ajoutée automatiquement en bas de chaque email par `generate_emails.py`.
+  mention_desinscription: >-
+    Si vous ne souhaitez pas être recontacté, répondez simplement « stop » :
+    je vous retire de ma liste immédiatement.
+  # Longueur maximale d'un corps d'email, pour rester lisible sur mobile.
+  longueur_max_caracteres: 1200
+
+rgpd:
+  base_legale: "intérêt légitime (prospection B2B, article 6.1.f du RGPD)"
+  # Sources : annuaire des entreprises (public, diffusible) + pages de contact
+  # publiques. Jamais de donnée sensible, jamais de profil caché.
+  sources: ["annuaire-entreprises.data.gouv.fr", "pages de contact publiques"]
+  retention_annees: 3
+  # Un refus ou une désinscription est définitif : `track_responses.py` marque le
+  # prospect, et toute campagne l'exclut sans condition.
+  statuts_exclus_de_toute_campagne: ["refuse", "desinscrit", "converti"]
+
+sourcing:
+  # API publique Recherche d'entreprises (DINUM/INSEE) : sans clé, sans donnée
+  # personnelle cachée, uniquement des entreprises **diffusibles**.
+  api_url: "https://recherche-entreprises.api.gouv.fr/search"
+  per_page: 25
+  etat_administratif: "A"
+  statut_diffusion: "O"
+  # Tranches d'effectif INSEE visées (PME) : 10-19, 20-49, 50-99, 100-199.
+  tranches_effectif: ["11", "12", "21", "22"]
+  delai_entre_requetes_s: 1.0
+
+enrichissement:
+  user_agent: "AddressValidator-prospection/1.0 (+https://kder-ai.com; contact@kder-ai.com)"
+  timeout_s: 10
+  delai_entre_requetes_s: 2.0
+  # Lire robots.txt avant toute requête : un site qui refuse n'est pas visité.
+  respecter_robots_txt: true
+  # Pages visitées pour trouver une adresse de contact publiée.
+  chemins_contact: ["", "/contact", "/pages/contact", "/nous-contacter", "/contact-us"]
+
+prompt_template:
+  email_intro: |
+    Bonjour {prenom},
+
+    J'ai vu que votre boutique {nom_boutique} vend des {produit}.
+
+    {accroche}
+
+    J'ai une question rapide : est-ce que vous perdez parfois des ventes parce qu'un client a saisi une adresse que le transporteur n'arrive pas à livrer ?
+
+    Je demande parce que je développe un outil qui vérifie les adresses avant l'expédition. Ça coûte 0,02 $ par validation, et ça peut vous faire économiser 17 à 30 $ par livraison échouée.
+
+    Si vous voulez, je peux vous montrer un exemple sur votre propre site, sans engagement. Ça vous dit ?
+
+    {signature}
+
+    {desinscription}
+

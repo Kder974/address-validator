@@ -111,6 +111,13 @@ class Settings(BaseSettings):
     dashboard_user: str = "kder"
     dashboard_password: str = ""
 
+    # CRM de prospection (Tâche 7, `app/routes/prospection.py`). Chemin de la base
+    # SQLite tenue par `prospection/scripts/import_prospects.py`. Le dossier
+    # `prospection/` n'est pas déployé avec le service : sur le VPS, `/prospection`
+    # répond donc `503` avec la commande à lancer, jamais une page vide. Même
+    # garde que `/dashboard` (mot de passe absent = route fermée).
+    prospection_db: str = "prospection/data/prospects.db"
+
     # Environnement
     environment: str = "development"
     log_level: str = "INFO"

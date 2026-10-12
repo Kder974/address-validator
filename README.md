@@ -106,6 +106,7 @@ Toutes les valeurs viennent de l'environnement ou de `.env` (pydantic-settings,
 | `GET` | `/metrics` | compteurs, état du disjoncteur, état du cache | `app/routes/metrics.py` |
 | `GET` | `/metrics/revenue` | revenu agrégé 24 h / 7 j / 30 j — `real_*` hors recette, `total_*` registre entier (D40) — et disponibilité du registre | `app/routes/revenue.py` |
 | `GET` | `/dashboard` | tableau de bord d'exploitation — **privé** (Basic Auth ; `503` si `DASHBOARD_PASSWORD` est absent) | `app/routes/dashboard.py` |
+| `GET` | `/prospection` | CRM de prospection (liste, filtres, marquage, export) — **privé**, même garde que `/dashboard` (`503` si le mot de passe est absent ou si `PROSPECTION_DB` n'existe pas) | `app/routes/prospection.py`, `prospection/README.md` |
 | `POST` | `/validate` | **payant** — validation complète | `app/routes/validate.py` |
 | `GET` | `/docs` | documentation interactive (FastAPI) | auto |
 | `GET` | `/llms.txt`, `/AGENTS.md`, `/.well-known/security.txt` | fichiers de découverte pour agents, servis en statique par Nginx (voir `DISCOVERY.md`) | `nginx-discovery.conf` |

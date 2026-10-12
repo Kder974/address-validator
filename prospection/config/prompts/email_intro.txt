@@ -1,0 +1,17 @@
+Objet : Question rapide sur vos livraisons {nom_boutique}
+
+Bonjour {prenom},
+
+J'ai vu que votre boutique {nom_boutique} vend des {produit}.
+
+{accroche}
+
+J'ai une question rapide : est-ce que vous perdez parfois des ventes parce qu'un client a saisi une adresse que le transporteur n'arrive pas à livrer ?
+
+Je demande parce que je développe un outil qui vérifie les adresses avant l'expédition. Ça coûte 0,02 $ par validation, et ça peut vous faire économiser 17 à 30 $ par livraison échouée.
+
+Si vous voulez, je peux vous montrer un exemple sur votre propre site, sans engagement. Ça vous dit ?
+
+{signature}
+
+{desinscription}

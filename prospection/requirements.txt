@@ -1,0 +1,21 @@
+# prospection/requirements.txt — dépendances de la prospection.
+#
+# Volontairement minimales, et séparées de `../requirements.txt` (production de
+# l'API) : la prospection ne tourne pas dans l'image Docker du service payant et
+# n'a aucune raison de peser sur elle.
+#
+#   PyYAML : lire `config/settings.yaml` (déjà présent dans le venv du projet,
+#            tiré par `uvicorn[standard]`, mais on ne dépend pas d'un hasard de
+#            dépendance transitive pour un script qu'on veut pouvoir lancer seul).
+#
+# Aucune autre dépendance : `csv`, `sqlite3`, `json`, `urllib.request`,
+# `urllib.robotparser` et `re` (bibliothèque standard) couvrent l'import, la
+# génération d'emails, le suivi, l'analyse, l'export et le sourcing.
+# `pandas` n'est pas retenu : 60 Mo de dépendance pour lire quelques milliers de
+# lignes, alors que le module `csv` suffit — et le venv de production reste
+# inchangé (aucune installation supplémentaire sur le VPS).
+#
+# Installation (uniquement si PyYAML manque) :
+#   ..\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+PyYAML>=6.0

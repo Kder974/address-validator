@@ -1,0 +1,7 @@
+Bonjour {prenom},
+
+J'ai vu que vous êtes à la tête de {nom_boutique}. Je travaille sur un outil qui aide les e-commerçants à réduire les échecs de livraison en vérifiant les adresses avant expédition.
+
+Seriez-vous ouvert à un échange rapide de 10 minutes ?
+
+{signature}

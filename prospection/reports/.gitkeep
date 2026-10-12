@@ -1,0 +1,2 @@
+# Ce dossier reçoit les rapports générés (import, suivi, analyse) : ils sont
+# ignorés par git (données de prospection), mais le dossier lui-même existe.

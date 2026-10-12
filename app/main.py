@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import init_db
 from app.observability import configure_logging
-from app.routes import dashboard, health, manifest, mcp, metrics, revenue, validate
+from app.routes import dashboard, health, manifest, mcp, metrics, prospection, revenue, validate
 
 settings = get_settings()
 
@@ -58,6 +58,10 @@ app.include_router(manifest.router, tags=["discovery"])
 app.include_router(metrics.router, tags=["metrics"])
 app.include_router(revenue.router, tags=["metrics"])
 app.include_router(dashboard.router, tags=["dashboard"])
+# /prospection : CRM de prospection (Tâche 7) — même garde que /dashboard
+# (fermé par défaut), base SQLite locale lue en lecture seule par les vues, et
+# `503` explicite si la base de prospection n'est pas déployée sur la machine.
+app.include_router(prospection.router, tags=["prospection"])
 # D37 : serveur MCP (JSON-RPC 2.0 sur POST /mcp) + carte /.well-known/mcp-server.
 app.include_router(mcp.router, tags=["mcp"])
 
