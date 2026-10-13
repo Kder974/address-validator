@@ -205,13 +205,13 @@ def verifier_envoi(base, chemin_campagne: Path) -> None:
     identifiants = envoi.lire_identifiants(
         {
             "PROSPECTION_SMTP_HOST": "smtp.exemple.fr",
-            "PROSPECTION_SMTP_USER": "contact@kder-ai.com",
+            "PROSPECTION_SMTP_USER": "address-validator@kder-ai.com",
             "PROSPECTION_SMTP_PASSWORD": "x",
         }
     )
     verifier(identifiants["port"] == 587 and not identifiants["securise"], "port 587 (STARTTLS)")
     verifier(
-        identifiants["expediteur"] == "contact@kder-ai.com",
+        identifiants["expediteur"] == "address-validator@kder-ai.com",
         "expéditeur = utilisateur par défaut",
     )
     try:

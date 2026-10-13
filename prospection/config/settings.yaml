@@ -23,7 +23,7 @@ prospection:
   # Identité utilisée dans la signature et dans les User-Agent des requêtes
   # sortantes (l'enrichissement s'identifie, comme le géocodeur de l'API).
   signature_fichier: "config/prompts/signature.txt"
-  email_contact: "contact@kder-ai.com"
+  email_contact: "address-validator@kder-ai.com"
   # Objectif de volume : 100 prospects qualifiés par semaine.
   objectif_prospects_semaine: 100
   # Garde-fou de délivrabilité : plafond d'envois par jour et par boîte.
@@ -148,7 +148,7 @@ sourcing:
   delai_entre_requetes_s: 1.0
 
 enrichissement:
-  user_agent: "AddressValidator-prospection/1.0 (+https://kder-ai.com; contact@kder-ai.com)"
+  user_agent: "AddressValidator-prospection/1.0 (+https://kder-ai.com; address-validator@kder-ai.com)"
   timeout_s: 10
   delai_entre_requetes_s: 2.0
   # Lire robots.txt avant toute requête : un site qui refuse n'est pas visité.

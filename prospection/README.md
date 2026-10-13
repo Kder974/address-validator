@@ -212,7 +212,7 @@ ré-exporter suffit, sans regénérer la campagne.
 # 2. envoi réel : identifiants dans l'environnement de la session, jamais dans un fichier
 $env:PROSPECTION_SMTP_HOST = "smtp.exemple.fr"
 $env:PROSPECTION_SMTP_PORT = "587"
-$env:PROSPECTION_SMTP_USER = "contact@kder-ai.com"
+$env:PROSPECTION_SMTP_USER = "address-validator@kder-ai.com"
 $env:PROSPECTION_SMTP_PASSWORD = "..."
 & $py prospection\scripts\envoyer_smtp.py --campagne prospection\data\campagne_20261010.csv --confirmer --limite 20
 ```
