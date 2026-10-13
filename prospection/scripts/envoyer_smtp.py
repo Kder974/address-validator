@@ -103,7 +103,7 @@ def lire_identifiants(environ: dict | None = None) -> dict:
             + "\n  Exemple (PowerShell, session courante seulement) :\n"
             "    $env:PROSPECTION_SMTP_HOST='smtp.exemple.fr'\n"
             "    $env:PROSPECTION_SMTP_PORT='587'\n"
-            "    $env:PROSPECTION_SMTP_USER='contact@kder-ai.com'\n"
+            "    $env:PROSPECTION_SMTP_USER='address-validator@kder-ai.com'\n"
             "    $env:PROSPECTION_SMTP_PASSWORD='...'\n"
             "  Jamais dans un fichier du dépôt."
         )
@@ -138,7 +138,7 @@ def verifier_expediteur(identifiants: dict, accepter_domaine_public: bool) -> No
         raise ValueError(
             f"expéditeur sur un domaine grand public ({domaine}) : la prospection depuis "
             "une boîte personnelle finit en indésirables et abîme l'adresse.\n"
-            "  Utilisez un domaine professionnel (par exemple contact@kder-ai.com), ou "
+            "  Utilisez un domaine professionnel (par exemple address-validator@kder-ai.com), ou "
             "ajoutez --accepter-domaine-public en connaissance de cause."
         )
 

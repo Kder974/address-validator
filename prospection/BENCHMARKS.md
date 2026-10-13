@@ -102,7 +102,7 @@ Détail des prix et des fonctions : `README.md` §6.
 
 1. **Faire un essai réel de 10 envois** avec `data/campagne_exemple.csv` (5
    prospects fictifs ne suffisent pas) : sourcer 10 boutiques réelles, compléter
-   les adresses, générer, envoyer depuis `contact@kder-ai.com`.
+   les adresses, générer, envoyer depuis `address-validator@kder-ai.com`.
 2. **Publier SPF, DKIM et DMARC** sur `kder-ai.com` si ce n'est pas déjà fait,
    et vérifier avec un test de délivrabilité avant d'élargir.
 3. **Mesurer 30 jours** à 50 envois par jour maximum, en important l'export de

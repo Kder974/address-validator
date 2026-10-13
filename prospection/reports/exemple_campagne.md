@@ -42,7 +42,7 @@ Si vous voulez, je peux vous montrer un exemple sur votre propre site, sans enga
 Kder Daoud
 Fondateur, Address Validator
 https://kder-ai.com
-contact@kder-ai.com
+address-validator@kder-ai.com
 
 Si vous ne souhaitez pas être recontacté, répondez simplement « stop » : je vous retire de ma liste immédiatement.
 ```
@@ -77,7 +77,7 @@ Si vous voulez, je peux vous montrer un exemple sur votre propre site, sans enga
 Kder Daoud
 Fondateur, Address Validator
 https://kder-ai.com
-contact@kder-ai.com
+address-validator@kder-ai.com
 
 Si vous ne souhaitez pas être recontacté, répondez simplement « stop » : je vous retire de ma liste immédiatement.
 ```
@@ -112,7 +112,7 @@ Si vous voulez, je peux vous montrer un exemple sur votre propre site, sans enga
 Kder Daoud
 Fondateur, Address Validator
 https://kder-ai.com
-contact@kder-ai.com
+address-validator@kder-ai.com
 
 Si vous ne souhaitez pas être recontacté, répondez simplement « stop » : je vous retire de ma liste immédiatement.
 ```
@@ -147,7 +147,7 @@ Si vous voulez, je peux vous montrer un exemple sur votre propre site, sans enga
 Kder Daoud
 Fondateur, Address Validator
 https://kder-ai.com
-contact@kder-ai.com
+address-validator@kder-ai.com
 
 Si vous ne souhaitez pas être recontacté, répondez simplement « stop » : je vous retire de ma liste immédiatement.
 ```
@@ -182,7 +182,7 @@ Si vous voulez, je peux vous montrer un exemple sur votre propre site, sans enga
 Kder Daoud
 Fondateur, Address Validator
 https://kder-ai.com
-contact@kder-ai.com
+address-validator@kder-ai.com
 
 Si vous ne souhaitez pas être recontacté, répondez simplement « stop » : je vous retire de ma liste immédiatement.
 ```
