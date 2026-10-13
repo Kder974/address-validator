@@ -86,7 +86,7 @@ Points de vigilance assumés :
 - Le code envoie l'adresse au fournisseur **même lorsque les identifiants sont
   absents** (le fournisseur répond alors 401) : la vérification n'a pas de mode
   hors-ligne.
-- Le `User-Agent` Nominatim contient `Kdera597420@gmail.com`
+- Le `User-Agent` Nominatim contient `address-validator@kder-ai.com`
   (`app/validation/geocoder.py:19`, réglage `CONTACT_EMAIL`) : c'est une donnée du responsable de
   traitement, pas de la personne concernée.
 
@@ -105,7 +105,7 @@ entrée, il faut la **clé de cache**, délivrée dans chaque réponse
 - Délai de réponse cible : 30 jours. Aucune automatisation n'existe dans le
   code : la procédure est manuelle et doit être tenue par l'exploitant.
 - Réclamation possible auprès de la CNIL (France).
-- Contact : `Kdera597420@gmail.com`.
+- Contact : `address-validator@kder-ai.com`.
 
 ## 6. Cookies, traceurs, mineurs, évolution
 

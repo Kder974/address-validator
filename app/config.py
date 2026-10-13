@@ -152,7 +152,7 @@ class Settings(BaseSettings):
     # Contact de l'exploitant : publie dans GET /manifest et dans l'en-tete
     # User-Agent du geocodeur (politique d'usage Nominatim). Surchargeable par
     # la variable CONTACT_EMAIL du .env.
-    contact_email: str = "Kdera597420@gmail.com"
+    contact_email: str = "address-validator@kder-ai.com"
 
     class Config:
         env_file = ".env"
