@@ -34,3 +34,6 @@ diag_*.txt
 .oracles-out.txt
 .tmp_*
 demo.sqlite*
+
+# Carte du projet produite par le skill graphify (.claude/skills/graphify)
+graphify-out/
