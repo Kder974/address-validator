@@ -20,15 +20,21 @@ ABBREVIATION_MAP = {
 def standardize_address(parsed: Dict) -> Dict:
     street_name = parsed.get("street_name", "")
 
-    words = street_name.split()
-    standardized_words = []
-    for word in words:
-        lower = word.lower().rstrip(".")
-        if lower in ABBREVIATION_MAP:
-            standardized_words.append(ABBREVIATION_MAP[lower])
-        else:
-            standardized_words.append(word.capitalize())
-    street_name = " ".join(standardized_words)
+    if parsed.get("country", "US") == "US":
+        # Correctif D51 : abréviations et casse sont des conventions USPS, US seulement.
+        words = street_name.split()
+        standardized_words = []
+        for i, word in enumerate(words):
+            lower = word.lower().rstrip(".")
+            # ponytail: "St" en premier mot suivi d'un autre = Saint ; plafond : "N St Clair St"
+            # (St en 2e position) se développe encore en Street. Dictionnaire de saints si besoin.
+            if lower == "st" and i == 0 and len(words) > 1:
+                standardized_words.append("St")
+            elif lower in ABBREVIATION_MAP:
+                standardized_words.append(ABBREVIATION_MAP[lower])
+            else:
+                standardized_words.append(word.capitalize())
+        street_name = " ".join(standardized_words)
 
     zip_code = parsed.get("zip", "").replace(" ", "").replace("-", "")
     if parsed.get("country") == "US" and len(zip_code) >= 5:

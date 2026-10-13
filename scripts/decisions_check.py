@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D50, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D52, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 50
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 52
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -4753,7 +4753,74 @@ def d50() -> None:
     )
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 51)}
+def d51() -> None:
+    """Les adresses US et hors US sont standardisees sans deformation (mots entiers, USPS = US seulement, St = Saint en tete)."""
+    from app.validation.parser import parse_address
+    from app.validation.standardizer import standardize_address
+
+    def passer(rue: str, pays: str) -> dict:
+        return standardize_address(parse_address({"street": rue, "country": pays}))
+
+    attendus = [
+        ("100 Stewart St", "US", "100 Stewart Street", ""),
+        ("1 Florida Ave", "US", "1 Florida Avenue", ""),
+        ("12 Résidence Les Flamboyants", "RE", "12 Résidence Les Flamboyants", ""),
+        ("5 Rue St Joseph", "RE", "5 Rue St Joseph", ""),
+        ("123 St Charles Ave", "US", "123 St Charles Avenue", ""),
+        ("123 Main St Apt 4B", "US", "123 Main Street", "Apartment 4B"),
+        ("500 Fifth Ave #12", "US", "500 Fifth Avenue", "Apartment 12"),
+        ("500 Fifth Ave # 12", "US", "500 Fifth Avenue", "Apartment 12"),
+        ("100 N Main St", "US", "100 North Main Street", ""),
+        ("1 grange road", "US", "1 Grange Road", ""),
+    ]
+    for rue, pays, ligne1, ligne2 in attendus:
+        sortie = passer(rue, pays)
+        guard(
+            sortie["line1"] == ligne1 and sortie["line2"] == ligne2,
+            f"{rue!r} ({pays}) donne {sortie['line1']!r} / {sortie['line2']!r} au lieu de {ligne1!r} / {ligne2!r}",
+        )
+
+    guard(
+        "D51" in read("DECISIONS.md"),
+        "la decision D51 n'est plus consignee dans DECISIONS.md",
+    )
+
+
+def d52() -> None:
+    """Les textes publics decrivent les deux voies de paiement : x402 sans compte, abonnement par cle d'API."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    anciennes = (
+        "pas d'inscription, pas de cle d'API",
+        "Pas d'abonnement, pas de compte.",
+        "Aucun abonnement, aucune cle d'API, aucun compte",
+    )
+    for name in ("llms.txt", "AGENTS.md"):
+        texte = read(name)
+        for phrase in anciennes:
+            guard(phrase not in texte, f"{name} affirme encore {phrase!r} alors que /signup existe (D44)")
+        guard("X-API-Key" in texte, f"{name} ne dit plus que l'abonnement passe par X-API-Key")
+        guard("kder-ai.com/signup" in texte, f"{name} ne cite plus /signup")
+
+    reponse = TestClient(app).get("/manifest")
+    guard(reponse.status_code == 200, f"/manifest repond {reponse.status_code}")
+    limites = " ".join(reponse.json().get("limitations", []))
+    guard(
+        "pas de compte, pas de nom, pas d'e-mail. Le revenu" not in limites,
+        "le manifeste affirme encore qu'aucun compte n'existe alors que /signup collecte un e-mail",
+    )
+    guard("X-API-Key" in limites, "le manifeste ne dit plus que l'abonnement cree un compte client")
+
+    guard(
+        "pièce fragile" not in read("EMAIL_BIENVENUE.md"),
+        "l'email de Tiitoune Art parle encore de piece fragile (elle vend du henne)",
+    )
+    guard("D52" in read("DECISIONS.md"), "la decision D52 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 53)}
 
 
 def catalog() -> list[tuple[str, str]]:
