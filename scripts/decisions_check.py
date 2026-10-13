@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D52, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D53, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 52
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 53
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -4820,7 +4820,48 @@ def d52() -> None:
     guard("D52" in read("DECISIONS.md"), "la decision D52 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 53)}
+def d53() -> None:
+    """La page d'accueil sert la vitrine aux navigateurs et garde le JSON pour les programmes, chiffres lus dans le code."""
+    from fastapi.testclient import TestClient
+
+    from app import accounts
+    from app.config import get_settings
+    from app.main import app
+    from app.routes import accueil
+    from app.routes.validate_form import CHAMPS
+
+    client = TestClient(app)
+    navigateur = client.get("/", headers={"Accept": "text/html,application/xhtml+xml,*/*;q=0.8"})
+    guard(
+        navigateur.status_code == 200 and navigateur.headers["content-type"].startswith("text/html"),
+        f"un navigateur ne recoit pas la vitrine sur / : {navigateur.status_code}",
+    )
+    guard(navigateur.headers.get("vary") == "Accept", "la vitrine ne porte pas Vary: Accept")
+    csp = navigateur.headers.get("content-security-policy", "")
+    guard("default-src 'none'" in csp and "form-action 'self'" in csp, f"CSP de la vitrine inattendue : {csp}")
+    texte = navigateur.text
+    for interdit in ("<script", "<img", "<link", "@import", "url(", "{{"):
+        guard(interdit not in texte, f"la vitrine contient {interdit!r}")
+    guard(not re.search(r"https?://", texte), "la vitrine cite une URL externe")
+    noms = re.findall(r'<input[^>]*\bname="(\w+)"', texte)
+    guard(noms == [nom for nom, _, _ in CHAMPS], f"champs du formulaire de la vitrine : {noms}")
+
+    programme = client.get("/")
+    guard(programme.headers.get("content-type") == "application/json", "un programme ne recoit plus du JSON sur /")
+    guard(programme.headers.get("vary") == "Accept", "le JSON de / ne porte pas Vary: Accept")
+    guard(programme.json().get("service") == "Address Validator API", f"charge utile de / : {programme.json()}")
+
+    guard(
+        f"{accounts.JOURS_ESSAI} jours" in texte and f"{accounts.VALIDATIONS_ESSAI} validations" in texte,
+        "l'essai affiche par la vitrine n'est pas celui d'accounts.py",
+    )
+    autre = accueil.page(get_settings().model_copy(update={"x402_price": 0.05}))
+    guard("0,05 USDC" in autre and "0,02 USDC" not in autre, "le prix x402 de la vitrine ne suit pas la configuration")
+
+    guard("D53" in read("DECISIONS.md"), "la decision D53 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 54)}
 
 
 def catalog() -> list[tuple[str, str]]:

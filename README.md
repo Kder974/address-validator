@@ -296,6 +296,21 @@ Vérification : `.\.venv\Scripts\python.exe scripts\decisions_check.py D50` — 
 porte installe une base réelle et compare l'état publié au refus que la route
 applique, y compris le cas du client payant dont la date d'essai est passée.
 
+### 4.7 Page d'accueil (D53)
+
+`GET /` sert la vitrine à un navigateur et garde le JSON d'avant pour un programme
+(`Vary: Accept` sur les deux). Le dessin vit dans `app/templates/accueil.html`
+(maquette d'origine : `docs/maquettes/page-accueil/`) ; ses chiffres (essai, quotas,
+prix, prix x402, contact) sont injectés par `app/routes/accueil.py` depuis le code et
+la configuration.
+
+```powershell
+curl.exe -s https://kder-ai.com/                      # JSON, comme avant
+curl.exe -s -H "Accept: text/html" https://kder-ai.com/   # la vitrine
+```
+
+Vérification : `.\.venv\Scripts\python.exe scripts\decisions_check.py D53`.
+
 ## 5. Exemple d'appel payant
 
 1. Construire une preuve (le client et l'API partagent `API_SECRET_KEY`) :

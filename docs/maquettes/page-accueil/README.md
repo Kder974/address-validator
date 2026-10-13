@@ -1,6 +1,9 @@
 # Maquette : page d'accueil de kder-ai.com
 
-**Proposition à valider. Rien dans `app/` ne change ici.** Aujourd'hui `GET /` renvoie du
+> **Validée et intégrée par D53.** La page servie est `app/templates/accueil.html`, remplie
+> par `app/routes/accueil.py`. Ce dossier garde la maquette d'origine pour mémoire.
+
+**Proposition à valider. Rien dans `app/` ne change ici.** Avant D53, `GET /` renvoyait du
 JSON brut : une boutique qui tape `kder-ai.com` dans son navigateur tombe sur
 `{"service":"Address Validator API",…}`. Cette maquette propose la vitrine qui la
 remplacerait pour les navigateurs.

@@ -330,3 +330,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D52: the public texts (llms.txt, AGENTS.md, manifest limitations) describe both payment paths -- x402 without an account and the X-API-Key subscription -- no longer claim that no account or API key exists, and the Tiitoune Art welcome email no longer mentions a fragile piece
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D52
   EXPECT: DECISION OK D52
+- [ ] D53: GET / serves the showcase page to browsers and keeps the exact previous JSON for programs, both with Vary: Accept, under the public CSP with form-action 'self', with no script, external resource or unfilled placeholder, the real trial form fields, and figures read from the code and the configuration
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D53
+  EXPECT: DECISION OK D53
