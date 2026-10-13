@@ -17,6 +17,10 @@ Trois exigences, dans cet ordre de priorité :
    tableau de bord d'exploitation qui gonflerait le chiffre d'affaires avec ses
    propres tests serait un instrument de mensonge.
 
+La feuille de style vit dans `app/web.py` (D43), partagee avec les pages
+publiques : une seule feuille, donc aucune derive possible entre
+l'exploitation et le site commercial.
+
 L'authentification est le couple `DASHBOARD_USER` / `DASHBOARD_PASSWORD` du
 `.env`, comparé en temps constant (`secrets.compare_digest`).
 """
@@ -32,6 +36,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from app.config import get_settings
 from app.routes.revenue import safe_revenue_stats
+from app.web import DASHBOARD_CSS
 
 router = APIRouter()
 
@@ -153,32 +158,7 @@ def _page(stats: dict) -> str:
 <meta name="robots" content="noindex, nofollow">
 <title>Address Validator — exploitation</title>
 <style>
-  :root {{ color-scheme: light dark; }}
-  body {{ font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-         margin: 0; padding: 24px; background: #0f1115; color: #e6e8eb; }}
-  h1 {{ font-size: 20px; margin: 0 0 4px; }}
-  .muted, .muted * {{ color: #9aa4b2; }}
-  .grid {{ display: flex; flex-wrap: wrap; gap: 12px; margin: 18px 0; }}
-  .card {{ background: #171a21; border: 1px solid #242833; border-radius: 10px;
-           padding: 12px 16px; min-width: 168px; }}
-  .card .k {{ font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
-              color: #9aa4b2; }}
-  .card .v {{ font-size: 22px; font-weight: 600; }}
-  .ok {{ color: #6ee7a8; }}
-  .ko {{ color: #ffb4a2; }}
-  .bar {{ display: flex; align-items: center; gap: 10px; margin: 6px 0; }}
-  .bar .lbl {{ width: 42px; color: #9aa4b2; }}
-  .bar .track {{ flex: 1; height: 12px; background: #242833; border-radius: 6px; }}
-  .bar .fill {{ display: block; height: 12px; border-radius: 6px; background: #4f8cff; }}
-  .bar .val {{ width: 110px; text-align: right; }}
-  table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
-  th, td {{ text-align: left; padding: 6px 8px; border-bottom: 1px solid #242833; }}
-  th {{ font-size: 12px; text-transform: uppercase; color: #9aa4b2; }}
-  .num {{ text-align: right; }}
-  .mono {{ font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-           font-size: 12px; }}
-  footer {{ margin-top: 22px; font-size: 12px; color: #9aa4b2; }}
-</style>
+{DASHBOARD_CSS}</style>
 </head>
 <body>
 <h1>Address Validator — exploitation</h1>

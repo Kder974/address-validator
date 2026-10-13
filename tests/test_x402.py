@@ -142,10 +142,12 @@ def test_valid_x402_payment_is_settled_then_served(facilitator):
 def test_settlement_hash_is_what_the_ledger_records(facilitator, monkeypatch):
     """D29 + D36 : le registre compte le hash regle, pas la preuve annoncee."""
     written: list[tuple] = []
-    monkeypatch.setattr(
-        "app.routes.validate.record_transaction",
-        lambda tx_hash, amount, address: written.append((tx_hash, amount)),
-    )
+
+    def _ecrit(tx_hash, amount, address):
+        written.append((tx_hash, amount))
+        return True  # D41 : le service n'est rendu que si la ligne est ecrite
+
+    monkeypatch.setattr("app.routes.validate.record_transaction", _ecrit)
     response = client.post("/validate", json=PAYLOAD, headers={"X-PAYMENT": _header()})
     assert response.status_code == 200
     assert written == [(TX, 0.02)], f"registre alimente par autre chose : {written}"

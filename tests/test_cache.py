@@ -154,3 +154,82 @@ def test_reset_backend_state_clears_error_counter(monkeypatch):
 
     assert cache.cache_backend_available() is True
     assert cache.cache_error_count() == 0
+
+
+# --------------------------------------------------------------------------- #
+# D47 — ce qu'un résultat dégradé vaut dans le temps
+# --------------------------------------------------------------------------- #
+
+
+def _fournisseur_en_panne(monkeypatch, panne: dict) -> None:
+    """Fournisseur qui échoue tant que `panne["en_panne"]` est vrai."""
+    import httpx
+
+    from app.validation import verifier
+
+    def _fournisseur(*args, **kwargs):
+        if panne["en_panne"]:
+            raise httpx.ConnectError("fournisseur simulé injoignable")
+        return [{"analysis": {"dpv_match_code": "Y"}, "metadata": {}}]
+
+    monkeypatch.setattr(verifier, "_call_smarty", _fournisseur)
+
+
+def test_un_resultat_verifie_reste_trente_jours(fake_redis, monkeypatch):
+    """Un vrai verdict se garde : c'est ce qui évite de payer deux fois."""
+    from app.cache import CACHE_TTL
+
+    _count_provider_calls(monkeypatch)
+    headers = {"X-Payment-Proof": build_payment_proof("0xcache-ttl-ok")}
+
+    reponse = client.post("/validate", json=PAYLOAD, headers=headers)
+
+    assert reponse.json()["result"]["degraded"] is False
+    cle = reponse.json()["result"]["cache_key"]
+    assert fake_redis.ttls[f"addr:{cle}"] == CACHE_TTL
+
+
+def test_un_resultat_degrade_ne_se_garde_que_cinq_minutes(fake_redis, monkeypatch):
+    """D47 : « le fournisseur n'a pas répondu » ne se garde pas trente jours.
+
+    Le garder trente jours transformerait une panne passagère en réponse fausse
+    d'un mois, sur une adresse que le client paie à chaque appel.
+    """
+    from app.cache import CACHE_TTL, CACHE_TTL_DEGRADED
+
+    _fournisseur_en_panne(monkeypatch, {"en_panne": True})
+    headers = {"X-Payment-Proof": build_payment_proof("0xcache-ttl-degrade")}
+
+    reponse = client.post("/validate", json=PAYLOAD, headers=headers)
+
+    assert reponse.status_code == 200
+    assert reponse.json()["result"]["degraded"] is True
+    assert CACHE_TTL_DEGRADED < CACHE_TTL
+    cle = reponse.json()["result"]["cache_key"]
+    assert fake_redis.ttls[f"addr:{cle}"] == CACHE_TTL_DEGRADED
+
+
+def test_une_panne_passagere_ne_fige_pas_l_adresse(fake_redis, monkeypatch):
+    """D47, vu du client : la panne passée, la même adresse est re-vérifiée."""
+    from app.cache import CACHE_TTL_DEGRADED
+    from app.validation.verifier import breaker
+
+    panne = {"en_panne": True}
+    _fournisseur_en_panne(monkeypatch, panne)
+    headers = {"X-Payment-Proof": build_payment_proof("0xcache-panne")}
+
+    premiere = client.post("/validate", json=PAYLOAD, headers=headers)
+    assert premiere.json()["result"]["degraded"] is True
+    cle = premiere.json()["result"]["cache_key"]
+    assert fake_redis.ttls[f"addr:{cle}"] == CACHE_TTL_DEGRADED
+
+    # Le fournisseur revient, le disjoncteur se referme, et les cinq minutes de
+    # la réponse dégradée sont écoulées.
+    breaker.reset()
+    panne["en_panne"] = False
+    fake_redis.store.pop(f"addr:{cle}")
+
+    seconde = client.post("/validate", json=PAYLOAD, headers=headers)
+
+    assert seconde.json()["result"]["degraded"] is False
+    assert seconde.json()["result"]["validated"] is True

@@ -62,6 +62,47 @@ CREATE INDEX IF NOT EXISTS idx_payment_test_mode ON payment_transactions(test_mo
 -- Migration idempotente : une base deja en service recoit la colonne au
 -- demarrage (init_db est appele par le lifespan), une base neuve l'a ci-dessus.
 ALTER TABLE payment_transactions ADD COLUMN IF NOT EXISTS test_mode BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- D44 : comptes clients (campagne commerciale). Trois remarques de conception.
+--
+--   * `api_key_hash` + `api_key_prefix` remplacent la colonne `api_key` de la
+--     spec : une cle API stockee en clair est un mot de passe en clair. La base
+--     ne garde que l'empreinte SHA-256 (index de recherche) et un prefixe
+--     affichable ; la cle n'existe qu'entre sa generation et son affichage, une
+--     fois. Une cle perdue se regenere, elle ne se relit pas.
+--   * `password_hash` contient une empreinte bcrypt (sel inclus) : le mot de
+--     passe en clair n'est jamais ecrit, ni en base, ni dans un journal.
+--   * `plan` et `trial_ends_at` vivent dans la donnee : « essai gratuit de
+--     14 jours » doit etre verifiable, pas suppose.
+CREATE TABLE IF NOT EXISTS customers (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    shop_name VARCHAR(255) NOT NULL,
+    platform VARCHAR(40) NOT NULL,
+    api_key_hash VARCHAR(64) UNIQUE NOT NULL,
+    api_key_prefix VARCHAR(16) NOT NULL,
+    plan VARCHAR(20) NOT NULL DEFAULT 'trial',
+    trial_ends_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);
+CREATE INDEX IF NOT EXISTS idx_customers_api_key_hash ON customers(api_key_hash);
+
+-- D44 : une validation servie a un compte. C'est la source des statistiques du
+-- tableau de bord client (validations, adresses invalides, economies estimees) :
+-- un compteur tenu a la main deriverait desormais du service rendu.
+CREATE TABLE IF NOT EXISTS customer_validations (
+    id SERIAL PRIMARY KEY,
+    customer_id INTEGER NOT NULL REFERENCES customers(id),
+    cache_key VARCHAR(64),
+    validated BOOLEAN NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_customer_validations_customer
+    ON customer_validations(customer_id);
+CREATE INDEX IF NOT EXISTS idx_customer_validations_created_at
+    ON customer_validations(created_at);
 """
 
 

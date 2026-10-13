@@ -45,13 +45,19 @@ class Settings(BaseSettings):
     # jamais enfoui dans un script.
     test_mode_cutoff_utc: str = "2026-10-11T12:00:00+00:00"
 
-    # Vérification on-chain du paiement (D27). Désactivée par défaut : la preuve
-    # HMAC de D15 reste celle du service. Quand elle est activée, le reçu de la
+    # Vérification on-chain du paiement (D27). **Active par défaut** depuis le
+    # durcissement W1 (12/10/2026, AUDIT_TRAFIC_VPS.md §5) : la preuve HMAC de
+    # D15 n'est qu'un secret partagé, forgeable par qui le connaît, et le défaut
+    # `false` laissait un déploiement qui oublie la variable servir le service
+    # sans encaissement vérifiable. Quand elle est active, le reçu de la
     # transaction citée dans `X-Payment-Proof` doit contenir un transfert USDC
     # confirmé vers `cdp_wallet_address` (app/onchain.py) ; tout échec est
-    # fail-closed. `base_rpc_url` est un nœud JSON-RPC public de Base (chaîne
-    # 8453) ; `x402_usdc_contract` est le contrat USDC natif de Base.
-    x402_onchain_verify: bool = False
+    # fail-closed. La couper (`X402_ONCHAIN_VERIFY=false`) n'est légitime que
+    # dans une **recette déclarée** (`TEST_MODE=true`) : hors recette, la preuve
+    # à secret partagé est alors refusée (`app/payment.py`, W1).
+    # `base_rpc_url` est un nœud JSON-RPC public de Base (chaîne 8453) ;
+    # `x402_usdc_contract` est le contrat USDC natif de Base.
+    x402_onchain_verify: bool = True
     base_rpc_url: str = "https://mainnet.base.org"
     x402_usdc_contract: str = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
     x402_min_confirmations: int = 1
@@ -111,12 +117,33 @@ class Settings(BaseSettings):
     dashboard_user: str = "kder"
     dashboard_password: str = ""
 
+    # Pages publiques de la campagne commerciale (D43 : `/pricing`, puis
+    # `/signup` et `/validate-form`). Les témoignages affichés sur `/pricing`
+    # sont des **exemples** : les publier par défaut reviendrait à présenter des
+    # retours inventés comme réels — une pratique commerciale trompeuse, et un
+    # mensonge à la première visite d'un client. Défaut `false` : la section
+    # n'apparaît qu'après **remplacement** du contenu par de vrais témoignages,
+    # sur décision explicite de l'exploitant.
+    pricing_show_testimonials: bool = False
+
     # CRM de prospection (Tâche 7, `app/routes/prospection.py`). Chemin de la base
     # SQLite tenue par `prospection/scripts/import_prospects.py`. Le dossier
     # `prospection/` n'est pas déployé avec le service : sur le VPS, `/prospection`
     # répond donc `503` avec la commande à lancer, jamais une page vide. Même
     # garde que `/dashboard` (mot de passe absent = route fermée).
     prospection_db: str = "prospection/data/prospects.db"
+
+    # Inscription self-service (D44). Plafond exigé par la spec : 5 tentatives par
+    # IP et par heure. La valeur vit ici — réglable, et le repli local sans Redis
+    # est compté (`app/ratelimit.py`) pour que le garde-fou réel soit visible.
+    signup_rate_limit_per_hour: int = 5
+    # Essai gratuit : durée et quota. Ils sont **publiés** sur `/pricing`
+    # (« 14 jours, 100 validations ») et **appliqués** à l'inscription ; une offre
+    # annoncée qui ne serait pas appliquée serait un mensonge.
+    trial_days: int = 14
+    # Plafond du formulaire public de validation (élément 3, `POST /validate-form`) :
+    # 10 essais gratuits par IP et par 24 h.
+    validate_form_rate_limit_per_day: int = 10
 
     # Environnement
     environment: str = "development"

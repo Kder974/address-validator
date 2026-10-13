@@ -6,7 +6,7 @@ table réelle. Toute modification de schéma doit être répercutée des deux c�
 (décision D13, voir DECISIONS.md).
 """
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, func
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base
 
@@ -40,4 +40,46 @@ class PaymentTransaction(Base):
     #: D40 : vrai pour un essai de recette (jamais du revenu client). La colonne
     #: existe aussi dans le DDL de `app/database.py` (D13 : les deux cotes).
     test_mode = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, server_default=func.current_timestamp(), index=True)
+
+
+class Customer(Base):
+    """Compte client (décision D44) — miroir du DDL de `app/database.py`.
+
+    La colonne demandée par la spec s'appelait `api_key` : elle s'appelle ici
+    `api_key_hash` plus `api_key_prefix`, parce qu'une clé API stockée en clair
+    est un mot de passe en clair. L'empreinte identifie la clé présentée, le
+    préfixe permet de la reconnaître dans une liste (« la clé qui commence par
+    `sk_live_ab12` »), et la clé elle-même n'existe qu'au moment où on l'affiche.
+    """
+
+    __tablename__ = "customers"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    shop_name = Column(String(255), nullable=False)
+    platform = Column(String(40), nullable=False)
+    api_key_hash = Column(String(64), unique=True, nullable=False, index=True)
+    api_key_prefix = Column(String(16), nullable=False)
+    plan = Column(String(20), nullable=False, default="trial")
+    trial_ends_at = Column(DateTime)
+    created_at = Column(DateTime, server_default=func.current_timestamp(), index=True)
+
+
+class CustomerValidation(Base):
+    """Une validation servie à un compte (D44) : source des statistiques.
+
+    Sans cette table, le tableau de bord d'un client n'aurait que des zéros
+    décoratifs. Chaque validation servie par une clé API laisse une ligne :
+    c'est ce qui rend « nombre de validations », « adresses invalides détectées »
+    et « économies estimées » calculables au lieu d'inventés.
+    """
+
+    __tablename__ = "customer_validations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    cache_key = Column(String(64), index=True)
+    validated = Column(Boolean, nullable=False)
     created_at = Column(DateTime, server_default=func.current_timestamp(), index=True)

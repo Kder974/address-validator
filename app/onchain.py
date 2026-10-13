@@ -1,12 +1,12 @@
 """Vérification on-chain du paiement (D27) : lecture du reçu d'un transfert USDC.
 
-D15 reste la référence du service : la preuve de paiement est un HMAC à secret
-partagé, et `verify_payment` accepte cette preuve **sans** interroger la
-blockchain. Cette couche ajoute une confirmation *réelle*, activée explicitement
-par l'exploitant (`X402_ONCHAIN_VERIFY=true`) : la transaction citée dans
-l'en-tête `X-Payment-Proof` doit alors exister sur Base, être confirmée, et
-contenir un transfert USDC vers le portefeuille d'encaissement d'au moins le
-prix annoncé.
+La preuve de paiement héritée est un HMAC à secret partagé (D15) : elle prouve un
+accord, pas un encaissement. Cette couche ajoute la confirmation *réelle*, **active
+par défaut** depuis le durcissement W1 (12/10/2026) : la transaction citée dans
+l'en-tête `X-Payment-Proof` doit exister sur Base, être confirmée, et contenir un
+transfert USDC vers le portefeuille d'encaissement d'au moins le prix annoncé.
+Hors recette déclarée (`TEST_MODE=true`), `verify_payment` refuse donc toute
+preuve que la chaîne ne confirme pas (`app/payment.py`).
 
 Choix techniques (D27) :
 

@@ -19,9 +19,30 @@ La spec (Phase 3) fournit un squelette. Décisions de durcissement :
       (`cdp-sdk==1.0.1`) expose une autre API (`CdpClient` sans `configure` :
       constaté au démarrage du VPS), donc la confirmation du paiement passe par
       une **lecture JSON-RPC** du reçu sur Base (`app/onchain.py`), sans paquet
-      web3 ni authorization EIP-3009. Elle est *optionnelle* et désactivée par
-      défaut : D15 reste la référence du service, `verify_payment` accepte la
-      preuve HMAC seule tant que `X402_ONCHAIN_VERIFY` n'est pas vrai.
+      web3 ni authorization EIP-3009.
+
+  W1  (durcissement du 12/10/2026, `AUDIT_TRAFIC_VPS.md` §5) La confirmation
+      on-chain n'est plus *optionnelle* : elle est **active par défaut**
+      (`X402_ONCHAIN_VERIFY=true`), parce que le défaut inverse était un
+      fail-open — un déploiement qui omettait la variable servait le service
+      contre une preuve synthétique. La voie héritée n'a donc plus que deux
+      issues :
+        * **production** (`TEST_MODE=false`) : le reçu du `tx_hash` cité doit
+          être un transfert USDC confirmé vers le portefeuille d'encaissement ;
+          une preuve HMAC seule vaut `402`, et une couche on-chain coupée vaut
+          `402` aussi (`legacy_proof_result`), jamais un `200` ;
+        * **recette déclarée** (`TEST_MODE=true`) : la preuve synthétique reste
+          acceptée — c'est le harnais de l'exploitant, on ne paie pas 0,02 USDC
+          réels à chaque contrôle. Ce `200`-là ne peut pas compter comme du
+          revenu : `record_transaction` marque la ligne `test_mode` (D40) et
+          `/metrics/revenue` l'exclut de `real_revenue_usdc`.
+
+  W2  (durcissement du 12/10/2026) `record_transaction` ne leve toujours pas
+      d'exception, mais son **echec n'est plus ignorable** : un encaissement qui
+      n'a pas pu entrer au registre n'est pas servi — `/validate` repond `500`,
+      `/mcp` une erreur JSON-RPC `-32603` — et l'incident est compte
+      (`ledger_write_failures_total`). Un revenu reel non inscrit n'est ni
+      mesurable (D29) ni publie (D40) : il n'existe pour personne.
 
   D34 Le protocole x402 **standard** est implémenté (app/x402.py) : le corps du
       `402` publie `accepts[]`, le client paie par l'en-tête `X-PAYMENT`, et la
@@ -190,13 +211,41 @@ def legacy_proof_result(request: Request) -> PaymentDecision:
     except Exception:
         return PaymentDecision(False, "preuve illisible", protocol="hmac")
 
-    # Confirmation on-chain (D27) : désactivée par défaut, D15 s'applique alors.
-    # Activée, elle est *fail-closed* : un refus de la chaîne vaut un refus.
-    if settings.x402_onchain_verify:
-        confirmed, reason = check_usdc_transfer(tx_hash)
-        if not confirmed:
-            logger.warning("Preuve de paiement refusee (on-chain) : %s", reason)
-            return PaymentDecision(False, reason, protocol="hmac")
+    # Recette déclarée (W1/D40) : le harnais de l'exploitant ne peut pas payer
+    # 0,02 USDC réels à chaque contrôle, la preuve synthétique reste donc
+    # acceptée — mais la ligne écrite est marquée `test_mode` (D40), donc exclue
+    # du revenu réel : un `200` sans encaissement ne peut pas devenir du chiffre
+    # d'affaires. Ce chemin est tracé pour ne jamais être silencieux.
+    if settings.test_mode:
+        logger.warning(
+            "Paiement accepte en RECETTE (TEST_MODE=true) sans encaissement verifie : %s",
+            tx_hash,
+        )
+        return PaymentDecision(
+            True,
+            f"preuve HMAC valide pour {tx_hash} (recette)",
+            protocol="hmac",
+            transaction=tx_hash,
+        )
+
+    # Hors recette, la couche on-chain est la seule autorité (W1) : la couper
+    # reviendrait à rendre le service contre une simple signature HMAC, c'est-à-
+    # dire contre rien pour qui connaît `API_SECRET_KEY`.
+    if not settings.x402_onchain_verify:
+        logger.warning(
+            "Preuve HMAC refusee : verification on-chain coupee hors recette (W1)"
+        )
+        return PaymentDecision(
+            False,
+            "verification on-chain desactivee hors recette : preuve a secret partage refusee",
+            protocol="hmac",
+        )
+
+    # Fail-closed : l'absence de confirmation de la chaîne vaut refus.
+    confirmed, reason = check_usdc_transfer(tx_hash)
+    if not confirmed:
+        logger.warning("Preuve de paiement refusee (on-chain) : %s", reason)
+        return PaymentDecision(False, reason, protocol="hmac")
 
     return PaymentDecision(
         True,
@@ -229,7 +278,13 @@ def verify_payment(request: Request) -> bool:
 def record_transaction(
     tx_hash: str, amount: float, address: str, test_mode: bool | None = None
 ) -> bool:
-    """Enregistre la transaction de paiement (meilleur effort, jamais bloquant).
+    """Enregistre la transaction de paiement (sans jamais lever d'exception).
+
+    Renvoie `False` quand la ligne n'a pas pu etre ecrite : hash vide, base
+    injoignable, erreur SQL. Depuis D41, l'appelant ne peut plus l'ignorer :
+    `/validate` et `/mcp` refusent alors de servir (500 / -32603) et comptent
+    l'incident, parce qu'un encaissement non inscrit n'est ni mesurable (D29) ni
+    publie (D40).
 
     `test_mode=None` (défaut) suit `TEST_MODE` : un service en production compte
     ce qu'il encaisse, une recette se marque explicitement. Une ligne marquée
@@ -258,5 +313,7 @@ def record_transaction(
             conn.commit()
         return True
     except Exception as exc:  # noqa: BLE001
-        logger.warning("record_transaction a échoué (non bloquant) : %s", exc)
+        logger.warning(
+            "record_transaction a échoué (l'appelant doit refuser de servir, D41) : %s", exc
+        )
         return False

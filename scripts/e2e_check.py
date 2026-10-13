@@ -13,11 +13,15 @@ succès observables de l'extérieur (codes HTTP, corps de réponse, cache).
 
 Sortie : tableau PASS/FAIL + code de retour 0 (tout vert) ou 1.
 
-Note : le harnais construit des preuves de paiement valides avec le même secret
-que le serveur (`API_SECRET_KEY`). C'est volontaire : il valide le *protocole*,
-pas l'authenticité on-chain (voir DECISIONS.md D15).
+Régime (W1) : la voie à secret partagé (`X-Payment-Proof`, D15) n'est servie que
+dans une **recette déclarée** (`TEST_MODE=true` côté serveur). Le harnais lit
+donc `TEST_MODE` dans son propre environnement, qui doit être celui du serveur.
+Sans recette déclarée, les contrôles qui exigent une preuve acceptée (§5 et son
+cache §6) sont annoncés comme *non applicables* au lieu d'un faux PASS : la
+vérification on-chain, elle, ne se simule pas depuis l'extérieur (D27).
 """
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -44,6 +48,11 @@ PAYLOAD = {"address": ADDRESS}
 
 RESULTS: list[tuple[bool, str]] = []
 
+# Le harnais partage le régime du serveur : hors recette déclarée, une preuve à
+# secret partagé est refusée (W1). Les contrôles qui en dépendent sont alors
+# sautés explicitement, jamais validés par défaut.
+RECETTE = os.environ.get("TEST_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
+
 
 def check(label: str, condition: bool, detail: str = "") -> None:
     RESULTS.append((bool(condition), label))
@@ -55,6 +64,14 @@ def main() -> int:
     client = httpx.Client(base_url=BASE, timeout=30.0)
 
     print(f"\n=== Recette bout-en-bout : {BASE} ===\n")
+    print(
+        "  régime : "
+        + (
+            "RECETTE DÉCLARÉE (TEST_MODE=true) — preuves à secret partagé acceptées"
+            if RECETTE
+            else "PRODUCTION (TEST_MODE absent) — seul un règlement on-chain ouvre un 200"
+        )
+    )
 
     try:
         client.get("/")
@@ -120,49 +137,63 @@ def main() -> int:
     check("preuve malformee -> 402", r_malformed.status_code == 402, f"HTTP {r_malformed.status_code}")
 
     print("\n5. Appel payant (critere n.2)")
-    t0 = time.time()
-    paid = client.post("/validate", json=PAYLOAD, headers=headers)
-    elapsed = time.time() - t0
-    check(
-        "POST /validate avec preuve valide -> 200",
-        paid.status_code == 200,
-        f"HTTP {paid.status_code} en {elapsed:.3f}s",
-    )
-    pbody = paid.json()
-    check("  reponse contient result.standardized", "standardized" in pbody.get("result", {}))
-    check("  price_paid == 0.02", pbody.get("price_paid") == 0.02)
-    check(
-        "  transaction_id repris de l'en-tete",
-        pbody.get("transaction_id") == "0xe2e-tx-1",
-    )
-    check(
-        "  resultat explicite (degraded est un booleen, jamais silencieux)",
-        isinstance(pbody.get("result", {}).get("degraded"), bool),
-        f"degraded={pbody.get('result', {}).get('degraded')}",
-    )
-    print(f"       line1={pbody.get('result', {}).get('standardized', {}).get('line1')!r}")
-    print(f"       confidence={pbody.get('result', {}).get('confidence')}")
+    if not RECETTE:
+        # Hors recette, la même preuve correctement signée doit être refusée :
+        # c'est le contrôle utile quand on éprouve une instance de production.
+        hors_recette = client.post("/validate", json=PAYLOAD, headers=headers)
+        check(
+            "  hors recette, preuve a secret partage -> 402 (W1)",
+            hors_recette.status_code == 402,
+            f"HTTP {hors_recette.status_code} — seul un reglement on-chain ouvre un 200",
+        )
+        print("       critere n.2 et mesure du cache (n.3) : non applicables sans recette declaree")
+    else:
+        t0 = time.time()
+        paid = client.post("/validate", json=PAYLOAD, headers=headers)
+        elapsed = time.time() - t0
+        check(
+            "POST /validate avec preuve valide -> 200",
+            paid.status_code == 200,
+            f"HTTP {paid.status_code} en {elapsed:.3f}s",
+        )
+        pbody = paid.json()
+        check("  reponse contient result.standardized", "standardized" in pbody.get("result", {}))
+        check("  price_paid == 0.02", pbody.get("price_paid") == 0.02)
+        check(
+            "  transaction_id repris de l'en-tete",
+            pbody.get("transaction_id") == "0xe2e-tx-1",
+        )
+        check(
+            "  resultat explicite (degraded est un booleen, jamais silencieux)",
+            isinstance(pbody.get("result", {}).get("degraded"), bool),
+            f"degraded={pbody.get('result', {}).get('degraded')}",
+        )
+        print(f"       line1={pbody.get('result', {}).get('standardized', {}).get('line1')!r}")
+        print(f"       confidence={pbody.get('result', {}).get('confidence')}")
 
     print("\n6. Cache (critere n.3)")
-    before = client.get("/metrics").json()
-    t0 = time.time()
-    paid2 = client.post("/validate", json=PAYLOAD, headers=headers)
-    elapsed2 = time.time() - t0
-    after = client.get("/metrics").json()
-    check("2e appel identique -> 200", paid2.status_code == 200)
-    check(
-        "  meme cache_key",
-        pbody["result"]["cache_key"] == paid2.json()["result"]["cache_key"],
-    )
-    if after["cache_hits"] > before["cache_hits"]:
-        check("  cache_hit incremente (Redis actif)", True, f"ratio={after['cache_hit_ratio']}")
+    if not RECETTE:
+        print("       mesure du cache : non applicable sans recette declaree (preuve refusee)")
     else:
+        before = client.get("/metrics").json()
+        t0 = time.time()
+        paid2 = client.post("/validate", json=PAYLOAD, headers=headers)
+        elapsed2 = time.time() - t0
+        after = client.get("/metrics").json()
+        check("2e appel identique -> 200", paid2.status_code == 200)
         check(
-            "  Redis absent -> 2e appel recalcule (degradation attendue)",
-            True,
-            f"ratio={after['cache_hit_ratio']}",
+            "  meme cache_key",
+            pbody["result"]["cache_key"] == paid2.json()["result"]["cache_key"],
         )
-    print(f"       1er appel {elapsed:.3f}s / 2e appel {elapsed2:.3f}s")
+        if after["cache_hits"] > before["cache_hits"]:
+            check("  cache_hit incremente (Redis actif)", True, f"ratio={after['cache_hit_ratio']}")
+        else:
+            check(
+                "  Redis absent -> 2e appel recalcule (degradation attendue)",
+                True,
+                f"ratio={after['cache_hit_ratio']}",
+            )
+        print(f"       1er appel {elapsed:.3f}s / 2e appel {elapsed2:.3f}s")
 
     print("\n7. Robustesse de l'entree")
     bad = client.post("/validate", json={"address": {"street": "x"}}, headers=headers)

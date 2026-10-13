@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D40, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D50, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 40
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 50
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -44,6 +44,35 @@ La porte D40 couvre le correctif de metriques : le registre distingue un
 paiement encaisse d'un essai de recette (`test_mode`), /metrics/revenue publie
 `real_*` hors recette et `total_*` en tout, et le DDL comme l'ORM portent la
 colonne.
+
+Le durcissement W1 (12/10/2026, `AUDIT_TRAFIC_VPS.md` §5) est porte par la porte
+D27 : la confirmation on-chain est **active par defaut** (le defaut `false`
+etait un fail-open), et hors recette declaree la preuve a secret partage est
+refusee — meme quand `X402_ONCHAIN_VERIFY=false`. Aucune porte ne suppose
+l'ambiance : celles qui mesurent la voie heritee (D7, D15, D29, D34) declarent
+leur regime avec `mode_recette()`, les autres mesurent la production.
+
+Les durcissements W2 et W3 sont portes par les portes D41 et D42 : W2 refuse de
+servir un paiement dont l'inscription au registre echoue (D41), et W3 mesure la
+porte de paiement **au niveau de la route** (`POST /validate`) dans le regime du
+VPS, la ou le client la rencontre (D42) — `tests/test_onchain.py` mesure la
+couche, ce qui ne dit rien du contrat rendu.
+
+La porte D43 couvre la premiere page **commerciale** (`/pricing`, campagne du
+12/10/2026) : elle est publique, indexable et cachable, elle reste autonome
+comme `/dashboard` (meme feuille de style, importee depuis `app/web.py`), les
+prix unitaires affiches sont calcules depuis le plan, aucun secret de
+configuration n'y apparait, et les temoignages d'exemple ne sont pas publies par
+defaut — publier des retours inventes comme reels serait une pratique
+commerciale trompeuse.
+
+La porte D44 couvre l'**inscription self-service** (`/signup`, `/compte`) : un
+mot de passe faible est refuse avant toute ecriture, la cle API est affichee une
+seule fois et n'est stockee que sous forme d'empreinte, le mot de passe est une
+empreinte bcrypt (jamais lisible), l'espace client est ferme par defaut et
+n'affiche jamais la cle complete, les statistiques viennent des validations
+reellement servies, regenerer la cle invalide l'ancienne, le plafond d'IP est
+applique et annonce, et une base injoignable donne un `503` explicite.
 """
 
 from __future__ import annotations
@@ -59,6 +88,7 @@ import sys
 import threading
 import time
 import unicodedata
+from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
 
@@ -107,6 +137,31 @@ def app_py_files() -> list[Path]:
 
 def app_source() -> str:
     return "\n".join(read(str(p.relative_to(ROOT))) for p in app_py_files())
+
+
+@contextmanager
+def mode_recette(actif: bool = True):
+    """Place un controle dans le regime demande : recette declaree, ou production.
+
+    Depuis le durcissement W1, la preuve a secret partage (`X-Payment-Proof`) du
+    chemin herite D15 n'est servie **que** dans une recette declaree
+    (`TEST_MODE=true`, `app/payment.py`) : hors recette, seule une confirmation
+    on-chain ouvre un `200`. Les portes qui mesurent cette voie (D7, D15, D29,
+    D34) doivent donc dire explicitement dans quel regime elles se placent — sans
+    quoi elles mesureraient un refus de production en croyant mesurer une
+    acceptation. `actif=False` place la porte en production **meme si** le shell
+    ou le `.env` a herite d'un `TEST_MODE=true` : aucune porte ne depend de
+    l'ambiance, et l'etat precedent est toujours restaure.
+    """
+    from app.config import get_settings
+
+    settings = get_settings()
+    avant = settings.test_mode
+    settings.test_mode = bool(actif)
+    try:
+        yield settings
+    finally:
+        settings.test_mode = avant
 
 
 def requirement_lines(filename: str) -> list[str]:
@@ -291,30 +346,43 @@ def d7() -> None:
     )
 
     guard(PROOF_MAX_AGE_SECONDS == 300, f"fenetre de fraicheur = {PROOF_MAX_AGE_SECONDS} s")
-    guard(
-        verify_payment(fake_request({PROOF_HEADER: build_payment_proof("0xabc")})) is True,
-        "une preuve fraiche et bien signee est refusee",
-    )
-    now = time.time()
-    guard(
-        verify_payment(
-            fake_request({PROOF_HEADER: build_payment_proof("0xabc", timestamp=now - 301)})
+
+    # W1 : la voie a secret partage (D15) ne se mesure qu'en recette declaree.
+    # La porte lit donc les deux regimes — sinon elle ne mesurerait que
+    # l'ambiance du shell, pas la decision.
+    with mode_recette(True):
+        guard(
+            verify_payment(fake_request({PROOF_HEADER: build_payment_proof("0xabc")})) is True,
+            "une preuve fraiche et bien signee est refusee en recette declaree",
         )
-        is False,
-        "une preuve perimee (301 s) est acceptee",
-    )
-    guard(
-        verify_payment(
-            fake_request({PROOF_HEADER: build_payment_proof("0xabc", timestamp=now + 301)})
+        now = time.time()
+        guard(
+            verify_payment(
+                fake_request({PROOF_HEADER: build_payment_proof("0xabc", timestamp=now - 301)})
+            )
+            is False,
+            "une preuve perimee (301 s) est acceptee",
         )
-        is False,
-        "une preuve venue du futur est acceptee (fenetre non symetrique)",
-    )
-    fresh = build_payment_proof("0xabc")
-    guard(
-        verify_payment(fake_request({PROOF_HEADER: fresh[:-4] + "0000"})) is False,
-        "une signature falsifiee est acceptee",
-    )
+        guard(
+            verify_payment(
+                fake_request({PROOF_HEADER: build_payment_proof("0xabc", timestamp=now + 301)})
+            )
+            is False,
+            "une preuve venue du futur est acceptee (fenetre non symetrique)",
+        )
+        fresh = build_payment_proof("0xabc")
+        guard(
+            verify_payment(fake_request({PROOF_HEADER: fresh[:-4] + "0000"})) is False,
+            "une signature falsifiee est acceptee",
+        )
+
+    from app import onchain
+
+    with mode_recette(False), mock.patch.object(onchain, "_rpc", lambda method, params: None):
+        guard(
+            verify_payment(fake_request({PROOF_HEADER: build_payment_proof("0xabc")})) is False,
+            "hors recette, une preuve a secret partage est servie : W1 est casse",
+        )
     guard("hmac.compare_digest" in read("app/payment.py"), "la signature n'est pas comparee en temps constant")
     from app.config import get_settings
 
@@ -492,7 +560,7 @@ def d14() -> None:
 
 
 def d15() -> None:
-    """La preuve a secret partage reste servie, et la surface on-chain est bornee."""
+    """La preuve partagee n'est servie qu'en recette ; la surface on-chain est bornee."""
     # La porte interdit ce qui n'a jamais ete decide : les bibliotheques lourdes
     # (web3, eth-account et son magasin de cles, eth-utils) ne doivent etre
     # importees **nulle part**, meme si un commentaire peut les nommer.
@@ -522,10 +590,18 @@ def d15() -> None:
 
     secret = get_settings().api_secret_key
     proof = build_payment_proof("0xMADEUP")
-    guard(
-        verify_payment(fake_request({PROOF_HEADER: proof})) is True,
-        "une preuve signee par le secret partage est refusee : la voie de compatibilite D15 est cassee",
-    )
+    # W1 : cette voie de compatibilite ne s'ouvre qu'en recette declaree. La
+    # porte mesure donc les deux regimes, au lieu de lire l'ambiance du shell.
+    with mode_recette(True):
+        guard(
+            verify_payment(fake_request({PROOF_HEADER: proof})) is True,
+            "une preuve signee par le secret partage est refusee : la voie de compatibilite D15 est cassee",
+        )
+    with mode_recette(False):
+        guard(
+            verify_payment(fake_request({PROOF_HEADER: proof})) is False,
+            "hors recette, le secret partage ouvrirait encore la porte : W1 est casse",
+        )
     guard(secret != "", "aucun secret partage : la preuve n'a plus de cle")
     guard("D15" in read("DECISIONS.md"), "la limite D15 n'est plus consignee dans DECISIONS.md")
     guard(
@@ -644,17 +720,56 @@ def d20() -> None:
 
 
 def d21() -> None:
-    """Pas de limitation de debit applicative : elle est deleguee au proxy."""
-    source = app_source()
-    for token in ("slowapi", "Limiter(", "rate_limit", "RateLimitMiddleware"):
-        guard(token not in source, f"limitation de debit maison ajoutee dans l'application : {token}")
-    guard("slowapi" not in (read("requirements.txt") + read("requirements-dev.txt")).lower(), "slowapi ajoute aux dependances")
+    """L'anti-abus reste au proxy ; les plafonds **produit** vivent dans l'app.
+
+    Révision datée du 12/10/2026 (voir D44 et « Notes de provenance » dans
+    `DECISIONS.md`). D21 interdisait *toute* limitation de débit applicative :
+    elle renvoyait à Nginx (`limit_req`), qui refuse sans rien expliquer. Deux
+    plafonds **produit** — 5 inscriptions par IP et par heure, 10 essais gratuits
+    par IP et par 24 h — doivent au contraire **parler** au client (`429` +
+    `Retry-After`, « créez un compte pour continuer »), ce que `limit_req` ne
+    sait pas faire. La porte garde donc l'interdiction qui compte vraiment :
+    aucune bibliothèque de limitation tierce, et un **seul** module maison dont
+    l'usage est borné aux deux réglages documentés — tout autre plafond ajouté
+    ailleurs fait rougir la porte.
+    """
+    for token in ("slowapi", "Limiter(", "RateLimitMiddleware"):
+        guard(
+            token not in app_source(),
+            f"bibliotheque de limitation de debit ajoutee dans l'application : {token}",
+        )
+    guard(
+        "slowapi" not in (read("requirements.txt") + read("requirements-dev.txt")).lower(),
+        "slowapi ajoute aux dependances",
+    )
+
+    maison = APP_DIR / "ratelimit.py"
+    guard(
+        maison.is_file(),
+        "les plafonds produit n'ont plus de module dedie (app/ratelimit.py, D44)",
+    )
+    toleres = ("signup_rate_limit_per_hour", "validate_form_rate_limit_per_day")
+    for fichier in app_py_files():
+        if fichier.name == "ratelimit.py":
+            continue
+        for numero, ligne in enumerate(
+            read(str(fichier.relative_to(ROOT))).splitlines(), 1
+        ):
+            if "rate_limit" in ligne:
+                guard(
+                    any(token in ligne for token in toleres),
+                    f"plafond applicatif non documente : {fichier.name}:{numero}",
+                )
+
     security = fold(read("SECURITY.md"))
     guard("rate limiting par ip" in security, "SECURITY.md ne traite plus la limitation par IP")
-    guard("absent de l'application" in security, "SECURITY.md ne dit plus que la limitation est absente de l'application")
     guard(
         "limit_req" in security and "nginx" in security,
-        "SECURITY.md ne nomme plus le proxy responsable de la limitation",
+        "SECURITY.md ne nomme plus le proxy responsable de l'anti-abus",
+    )
+    guard(
+        "app/ratelimit.py" in security,
+        "SECURITY.md ne dit plus ou vivent les plafonds produit (D44)",
     )
     guard("(d21)" in security, "SECURITY.md ne renvoie plus a la decision D21")
     guard("MEASUREMENT" not in read("SECURITY.md"), "placeholder de mesure reste dans SECURITY.md")
@@ -876,14 +991,24 @@ def d26() -> None:
 
 
 def d27() -> None:
-    """La confirmation on-chain est optionnelle, fail-closed et sans web3."""
+    """La confirmation on-chain est active par defaut, fail-closed et sans web3."""
     from app import onchain
     from app.config import Settings, get_settings
-    from app.payment import PROOF_HEADER, build_payment_proof, verify_payment
+    from app.payment import (
+        PROOF_HEADER,
+        build_payment_proof,
+        payment_result,
+        verify_payment,
+    )
 
+    # --- 1. Le defaut est fail-closed (W1) ---------------------------------
+    # Le defaut `false` etait un fail-open : un deploiement qui omettait la
+    # variable servait le service contre une preuve synthetique
+    # (`AUDIT_TRAFIC_VPS.md` §5). La porte echoue si le defaut repart en arriere.
     guard(
-        Settings.model_fields["x402_onchain_verify"].default is False,
-        "la verification on-chain n'est plus desactivee par defaut : D15 a change de sens",
+        Settings.model_fields["x402_onchain_verify"].default is True,
+        "la verification on-chain n'est plus active par defaut : un deploiement qui "
+        "omet la variable servirait le service contre une preuve synthetique (fail-open W1)",
     )
     settings = get_settings()
     wallet = "0x" + "aa" * 20
@@ -904,9 +1029,13 @@ def d27() -> None:
         ],
     }
     real_wallet, real_flag = settings.cdp_wallet_address, settings.x402_onchain_verify
+    real_mode = settings.test_mode
     calls: list[str] = []
     try:
         settings.cdp_wallet_address = wallet
+        # Production : la recette n'est pas declaree, la chaine est la seule
+        # autorite (W1). Le regime est force plutot qu'herite de l'ambiance.
+        settings.test_mode = False
         with mock.patch.object(onchain, "_rpc", lambda method, params: calls.append(method) or None):
             guard(onchain.check_usdc_transfer(tx)[0] is False, "un recu absent est accepte")
             settings.x402_onchain_verify = True
@@ -931,18 +1060,43 @@ def d27() -> None:
                 verify_payment(fake_request({PROOF_HEADER: build_payment_proof(tx)})) is True,
                 "une preuve appuyee par un transfert confirme est refusee",
             )
+
+        # --- 2. Hors recette, couper la couche ne rouvre pas la porte (W1) --
+        # C'est exactement le fail-open corrige : des que la verification etait
+        # desactivee, le service repondait sur une preuve synthetique. La porte
+        # mesure l'inverse, et verifie qu'aucun appel reseau n'est fait.
+        appels_avant = len(calls)
+        settings.x402_onchain_verify = False
+        refus = payment_result(fake_request({PROOF_HEADER: build_payment_proof("0xMADEUP")}))
+        guard(
+            refus.paid is False and "hors recette" in refus.reason,
+            "hors recette, couper la verification on-chain rouvre la porte a une preuve "
+            f"synthetique : {refus.reason}",
+        )
+        guard(
+            len(calls) == appels_avant,
+            "une couche coupee interroge quand meme la chaine",
+        )
+
+        # --- 3. La recette declaree rouvre la voie de compatibilite (D15) ---
+        with mode_recette(True):
+            guard(
+                payment_result(
+                    fake_request({PROOF_HEADER: build_payment_proof("0xMADEUP")})
+                ).paid
+                is True,
+                "la recette declaree ne sert plus la preuve a secret partage : D15 est casse",
+            )
     finally:
         settings.cdp_wallet_address = real_wallet
         settings.x402_onchain_verify = real_flag
+        settings.test_mode = real_mode
 
-    guard(
-        verify_payment(fake_request({PROOF_HEADER: build_payment_proof("0xMADEUP")})) is True,
-        "la verification on-chain desactivee ne rend plus D15 vrai",
-    )
     guard("D27" in read("DECISIONS.md"), "la decision D27 n'est plus consignee dans DECISIONS.md")
     guard(
-        re.search(r"X402_ONCHAIN_VERIFY", read(".env.example")) is not None,
-        "la variable d'activation n'est plus documentee dans .env.example",
+        re.search(r"X402_ONCHAIN_VERIFY=true", read(".env.example")) is not None,
+        "X402_ONCHAIN_VERIFY n'est plus active (true) dans .env.example : un deploiement "
+        "neuf serait fail-open (W1)",
     )
 
 
@@ -1067,6 +1221,9 @@ def d29() -> None:
     }
     client = TestClient(app)
     with (
+        # W1 : la voie a secret partage ne s'ouvre qu'en recette declaree ; la
+        # porte declare donc son regime au lieu de lire l'ambiance du shell.
+        mode_recette(True),
         mock.patch("app.routes.validate.validate_full", lambda address: dict(resultat)),
         mock.patch("app.routes.validate.get_cached_result", lambda key: None),
         mock.patch("app.routes.validate.store_in_cache", lambda key, value: None),
@@ -1703,6 +1860,11 @@ def d34() -> None:
 
     # --- 3. Un paiement regle pose X-PAYMENT-RESPONSE et alimente le registre
     ecritures: list[str] = []
+
+    def _enregistre(tx: str, amount: float, key: str) -> bool:
+        ecritures.append(tx)
+        return True  # D41 : le service n'est rendu que si la ligne est ecrite
+
     facilitateur = fake_facilitator()
     reset_nonce_cache()
     with (
@@ -1710,7 +1872,7 @@ def d34() -> None:
         mock.patch("app.routes.validate.validate_full", lambda raw: dict(ORACLE_RESULT)),
         mock.patch("app.routes.validate.get_cached_result", lambda key: None),
         mock.patch("app.routes.validate.store_in_cache", lambda key, value: None),
-        mock.patch("app.routes.validate.record_transaction", lambda tx, amount, key: ecritures.append(tx)),
+        mock.patch("app.routes.validate.record_transaction", _enregistre),
     ):
         paye = client.post("/validate", json=corps, headers={PAYMENT_HEADER: x402_payload()})
     reset_nonce_cache()
@@ -1728,13 +1890,50 @@ def d34() -> None:
     guard(paye.json()["transaction_id"] == ORACLE_TX, "la reponse ne cite pas la transaction reglee")
 
     # --- 4. La voie heritage n'est ni cassee ni presentee comme du x402 -----
-    heritage = client.post(
-        "/validate", json=corps, headers={PROOF_HEADER: build_payment_proof("0xORACLE34")}
-    )
-    guard(heritage.status_code == 200, "la preuve HMAC historique ne sert plus")
+    # W1 : cette voie suppose une recette declaree ; en production, la meme
+    # preuve est refusee faute d'encaissement verifie. La porte lit les deux.
+    from app import onchain
+
+    with (
+        mode_recette(True),
+        mock.patch("app.routes.validate.validate_full", lambda raw: dict(ORACLE_RESULT)),
+        mock.patch("app.routes.validate.record_transaction", _enregistre),
+    ):
+        heritage = client.post(
+            "/validate", json=corps, headers={PROOF_HEADER: build_payment_proof("0xORACLE34")}
+        )
+    guard(heritage.status_code == 200, "la preuve HMAC historique ne sert plus en recette")
     guard(
         PAYMENT_RESPONSE_HEADER not in heritage.headers,
         "un paiement HMAC est annonce comme un reglement x402",
+    )
+    # Hors recette : la chaine est la seule autorite. Le RPC est muet (aucun
+    # octet ne sort), donc la meme preuve valide ne doit plus ouvrir de 200.
+    # Le hash est bien forme : le refus doit venir de l'absence d'encaissement,
+    # pas d'un controle de forme qui masquerait le vrai motif.
+    avec_hash = "0x" + "ef" * 32
+
+    with (
+        mode_recette(False),
+        mock.patch.object(onchain, "_rpc", lambda method, params: None),
+        mock.patch("app.routes.validate.validate_full", lambda raw: dict(ORACLE_RESULT)),
+        mock.patch("app.routes.validate.record_transaction", _enregistre),
+    ):
+        avant_refus = len(ecritures)
+        refus_heritage = client.post(
+            "/validate", json=corps, headers={PROOF_HEADER: build_payment_proof(avec_hash)}
+        )
+    guard(
+        refus_heritage.status_code == 402,
+        "hors recette, une preuve a secret partage ouvre encore la porte : W1 est casse",
+    )
+    guard(
+        len(ecritures) == avant_refus,
+        "un paiement refuse hors recette a quand meme alimente le registre : un encaissement non verifie serait compte",
+    )
+    guard(
+        "inconnue" in refus_heritage.json().get("error", ""),
+        f"le refus ne dit pas pourquoi : {refus_heritage.json().get('error')!r}",
     )
     guard("D34" in read("DECISIONS.md"), "la decision D34 n'est plus consignee dans DECISIONS.md")
 
@@ -2078,11 +2277,16 @@ def d37() -> None:
 
     # --- 3. Appel paye : contenu structure et registre sur le hash regle ---
     ecritures: list[str] = []
+
+    def _enregistre(tx: str, amount: float, key: str) -> bool:
+        ecritures.append(tx)
+        return True  # D41 : l'outil n'est rendu que si la ligne est ecrite
+
     x402.reset_nonce_cache()
     with (
         mock.patch("app.x402._post_facilitator", fake_facilitator()),
         mock.patch("app.routes.mcp.perform_validation", lambda raw: (dict(ORACLE_RESULT), "cle-oracle")),
-        mock.patch("app.routes.mcp.record_transaction", lambda tx, amount, key: ecritures.append(tx)),
+        mock.patch("app.routes.mcp.record_transaction", _enregistre),
     ):
         paye = rpc(
             "tools/call",
@@ -2500,7 +2704,2056 @@ def d40() -> None:
     guard("D40" in read("DECISIONS.md"), "la decision D40 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 41)}
+def d41() -> None:
+    """Un encaissement non inscrit au registre n'est pas servi, et l'incident est compte."""
+    from fastapi.testclient import TestClient
+
+    from app import x402
+    from app.main import app
+    from app.payment import PROOF_HEADER, build_payment_proof
+    from app.routes.metrics import metrics
+
+    client = TestClient(app)
+    arguments = {
+        "address": {"street": "1 A St", "city": "X", "state": "CA", "zip": "90001"}
+    }
+    reglement = "0x" + "ef" * 32
+
+    # --- 1. Statique : le compteur existe, et les deux chemins paient la regle -
+    guard(
+        "ledger_write_failures_total" in read("app/routes/metrics.py"),
+        "le compteur d'echecs d'ecriture n'est pas declare : un incident invisible est indiscernable d'une absence de trafic",
+    )
+    for chemin in ("app/routes/validate.py", "app/routes/mcp.py"):
+        source = read(chemin)
+        guard(
+            re.search(r"not\s+record_transaction", source) is not None,
+            f"{chemin} ignore le resultat de l'ecriture : le service serait rendu sans ligne au registre, donc encaisse sans trace",
+        )
+        guard(
+            '"ledger_write_failures_total"' in source
+            and re.search(r"status(_code)?=500", source) is not None,
+            f"{chemin} ne refuse pas de servir (500) ou ne compte pas l'echec",
+        )
+    guard("D41" in read("DECISIONS.md"), "la decision D41 n'est pas consignee dans DECISIONS.md")
+    guard("D41" in read("GATES.md"), "la porte D41 n'est pas consignee dans GATES.md")
+
+    # --- 2. HTTP : paiement accepte, ecriture refusee -> 500, rien n'est servi
+    # Les patchs sont poses dans l'ordre : `offline_route()` accepte l'ecriture,
+    # le patch suivant la refuse (le dernier pose gagne).
+    with (
+        mode_recette(True),
+        offline_route(),
+        mock.patch("app.routes.validate.record_transaction", lambda tx, amount, key: False),
+    ):
+        avant = metrics.snapshot()["ledger_write_failures_total"]
+        refus = client.post(
+            "/validate",
+            json=arguments,
+            headers={PROOF_HEADER: build_payment_proof(reglement)},
+        )
+        apres = metrics.snapshot()["ledger_write_failures_total"]
+    guard(
+        refus.status_code == 500,
+        f"un paiement non inscrit au registre est servi en HTTP {refus.status_code}",
+    )
+    corps = refus.json()
+    guard("result" not in corps, "une validation non inscrite au registre est quand meme rendue")
+    guard(
+        corps["transaction_id"] == reglement,
+        "l'encaissement a rapprocher n'est pas identifiable dans la reponse",
+    )
+    guard(
+        apres == avant + 1,
+        f"le compteur d'echecs d'ecriture n'a pas bouge ({avant} -> {apres})",
+    )
+
+    # --- 3. Le compteur est publie, donc observable hors du processus ---------
+    guard(
+        "ledger_write_failures_total" in client.get("/metrics").text,
+        "/metrics n'expose pas le compteur d'echecs d'ecriture",
+    )
+
+    # --- 4. MCP : l'outil est le meme service, donc la meme regle ------------
+    x402.reset_nonce_cache()
+    with (
+        mock.patch("app.x402._post_facilitator", fake_facilitator()),
+        mock.patch(
+            "app.routes.mcp.perform_validation",
+            lambda raw: (dict(ORACLE_RESULT), "cle-oracle"),
+        ),
+        mock.patch("app.routes.mcp.record_transaction", lambda tx, amount, key: False),
+    ):
+        avant = metrics.snapshot()["ledger_write_failures_total"]
+        outil = client.post(
+            "/mcp",
+            headers={x402.PAYMENT_HEADER: x402_payload()},
+            json={
+                "jsonrpc": "2.0",
+                "id": 41,
+                "method": "tools/call",
+                "params": {"name": "validate_address", "arguments": arguments},
+            },
+        )
+        apres = metrics.snapshot()["ledger_write_failures_total"]
+    x402.reset_nonce_cache()
+    guard(
+        outil.status_code == 500,
+        f"l'outil sert un encaissement non inscrit au registre (HTTP {outil.status_code})",
+    )
+    erreur = outil.json()["error"]
+    guard(erreur["code"] == -32603, f"code JSON-RPC inattendu : {erreur['code']}")
+    guard("result" not in outil.json(), "l'outil rend un resultat sans ligne au registre")
+    guard(
+        erreur["data"]["transaction"] == ORACLE_TX,
+        "l'outil ne nomme pas le reglement a rapprocher",
+    )
+    guard(apres == avant + 1, "l'echec d'ecriture de l'outil n'est pas compte")
+
+    # --- 5. Non-regression : une ecriture reussie sert toujours la validation -
+    with mode_recette(True), offline_route():
+        sert = client.post(
+            "/validate",
+            json=arguments,
+            headers={PROOF_HEADER: build_payment_proof("0x" + "ee" * 32)},
+        )
+    guard(
+        sert.status_code == 200 and "result" in sert.json(),
+        f"une ecriture reussie ne sert plus la validation (HTTP {sert.status_code})",
+    )
+
+
+def d42() -> None:
+    """La porte de paiement est mesuree a la route, dans le regime du VPS.
+
+    W1 a rendu le `200` dependant d'un encaissement confirme par la chaine, et
+    W2 (D41) d'une ligne au registre. Restait a mesurer ces deux regles **la ou
+    le client les rencontre** : `tests/test_onchain.py` mesure la couche et
+    `tests/test_payment.py` la forme de la preuve, aucune mesure ne portait sur
+    le contrat rendu par `POST /validate` dans le regime du VPS (`TEST_MODE`
+    absent) — celui ou l'audit du trafic a observe des `200` sans ligne au
+    registre (`AUDIT_TRAFIC_VPS.md` §5.1).
+    """
+    import subprocess
+
+    from fastapi.testclient import TestClient
+
+    from app import onchain
+    from app.config import get_settings
+    from app.main import app
+    from app.payment import PROOF_HEADER, build_payment_proof
+
+    # --- 1. La mesure existe, elle interroge la route, et elle passe ---------
+    mesure = "tests/test_onchain_payment_route.py"
+    source = read(mesure)
+    for attendu in ("from app.main import app", "TestClient", "test_mode"):
+        guard(attendu in source, f"{mesure} n'observe plus {attendu!r}")
+    sortie = subprocess.run(
+        [sys.executable, "-m", "pytest", mesure, "-q"],
+        capture_output=True,
+        text=True,
+        cwd=str(ROOT),
+        # Le regime de la suite ne doit pas dependre de l'ambiance du shell : la
+        # mesure de route declare elle-meme les deux regimes qu'elle compare.
+        env={**os.environ, "TEST_MODE": "true"},
+        timeout=120,
+    )
+    guard(
+        sortie.returncode == 0,
+        "la mesure de route ne passe pas "
+        f"({sortie.returncode}) : {(sortie.stdout + sortie.stderr).strip()[-300:]}",
+    )
+
+    # --- 2. Le point ouvert de l'audit est clos dans le document -------------
+    audit = fold(read("AUDIT_TRAFIC_VPS.md"))
+    guard("d42" in audit, "AUDIT_TRAFIC_VPS.md ne renvoie pas a la porte D42")
+    guard(
+        "a confirmer ou infirmer" not in audit,
+        "l'audit garde un point ouvert que W1/W2 ont tranche",
+    )
+    guard("D42" in read("DECISIONS.md"), "la decision D42 n'est pas consignee dans DECISIONS.md")
+    guard("D42" in read("GATES.md"), "la porte D42 n'est pas consignee dans GATES.md")
+
+    # --- 3. Le contrat rendu : hors recette, la chaine decide ----------------
+    settings = get_settings()
+    client = TestClient(app)
+    arguments = {"address": {"street": "1 A St", "city": "X", "state": "CA", "zip": "90001"}}
+    wallet = "0x" + "aa" * 20
+    tx = "0x" + "ab" * 32
+    ecrites: list[tuple] = []
+    appels: list[str] = []
+
+    def _ecrit(tx_hash: str, montant: float, cle: str) -> bool:
+        ecrites.append((tx_hash, montant, cle))
+        return True
+
+    def _recu(unites: int) -> dict:
+        return {
+            "status": "0x1",
+            "blockNumber": hex(0x1000),
+            "logs": [
+                {
+                    "address": settings.x402_usdc_contract,
+                    "topics": [
+                        onchain.TRANSFER_TOPIC,
+                        "0x" + "00" * 12 + "22" * 20,
+                        "0x" + "00" * 12 + wallet[2:],
+                    ],
+                    "data": "0x" + format(unites, "064x"),
+                }
+            ],
+        }
+
+    def _rpc(unites: int | None):
+        def appel(method: str, params: list) -> object:
+            appels.append(method)
+            if method == "eth_getTransactionReceipt":
+                return None if unites is None else _recu(unites)
+            return hex(0x1005)
+
+        return appel
+
+    def _panne(method: str, params: list) -> object:
+        raise RuntimeError("RPC injoignable")
+
+    wallet_avant = settings.cdp_wallet_address
+    flag_avant = settings.x402_onchain_verify
+    regime_avant = settings.test_mode
+    settings.cdp_wallet_address = wallet
+    settings.x402_onchain_verify = True
+    settings.test_mode = False
+    try:
+        with offline_route(), mock.patch("app.routes.validate.record_transaction", _ecrit):
+            # 3a. Preuve signee, transaction inconnue de la chaine : 402, rien d'ecrit.
+            with mock.patch("app.onchain._rpc", _rpc(None)):
+                refus = client.post(
+                    "/validate", json=arguments, headers={PROOF_HEADER: build_payment_proof(tx)}
+                )
+            guard(refus.status_code == 402, f"une tx inconnue est servie en HTTP {refus.status_code}")
+            guard(not ecrites, "un refus de paiement a ecrit une ligne au registre (D34)")
+
+            # 3b. Transfert USDC confirme : 200, et la ligne porte le hash confirme.
+            with mock.patch("app.onchain._rpc", _rpc(onchain.usdc_units(settings.x402_price))):
+                servie = client.post(
+                    "/validate", json=arguments, headers={PROOF_HEADER: build_payment_proof(tx)}
+                )
+            guard(
+                servie.status_code == 200 and "result" in servie.json(),
+                f"un transfert confirme ne sert plus la validation (HTTP {servie.status_code})",
+            )
+            guard(
+                servie.json()["price_paid"] == settings.x402_price,
+                "le prix facture n'est plus le prix annonce",
+            )
+            guard(
+                len(ecrites) == 1 and ecrites[0][0] == tx,
+                f"le registre n'a pas recu le hash confirme : {ecrites}",
+            )
+
+            # 3c. Chaine injoignable : fail-closed, et toujours rien d'ecrit.
+            with mock.patch("app.onchain._rpc", _panne):
+                en_panne = client.post(
+                    "/validate", json=arguments, headers={PROOF_HEADER: build_payment_proof(tx)}
+                )
+            guard(en_panne.status_code == 402, f"la panne RPC sert en HTTP {en_panne.status_code}")
+            guard(len(ecrites) == 1, "une panne RPC a ecrit une ligne au registre")
+
+            # 3d. Recette declaree : servie et journalisee, chaine jamais interrogee.
+            settings.test_mode = True
+            appels_avant = len(appels)
+            with mock.patch("app.onchain._rpc", _panne):
+                recette = client.post(
+                    "/validate", json=arguments, headers={PROOF_HEADER: build_payment_proof(tx)}
+                )
+            guard(
+                recette.status_code == 200,
+                "la recette declaree ne sert plus la preuve a secret partage "
+                f"(HTTP {recette.status_code})",
+            )
+            guard(len(appels) == appels_avant, "la recette declaree a interroge la chaine")
+            guard(len(ecrites) == 2, "la recette declaree n'a rien inscrit au registre (D40)")
+    finally:
+        settings.cdp_wallet_address = wallet_avant
+        settings.x402_onchain_verify = flag_avant
+        settings.test_mode = regime_avant
+
+
+def d43() -> None:
+    """La page publique /pricing vend sans mentir et sans ressource externe."""
+    from fastapi.testclient import TestClient
+
+    from app.config import get_settings
+    from app.main import app
+    from app.routes.pricing import OFFRES, QUESTIONS, _page, _prix_unitaire
+    from app.web import DASHBOARD_CSS
+
+    settings = get_settings()
+    client = TestClient(app)
+
+    # 1. Publique : servie sans compte, indexable et cachable par le proxy.
+    reponse = client.get("/pricing")
+    guard(reponse.status_code == 200, f"/pricing repond {reponse.status_code} : la page n'est pas publique")
+    guard(
+        reponse.headers.get("content-type", "").startswith("text/html"),
+        f"type de contenu inattendu : {reponse.headers.get('content-type')!r}",
+    )
+    guard(
+        reponse.headers.get("cache-control") == "public, max-age=300",
+        "une page commerciale n'est pas cachable par le proxy",
+    )
+    guard(
+        reponse.headers.get("x-content-type-options") == "nosniff",
+        "l'en-tete nosniff a disparu de la page publique",
+    )
+    csp = reponse.headers.get("content-security-policy", "")
+    guard("form-action 'none'" in csp, f"/pricing accepte de poster ailleurs : {csp!r}")
+    guard(
+        'name="robots" content="index, follow"' in reponse.text,
+        "une page commerciale non indexable ne sert a rien",
+    )
+    guard(client.get("/").json().get("pricing") == "/pricing", "/ ne pointe plus vers /pricing")
+
+    # 2. Autonome, comme /dashboard (D32) : rien a charger, rien a executer.
+    page = reponse.text
+    guard("<script" not in page.lower(), "la page embarque du script")
+    for motif in ("http://", "https://", "//cdn", "@import", "url(http", "<img", "<iframe"):
+        guard(motif not in page, f"la page charge une ressource externe ({motif})")
+    guard(
+        DASHBOARD_CSS in page,
+        "la feuille du dashboard n'est plus servie par /pricing : deux feuilles divergent",
+    )
+    source_dashboard = read("app/routes/dashboard.py")
+    guard(
+        "from app.web import DASHBOARD_CSS" in source_dashboard
+        and "{DASHBOARD_CSS}" in source_dashboard,
+        "dashboard.py ne partage plus la feuille commune (app/web.py)",
+    )
+
+    # 3. Ce qui est vendu est ce qui est livre : prix unitaires calcules.
+    guard(
+        len(OFFRES) == 4 and len(QUESTIONS) == 5,
+        f"{len(OFFRES)} offres et {len(QUESTIONS)} questions publiees",
+    )
+    guard(page.count('<details class="faq">') == len(QUESTIONS), "la FAQ n'affiche plus une question par entree")
+    for offre in OFFRES:
+        guard(offre["nom"] in page, f"l'offre {offre['nom']} a disparu de la page")
+        guard(offre["prix"] in page, f"le prix de {offre['nom']} a disparu de la page")
+        guard(offre["periode"] in page, f"le quota de {offre['nom']} a disparu de la page")
+        unite = _prix_unitaire(offre)
+        guard(
+            not unite or unite in page,
+            f"le prix unitaire calcule de {offre['nom']} n'est plus affiche ({unite})",
+        )
+    guard(
+        _prix_unitaire({"prix_eur": None, "validations": None}) == "",
+        "un plan sans quota fabrique un prix unitaire",
+    )
+    for attendu in ("Arrêtez de perdre de l'argent", "Commencer l'essai gratuit", "RGPD"):
+        guard(attendu in page, f"la page ne contient plus : {attendu}")
+
+    # 4. Une page indexable ne publie aucun secret.
+    for secret in (
+        settings.dashboard_password,
+        settings.api_secret_key,
+        settings.cdp_api_key_secret,
+        settings.cdp_wallet_address,
+    ):
+        guard(
+            not secret or secret not in page,
+            "un secret de configuration apparait sur une page publique indexable",
+        )
+
+    # 5. Temoignages : des exemples, jamais publies par defaut (pratique
+    #    commerciale trompeuse si un visiteur les lit comme des clients reels).
+    drapeau = settings.pricing_show_testimonials
+    try:
+        settings.pricing_show_testimonials = False
+        guard(
+            'id="temoignages"' not in _page(settings),
+            "des temoignages d'exemple sont publies par defaut",
+        )
+        settings.pricing_show_testimonials = True
+        avec = _page(settings)
+        guard('id="temoignages"' in avec, "les temoignages ne s'affichent pas quand l'exploitant les active")
+        guard("exemple" in fold(avec), "un temoignage publie ne se declare pas comme exemple")
+    finally:
+        settings.pricing_show_testimonials = drapeau
+
+    # 6. La decision est consignee et le contenu reste echappe.
+    guard("D43" in read("DECISIONS.md"), "la decision D43 n'est plus consignee dans DECISIONS.md")
+    guard("html.escape" in read("app/routes/pricing.py"), "le contenu affiche n'est plus echappe")
+
+
+def d44() -> None:
+    """L'inscription et l'espace client protegent ce qu'ils promettent."""
+    import base64
+    import re
+    import tempfile
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.exc import OperationalError
+    from sqlalchemy.orm import sessionmaker
+
+    from app import accounts, ratelimit
+    from app.config import get_settings
+    from app.main import app
+    from app.models import Customer, CustomerValidation
+    from app.routes import signup as signup_route
+
+    settings = get_settings()
+    # Fichier temporaire et non `sqlite://` en memoire : une base `:memory:` est
+    # vide sur *chaque* connexion du pool, donc la table creee par l'oracle
+    # n'existerait pas pour la session de la route (mesure faite le 12/10/2026).
+    dossier = tempfile.mkdtemp(prefix="porte-d44-")
+    moteur = create_engine(f"sqlite:///{Path(dossier) / 'clients.sqlite'}")
+    Customer.__table__.create(moteur)
+    CustomerValidation.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+
+    session_avant = signup_route.SessionLocal
+    signup_route.SessionLocal = fabrique
+    ratelimit.reset()
+    client = TestClient(app)
+
+    def auth(email: str, mot_de_passe: str) -> dict:
+        jeton = base64.b64encode(f"{email}:{mot_de_passe}".encode()).decode()
+        return {"Authorization": f"Basic {jeton}"}
+
+    secret = "porte-d44-mot-de-passe"
+    forme = {
+        "email": "porte@example.re",
+        "password": secret,
+        "shop_name": "Boutique Porte",
+        "platform": "shopify",
+        "plan": "trial",
+    }
+    try:
+        # 1. Le formulaire est public et porte les quatre champs de la spec.
+        page = client.get("/signup")
+        guard(page.status_code == 200, f"/signup repond {page.status_code}")
+        for champ in ("email", "password", "shop_name", "platform"):
+            guard(f'name="{champ}"' in page.text, f"le champ {champ} a disparu du formulaire")
+        guard(
+            "12 caractères minimum" in page.text,
+            "la longueur minimale du mot de passe n'est plus annoncee au client",
+        )
+
+        # 2. Un mot de passe faible est refuse **avant** toute ecriture.
+        faible = {**forme, "password": "court", "email": "faible@example.re"}
+        refus = client.post("/signup", data=faible)
+        guard(refus.status_code == 400, f"un mot de passe faible obtient {refus.status_code}")
+        guard("12 caractères" in refus.text, "le refus ne dit pas pourquoi")
+        guard(refus.headers.get("cache-control") == "no-store", "le refus est cachable")
+
+        # 3. Inscription : la cle est montree une fois, seule son empreinte reste.
+        reponse = client.post("/signup", data=forme)
+        guard(reponse.status_code == 200, f"l'inscription repond {reponse.status_code}")
+        guard(
+            reponse.headers.get("cache-control") == "no-store",
+            "la page qui affiche la cle API est cachable : elle peut finir dans un proxy",
+        )
+        trouvees = re.findall(r"sk_live_[A-Za-z0-9]{32}", reponse.text)
+        guard(trouvees, "aucune cle sk_live_ de 32 caracteres n'est affichee")
+        cle = trouvees[0]
+
+        with fabrique() as session:
+            compte = accounts.find_by_email(session, forme["email"])
+            guard(compte is not None, "le compte n'a pas ete cree")
+            guard(
+                compte.api_key_hash == accounts.api_key_hash(cle),
+                "la base ne contient pas l'empreinte de la cle affichee",
+            )
+            guard(cle not in compte.api_key_hash, "la cle API est stockee en clair")
+            guard(
+                compte.password_hash.startswith("$2b$12$"),
+                "le mot de passe n'est pas une empreinte bcrypt de cout 12",
+            )
+            guard(secret not in compte.password_hash, "le mot de passe apparait en clair")
+            guard(compte.plan == "trial", f"le plan d'inscription est {compte.plan}")
+            guard(compte.trial_ends_at is not None, "la fin de l'essai n'est pas enregistree")
+            identifiant, prefixe = compte.id, compte.api_key_prefix
+
+        # 4. Email deja pris : 409 explicite, pas un doublon silencieux.
+        doublon = client.post("/signup", data={**forme, "shop_name": "Autre"})
+        guard(doublon.status_code == 409, f"un email en double obtient {doublon.status_code}")
+        guard("existe déjà" in doublon.text, "le doublon n'est pas explique")
+
+        # 5. /compte ferme par defaut, et n'affiche jamais la cle complete.
+        guard(client.get("/compte").status_code == 401, "l'espace client s'ouvre sans identifiants")
+        guard(
+            client.get("/compte", headers=auth(forme["email"], "mauvais")).status_code == 401,
+            "un mauvais mot de passe ouvre l'espace client",
+        )
+        espace = client.get("/compte", headers=auth(forme["email"], secret))
+        guard(espace.status_code == 200, f"un couple valide est refuse ({espace.status_code})")
+        guard(espace.headers.get("cache-control") == "no-store", "l'espace client est cachable")
+        guard(cle not in espace.text, "l'espace client reaffiche la cle API")
+        guard(prefixe in espace.text, "l'identifiant de la cle n'est plus affiche")
+        guard("Aucune facturation" in espace.text, "la facturation vide n'est pas dite")
+        # 6. Les statistiques viennent du service rendu, et la formule est montree.
+        with fabrique() as session:
+            for issue in (True, False, False):
+                accounts.record_validation(session, identifiant, "cle-de-cache", issue)
+            statut = accounts.plan_status(
+                session, accounts.find_by_email(session, forme["email"])
+            )
+        guard(
+            statut["validations"] == 3 and statut["invalides"] == 2,
+            f"compteurs faux : {statut['validations']} validations, {statut['invalides']} invalides",
+        )
+        guard(statut["economies_usd"] == 34.0, f"estimation fausse : {statut['economies_usd']}")
+        guard(statut["restant"] == 97, f"reste d'essai faux : {statut['restant']}")
+        espace = client.get("/compte", headers=auth(forme["email"], secret)).text
+        guard("2 adresses invalides" in espace, "la formule d'estimation n'est plus affichee")
+        guard("34.00 $" in espace, "le total d'economies est faux ou a disparu")
+
+        # 7. Regeneration : la nouvelle cle remplace l'ancienne immediatement.
+        nouvelle_page = client.post("/compte/cle", headers=auth(forme["email"], secret))
+        guard(
+            nouvelle_page.status_code == 200,
+            f"la regeneration repond {nouvelle_page.status_code}",
+        )
+        nouvelle = re.findall(r"sk_live_[A-Za-z0-9]{32}", nouvelle_page.text)[0]
+        guard(nouvelle != cle, "la regeneration renvoie la meme cle")
+        with fabrique() as session:
+            guard(
+                accounts.find_by_api_key(session, cle) is None,
+                "l'ancienne cle fonctionne encore apres regeneration",
+            )
+            guard(
+                accounts.find_by_api_key(session, nouvelle) is not None,
+                "la nouvelle cle ne trouve plus le compte",
+            )
+
+        # 8. Plafond par IP : le 6e essai est refuse, et annonce.
+        ratelimit.reset()
+        limite = settings.signup_rate_limit_per_hour
+        for index in range(limite):
+            accepte = client.post(
+                "/signup", data={**forme, "email": f"porte{index}@example.re"}
+            )
+            guard(
+                accepte.status_code == 200,
+                f"l'inscription {index} du quota obtient {accepte.status_code}",
+            )
+        bloque = client.post("/signup", data={**forme, "email": "porte-trop@example.re"})
+        guard(
+            bloque.status_code == 429,
+            f"l'inscription {limite + 1} obtient {bloque.status_code} au lieu de 429",
+        )
+        guard(
+            bloque.headers.get("retry-after") == "3600",
+            "le client refuse ne sait pas quand reessayer",
+        )
+        guard(ratelimit.fallback_count() > 0, "le repli sans Redis n'est pas compte")
+
+        # 9. Base injoignable : 503 explicite, jamais des zeros decoratifs.
+        ratelimit.reset()  # sinon le plafond de l'etape 8 masque la panne mesuree
+
+        def _fabrique_en_panne():
+            raise OperationalError("SELECT 1", {}, Exception("panne (porte D44)"))
+
+        signup_route.SessionLocal = _fabrique_en_panne
+        try:
+            indisponible = client.post("/signup", data={**forme, "email": "panne@example.re"})
+        finally:
+            signup_route.SessionLocal = fabrique
+        guard(
+            indisponible.status_code == 503,
+            f"base injoignable : {indisponible.status_code} au lieu de 503",
+        )
+        guard("indisponible" in fold(indisponible.text), "le 503 n'explique rien au client")
+    finally:
+        signup_route.SessionLocal = session_avant
+        ratelimit.reset()
+
+
+
+
+    # 10. Le schema, les dependances et la doc disent la meme chose que le code.
+    ddl = read("app/database.py")
+    orm = read("app/models.py")
+    guard("CREATE TABLE IF NOT EXISTS customers" in ddl, "la table customers n'est plus dans le DDL")
+    guard(
+        "CREATE TABLE IF NOT EXISTS customer_validations" in ddl,
+        "la table des validations clients a disparu du DDL",
+    )
+    for colonne in (
+        "email",
+        "password_hash",
+        "shop_name",
+        "platform",
+        "api_key_hash",
+        "api_key_prefix",
+        "plan",
+        "trial_ends_at",
+        "created_at",
+    ):
+        guard(colonne in ddl, f"la colonne {colonne} a disparu du DDL")
+        guard(colonne in orm, f"la colonne {colonne} a disparu des modeles ORM (D13)")
+    requirements = read("requirements.txt")
+    for paquet in ("bcrypt==", "python-multipart=="):
+        guard(paquet in requirements, f"{paquet.rstrip('=')} n'est plus epingle")
+    guard(
+        "signup_rate_limit_per_hour" in read("app/config.py"),
+        "le plafond d'inscription n'est plus configurable",
+    )
+    guard("D44" in read("DECISIONS.md"), "la decision D44 n'est plus consignee dans DECISIONS.md")
+
+
+def d45() -> None:
+    """Une cle API ouvre /validate dans les limites du compte, et sans mentir.
+
+    Deux facons de payer coexistent sur la meme route : un abonnement (`X-API-Key`)
+    et un encaissement a l'appel (x402, D34). La porte mesure ce qui les distingue,
+    et ce que le client voit de chacune :
+
+      * une cle valide sert, debite le compte, et **n'ecrit rien** au registre USDC
+        — un abonnement n'est pas un encaissement, l'y inscrire ferait mentir le
+        revenu publie (D40), et ce qui avance est le compteur du compte ;
+      * une cle inconnue vaut `401` sans qu'aucune validation soit calculee : aucun
+        fournisseur n'est interroge pour un compte non autorise ;
+      * un essai termine vaut `403`, un quota du mois epuise vaut `402` : deux
+        situations, deux codes, sinon le client cherche une faute de cle ;
+      * la date d'essai ne ferme la porte qu'a l'**essai** : un plan payant dont la
+        date d'essai est passee reste servi ;
+      * le quota publie sur /pricing est **mensuel**, et c'est celui-la qui est
+        applique ; le compteur a vie reste une statistique, pas une porte ;
+      * une base de comptes injoignable vaut `503`, **jamais** `402` : une cle qui
+        n'a pas pu etre verifiee n'est pas une cle refusee.
+    """
+    import tempfile
+    from datetime import datetime, timedelta, timezone
+    from pathlib import Path
+    from unittest import mock
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.exc import OperationalError
+    from sqlalchemy.orm import sessionmaker
+
+    from app import accounts
+    from app.main import app
+    from app.models import Customer, CustomerValidation
+    from app.payment import PROOF_HEADER, build_payment_proof
+    from app.routes import pricing as pricing_route
+    from app.routes import validate as validate_route
+    from app.routes.metrics import metrics
+
+    # Fichier et non `:memory:` (meme mesure que D44) : une base en memoire est vide
+    # sur *chaque* connexion du pool, donc la table creee ici n'existerait pas pour
+    # la session qu'ouvre la route.
+    dossier = tempfile.mkdtemp(prefix="porte-d45-")
+    moteur = create_engine(f"sqlite:///{Path(dossier) / 'comptes.sqlite'}")
+    Customer.__table__.create(moteur)
+    CustomerValidation.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+
+    session_avant = validate_route.SessionLocal
+    validate_route.SessionLocal = fabrique
+    client = TestClient(app)
+
+    corps = {
+        "address": {
+            "street": "1 Rue Oracle",
+            "city": "Saint-Denis",
+            "state": "RE",
+            "zip": "97400",
+            "country": "RE",
+        }
+    }
+    resultat = {
+        "validated": True,
+        "standardized": {
+            "line1": "1 Rue Oracle",
+            "line2": "",
+            "city": "Saint-Denis",
+            "state": "RE",
+            "zip": "97400",
+            "country": "RE",
+        },
+        "latitude": -20.88,
+        "longitude": 55.45,
+        "deliverability": "residential",
+        "confidence": 0.99,
+        "degraded": False,
+    }
+    appels: list[dict] = []
+    registre: list[tuple] = []
+
+    def _valide(address: dict) -> dict:
+        appels.append(address)
+        return dict(resultat)
+
+    def _enregistre(tx_hash: str, montant: float, adresse: str) -> bool:
+        registre.append((tx_hash, montant, adresse))
+        return True
+
+    def naif(moment):
+        """Horodatage ramene a la convention des colonnes `TIMESTAMP` (UTC naif)."""
+        return moment.astimezone(timezone.utc).replace(tzinfo=None)
+
+    def nouveau_compte(email: str, *, plan: str = "trial", fin_essai=None):
+        """Compte reel en base, et sa cle en clair (la seule fois ou elle existe)."""
+        with fabrique() as session:
+            compte, cle = accounts.create_customer(
+                session,
+                email=email,
+                password="porte-d45-mot-de-passe",
+                shop_name="Boutique Porte",
+                platform="shopify",
+                plan=plan,
+            )
+            if fin_essai is not None:
+                compte.trial_ends_at = fin_essai
+                session.commit()
+            return cle, compte.id
+
+    def appel(cle: str):
+        return client.post("/validate", json=corps, headers={"X-API-Key": cle})
+
+    try:
+        with (
+            mock.patch("app.routes.validate.validate_full", _valide),
+            mock.patch("app.routes.validate.get_cached_result", lambda key: None),
+            mock.patch("app.routes.validate.store_in_cache", lambda key, value: None),
+            mock.patch("app.routes.validate.record_transaction", _enregistre),
+        ):
+            # 1. Cle valide : servie, debitee, et rien au registre USDC.
+            cle, identifiant = nouveau_compte("porte45@example.re")
+            avant = metrics.snapshot()
+            servie = appel(cle)
+            guard(servie.status_code == 200, f"une cle valide obtient {servie.status_code}")
+            corps_ok = servie.json()
+            guard(
+                corps_ok["result"]["validated"] is True,
+                "la validation servie n'est pas le resultat du pipeline partage",
+            )
+            guard(
+                corps_ok["price_paid"] == 0.0 and corps_ok["transaction_id"] is None,
+                "une validation couverte par un abonnement annonce un encaissement USDC",
+            )
+            guard(
+                servie.headers.get("x-payment-mode") == "api_key",
+                "l'appel ne dit pas comment il a ete paye",
+            )
+            guard(
+                servie.headers.get("x-plan") == "trial"
+                and servie.headers.get("x-quota-remaining") == "99",
+                "l'etat du compte n'est pas annonce : plan="
+                f"{servie.headers.get('x-plan')} reste={servie.headers.get('x-quota-remaining')}",
+            )
+            guard(len(appels) == 1, "le pipeline de validation n'a pas ete traverse une fois")
+            guard(not registre, f"un abonnement a ecrit au registre USDC : {registre}")
+            with fabrique() as session:
+                compte = session.get(Customer, identifiant)
+                guard(
+                    accounts.consumption(session, compte)["validations"] == 1,
+                    "le compte n'est pas debite de la validation servie",
+                )
+            apres = metrics.snapshot()
+            guard(
+                apres["api_key_requests"] - avant["api_key_requests"] == 1
+                and apres["api_key_validations"] - avant["api_key_validations"] == 1,
+                "la validation par cle n'est pas comptee dans /metrics",
+            )
+
+            # 2. Cle inconnue : 401, aucune validation calculee, rien d'ecrit.
+            appels.clear()
+            avant = metrics.snapshot()
+            inconnue = "sk_live_" + "Qq7Z" + "x" * 28
+            refus = appel(inconnue)
+            guard(refus.status_code == 401, f"une cle inconnue obtient {refus.status_code}")
+            corps_refus = refus.json()
+            guard(
+                corps_refus["reason"] == "cle_inconnue" and corps_refus["mode"] == "api_key",
+                "le refus d'une cle inconnue n'est pas identifiable",
+            )
+            guard(
+                corps_refus["prefix"] == "sk_live_Qq7Z" and len(corps_refus["prefix"]) == 12,
+                f"le prefixe rendu n'identifie pas la cle : {corps_refus['prefix']}",
+            )
+            guard(inconnue not in refus.text, "le corps d'un refus rend la cle presentee")
+            guard(not appels, "une cle inconnue a fait calculer la validation")
+            guard(not registre, "une cle inconnue a ecrit au registre USDC")
+            guard(
+                metrics.snapshot()["api_key_denied"] - avant["api_key_denied"] == 1,
+                "le refus n'est pas compte dans /metrics",
+            )
+
+            # 3. Essai termine : 403. Le compte existe, il n'ouvre plus le service.
+            veille = naif(datetime.now(timezone.utc) - timedelta(days=1))
+            cle_expiree, _ = nouveau_compte("expire45@example.re", fin_essai=veille)
+            appels.clear()
+            expire = appel(cle_expiree)
+            guard(expire.status_code == 403, f"un essai termine obtient {expire.status_code}")
+            corps_expire = expire.json()
+            guard(
+                corps_expire["reason"] == "compte_expire" and corps_expire["plan"] == "trial",
+                "le refus d'un essai termine n'est pas identifiable",
+            )
+            guard(
+                corps_expire["upgrade"].endswith("/pricing"),
+                "le refus d'un essai termine ne dit pas comment continuer",
+            )
+            guard(not appels and not registre, "un compte expire a consomme du service")
+
+            # 4. Plan payant dont la date d'essai est passee : servi quand meme. La
+            #    date dit l'essai, pas le droit de service : bloquer ici fermerait la
+            #    porte a quelqu'un qui paie.
+            cle_payante, id_payant = nouveau_compte(
+                "payant45@example.re", plan="starter", fin_essai=veille
+            )
+            payee = appel(cle_payante)
+            guard(payee.status_code == 200, f"un plan payant obtient {payee.status_code}")
+            guard(
+                payee.headers.get("x-plan") == "starter",
+                f"le plan annonce est {payee.headers.get('x-plan')}",
+            )
+            guard(
+                payee.headers.get("x-quota-remaining") == "1999",
+                f"le reste du plan payant est {payee.headers.get('x-quota-remaining')}",
+            )
+            with fabrique() as session:
+                statut = accounts.plan_status(session, session.get(Customer, id_payant))
+            guard(
+                statut["trial_expire"] is True and statut["expire"] is False,
+                "le fait (date d'essai depassee) et la consequence (compte ferme) "
+                "sont confondus",
+            )
+            guard(not registre, "un plan payant a ecrit au registre USDC")
+
+            # 5. Quota du mois atteint : 402. C'est un plafond d'usage, pas un defaut
+            #    d'authentification : un 401 ferait chercher une faute de cle.
+            cle_quota, id_quota = nouveau_compte("quota45@example.re")
+            with fabrique() as session:
+                session.add_all(
+                    [
+                        CustomerValidation(
+                            customer_id=id_quota, cache_key="porte-d45", validated=True
+                        )
+                        for _ in range(accounts.PLANS["trial"])
+                    ]
+                )
+                session.commit()
+            appels.clear()
+            bloque = appel(cle_quota)
+            guard(bloque.status_code == 402, f"un quota epuise obtient {bloque.status_code}")
+            corps_quota = bloque.json()
+            guard(
+                corps_quota["reason"] == "quota_atteint"
+                and corps_quota["quota"] == 100
+                and corps_quota["validations_this_month"] == 100,
+                "le refus de quota annonce "
+                f"{corps_quota.get('validations_this_month')} validations "
+                f"sur {corps_quota.get('quota')}",
+            )
+            guard(not appels and not registre, "un compte au quota a consomme du service")
+
+            # 6. Le quota publie est mensuel : hors du mois, il ne compte plus. Un
+            #    compteur a vie fermerait la porte pour toujours a un client en regle
+            #    — une offre annoncee et non tenue, dans l'autre sens.
+            maintenant = datetime.now(timezone.utc)
+            debut_mois = datetime(
+                maintenant.year, maintenant.month, 1, tzinfo=timezone.utc
+            )
+            cle_mois, id_mois = nouveau_compte("mois45@example.re")
+            with fabrique() as session:
+                session.add_all(
+                    [
+                        CustomerValidation(
+                            customer_id=id_mois,
+                            cache_key="porte-d45-mois-passe",
+                            validated=True,
+                            created_at=naif(debut_mois - timedelta(days=1)),
+                        )
+                        for _ in range(accounts.PLANS["trial"] + 5)
+                    ]
+                )
+                # Une validation datee du 1er du mois a minuit, elle, compte : la borne
+                # est inclusive, sinon la premiere heure du mois serait perdue.
+                session.add(
+                    CustomerValidation(
+                        customer_id=id_mois,
+                        cache_key="porte-d45-debut-mois",
+                        validated=True,
+                        created_at=naif(debut_mois),
+                    )
+                )
+                session.commit()
+                statut = accounts.plan_status(session, session.get(Customer, id_mois))
+            guard(
+                statut["validations"] == accounts.PLANS["trial"] + 6
+                and statut["validations_mois"] == 1,
+                "la fenetre mensuelle ne separe pas le mois en cours de la vie du "
+                f"compte : {statut['validations']} a vie, "
+                f"{statut['validations_mois']} ce mois",
+            )
+            guard(
+                accounts.month_start(maintenant) == debut_mois,
+                "le debut du mois calcule par le code est "
+                f"{accounts.month_start(maintenant)}",
+            )
+            appels.clear()
+            servie = appel(cle_mois)
+            guard(
+                servie.status_code == 200,
+                "des validations du mois dernier ferment encore la porte : "
+                f"{servie.status_code}",
+            )
+            # 98 : la validation semee au 1er du mois, plus celle qui vient d'etre
+            # servie — le mois en cours en compte deux, la vie du compte en compte 106.
+            guard(
+                servie.headers.get("x-quota-remaining") == str(accounts.PLANS["trial"] - 2),
+                f"le reste annonce est {servie.headers.get('x-quota-remaining')}",
+            )
+
+            # 7. Les deux en-tetes ensemble : la cle tranche, le paiement n'est meme
+            #    pas examine. Encaisser un client qui paie deja un abonnement serait le
+            #    facturer deux fois pour le meme service.
+            registre.clear()
+            appels.clear()
+
+            def _paiement_interdit(request):  # pragma: no cover - ne doit jamais servir
+                raise AssertionError("le paiement est examine malgre une cle API presente")
+
+            with mock.patch("app.routes.validate.payment_result", _paiement_interdit):
+                double = client.post(
+                    "/validate",
+                    json=corps,
+                    headers={"X-API-Key": cle, "X-PAYMENT": "nimportequoi"},
+                )
+            guard(double.status_code == 200, f"cle + paiement : {double.status_code}")
+            guard(
+                double.headers.get("x-payment-mode") == "api_key" and not registre,
+                "un appel porteur d'une cle et d'un paiement n'est pas servi par "
+                "l'abonnement",
+            )
+
+            # 8. Sans aucun en-tete, le 402 x402 d'avant : le mode cle n'a rien retire
+            #    aux agents autonomes.
+            appels.clear()
+            anonyme = client.post("/validate", json=corps)
+            guard(anonyme.status_code == 402, f"sans en-tete : {anonyme.status_code}")
+            corps_anonyme = anonyme.json()
+            guard(
+                corps_anonyme.get("x402Version") == 1
+                and corps_anonyme.get("accepts")
+                and "mode" not in corps_anonyme,
+                "le 402 n'est plus un PaymentRequired x402 v1",
+            )
+            guard(not appels and not registre, "un appel non paye a consomme du service")
+
+            # 9. Temoin du double : un paiement accepte ecrit, lui, au registre. Sans ce
+            #    temoin, « rien au registre » pourrait vouloir dire « double non
+            #    branche » plutot que « l'abonnement n'y ecrit pas ».
+            registre.clear()
+            with mode_recette():
+                paye = client.post(
+                    "/validate",
+                    json=corps,
+                    headers={PROOF_HEADER: build_payment_proof("0x" + "11" * 32)},
+                )
+            guard(paye.status_code == 200, f"un paiement en recette obtient {paye.status_code}")
+            guard(
+                len(registre) == 1 and paye.json()["price_paid"] > 0,
+                f"le double du registre n'est pas branche : {registre}",
+            )
+            registre.clear()
+            servie = appel(cle)
+            guard(
+                servie.status_code == 200 and not registre,
+                "un abonnement est compte comme un encaissement USDC",
+            )
+
+            # 10. Base des comptes injoignable : 503 explicite, jamais 402. Demander un
+            #     paiement sur une panne pousserait un client en regle a payer deux fois.
+            def _en_panne():
+                raise OperationalError("SELECT 1", {}, Exception("panne (porte D45)"))
+
+            appels.clear()
+            registre.clear()
+            avant = metrics.snapshot()
+            validate_route.SessionLocal = _en_panne
+            try:
+                panne = appel(cle)
+            finally:
+                validate_route.SessionLocal = fabrique
+            guard(
+                panne.status_code == 503,
+                f"base injoignable : {panne.status_code} au lieu de 503",
+            )
+            corps_panne = panne.json()
+            guard(
+                corps_panne["mode"] == "api_key" and "accepts" not in corps_panne,
+                "une panne des comptes est presentee comme une demande de paiement",
+            )
+            guard(not appels and not registre, "une panne a quand meme consomme du service")
+            guard(
+                metrics.snapshot()["api_key_unavailable"] - avant["api_key_unavailable"] == 1,
+                "la panne n'est pas comptee dans /metrics",
+            )
+    finally:
+        validate_route.SessionLocal = session_avant
+
+    # 11. Contrat publie : l'en-tete documente est celui du code, la grille de
+    #     /pricing est celle qui est appliquee, et la decision est consignee. Une offre
+    #     affichee qui ne serait pas celle du code serait un mensonge.
+    offres = {offre["nom"]: offre for offre in pricing_route.OFFRES}
+    for libelle, plan in (
+        ("Essai gratuit", "trial"),
+        ("Starter", "starter"),
+        ("Pro", "pro"),
+        ("Enterprise", "enterprise"),
+    ):
+        offre = offres.get(libelle)
+        guard(
+            offre is not None and offre["validations"] == accounts.PLANS[plan],
+            f"/pricing publie {offre and offre['validations']} validations pour "
+            f"{libelle}, le code applique {accounts.PLANS[plan]}",
+        )
+        guard(
+            accounts.PLAN_LIBELLES[plan] == libelle,
+            f"le plan {plan} s'appelle {accounts.PLAN_LIBELLES[plan]} dans le code et "
+            f"{libelle} sur /pricing",
+        )
+        if plan in ("starter", "pro"):
+            guard(
+                "mois" in offre["periode"],
+                f"l'offre {libelle} ne dit plus que son quota est mensuel",
+            )
+    guard(
+        "X-API-Key" in read("app/routes/validate.py"),
+        "l'en-tete d'authentification a disparu du code",
+    )
+    guard(
+        "X-API-Key" in read("app/routes/signup.py"),
+        "l'espace client ne dit plus a son client quel en-tete envoyer",
+    )
+    for fichier in ("README.md", "SECURITY.md"):
+        guard(
+            "X-API-Key" in read(fichier),
+            f"l'authentification par cle API n'est pas documentee dans {fichier}",
+        )
+    guard(
+        "D45" in read("DECISIONS.md"),
+        "la decision D45 n'est plus consignee dans DECISIONS.md",
+    )
+    compteurs = read("app/routes/metrics.py")
+    for compteur in (
+        "api_key_requests",
+        "api_key_validations",
+        "api_key_denied",
+        "api_key_unavailable",
+    ):
+        guard(compteur in compteurs, f"le compteur {compteur} a disparu de /metrics")
+
+
+
+
+
+def d46() -> None:
+    """L'essai gratuit est ouvert, plafonne, et sans mensonge.
+
+    Ce que la porte mesure, dans l'ordre ou un visiteur le rencontre :
+
+      * `GET /validate-form` est une page **publique** : indexable, cachable
+        quelques minutes, et qui ne charge **rien** (aucun script, aucune
+        ressource externe) ;
+      * un essai valide affiche le resultat du **pipeline de la route payante**
+        (le meme objet, verifie), avance les compteurs `/metrics`, et n'ecrit
+        rien : ni base des comptes (le module n'importe meme pas `SessionLocal`),
+        ni registre des paiements (D29/D40) ;
+      * une adresse incomplete est refusee `400` **sans** interroger le
+        fournisseur : un essai gratuit ne doit pas couter un appel payant pour
+        rien. Le temoin positif du meme double (l'essai valide compte un appel)
+        prouve que l'absence mesuree en est bien une ;
+      * la valeur saisie est echappee : le formulaire reaffiche la saisie du
+        visiteur, jamais du HTML ;
+      * le plafond est **applique et annonce** : `validate_form_rate_limit_per_day`
+        essais par IP et par 24 h (la valeur configuree, pas une valeur de test),
+        puis `429` avec un `Retry-After` exact et borne par la fenetre, la raison,
+        et une porte de sortie (creer un compte) ;
+      * un refus ne consomme pas d'essai, et deux IP ont deux fenetres ;
+      * un resultat **degrade** n'est pas un verdict sur l'adresse ;
+      * le contrat publie suit : la page est liee depuis la navigation, le
+        plafond vit dans la configuration et dans `.env.example`, les trois
+        compteurs sont dans `/metrics`, et la decision est consignee.
+    """
+    import asyncio
+    from unittest import mock
+
+    from fastapi.testclient import TestClient
+
+    from app import ratelimit
+    from app.config import get_settings
+    from app.main import app
+    from app.routes import validate as validate_route
+    from app.routes import validate_form as form_route
+    from app.routes.metrics import metrics
+
+    reglages = get_settings()
+    plafond = reglages.validate_form_rate_limit_per_day
+    guard(plafond > 0, f"plafond d'essais gratuit invalide : {plafond}")
+
+    resultat = {
+        "validated": True,
+        "standardized": {
+            "line1": "1 Rue Oracle",
+            "line2": "",
+            "city": "Saint-Denis",
+            "state": "RE",
+            "zip": "97400",
+            "country": "RE",
+        },
+        "latitude": -20.88,
+        "longitude": 55.45,
+        "deliverability": "residential",
+        "confidence": 0.99,
+        "degraded": False,
+    }
+    adresse = {
+        "street": "1 Rue Oracle",
+        "city": "Saint-Denis",
+        "state": "RE",
+        "zip": "97400",
+        "country": "RE",
+    }
+
+    # Le pipeline est partage : une seule validation, un seul cache, donc un seul
+    # verdict possible entre l'essai et le service vendu.
+    guard(
+        form_route.perform_validation is validate_route.perform_validation,
+        "l'essai gratuit a sa propre copie du pipeline : les deux peuvent diverger",
+    )
+
+    appels: list[dict] = []
+    resultats: list[dict] = [resultat]
+
+    def _valide(brut: dict) -> tuple[dict, str]:
+        appels.append(dict(brut))
+        return dict(resultats[0]), "cle-de-cache-oracle"
+
+    ratelimit.reset()
+    client = TestClient(app)
+
+    with mock.patch("app.routes.validate_form.perform_validation", _valide):
+        # 1. La page publique : rien a charger, et tout est dit au visiteur.
+        page = client.get("/validate-form")
+        guard(page.status_code == 200, f"/validate-form repond {page.status_code}")
+        guard(
+            page.headers.get("cache-control") == "public, max-age=300",
+            f"la page publique est servie en {page.headers.get('cache-control')}",
+        )
+        guard(
+            "form-action 'self'" in page.headers.get("content-security-policy", ""),
+            "la CSP n'autorise plus le formulaire a poster sur lui-meme",
+        )
+        guard(
+            'name="robots" content="index, follow"' in page.text,
+            "la page d'essai n'est plus indexable",
+        )
+        for champ in ("street", "city", "state", "zip", "country"):
+            guard(f'name="{champ}"' in page.text, f"le champ {champ} a disparu")
+        guard(
+            'action="/validate-form"' in page.text,
+            "le formulaire ne poste plus sur la route",
+        )
+        guard("<script" not in page.text, "la page d'essai charge un script")
+        guard(
+            "http://" not in page.text and "https://" not in page.text,
+            "la page d'essai renvoie vers une ressource externe",
+        )
+        guard(
+            str(plafond) in page.text,
+            f"le plafond annonce ne correspond plus au reglage ({plafond})",
+        )
+        guard(
+            'href="/signup"' in page.text and 'href="/pricing"' in page.text,
+            "la page d'essai n'oriente plus vers l'inscription ou les tarifs",
+        )
+
+        # 2. Un essai valide : servi par le pipeline partage, compte, rien d'ecrit.
+        avant = metrics.snapshot()
+        servie = client.post("/validate-form", data=adresse)
+        guard(servie.status_code == 200, f"un essai valide obtient {servie.status_code}")
+        guard(
+            servie.headers.get("cache-control") == "no-store",
+            "la reponse d'essai, qui contient l'adresse du visiteur, est cachable",
+        )
+        guard(
+            'name="robots" content="noindex, nofollow"' in servie.text,
+            "la reponse d'essai est indexable",
+        )
+        guard("Adresse reconnue" in servie.text, "le verdict de l'essai a disparu")
+        guard(
+            "1 Rue Oracle" in servie.text and "Saint-Denis" in servie.text,
+            "l'adresse standardisee n'est pas affichee",
+        )
+        guard("residential" in servie.text, "la livrabilite n'est pas affichee")
+        guard(len(appels) == 1, f"le pipeline a ete traverse {len(appels)} fois")
+        guard(appels and appels[0] == adresse, f"le pipeline a recu {appels}")
+        apres = metrics.snapshot()
+        guard(
+            apres["validate_form_requests"] - avant["validate_form_requests"] == 1
+            and apres["validate_form_validations"]
+            - avant["validate_form_validations"]
+            == 1,
+            "l'essai n'est pas compte dans /metrics",
+        )
+        source = read("app/routes/validate_form.py")
+        guard(
+            "SessionLocal" not in source and "record_transaction" not in source,
+            "l'essai gratuit a gagne un acces a la base ou au registre des paiements",
+        )
+        guard(
+            not hasattr(form_route, "SessionLocal"),
+            "l'essai gratuit importe la session de la base des comptes",
+        )
+
+        # 3. Une adresse incomplete : refusee avant tout appel paye.
+        appels.clear()
+        incomplete = client.post("/validate-form", data={**adresse, "street": "  "})
+        guard(
+            incomplete.status_code == 400,
+            f"une adresse incomplete obtient {incomplete.status_code}",
+        )
+        guard(not appels, "une adresse incomplete a interroge le fournisseur payant")
+        guard(
+            "Saint-Denis" in incomplete.text,
+            "la saisie n'est plus reaffichee au visiteur qui doit corriger",
+        )
+
+        # 4. La saisie du visiteur ne devient jamais du HTML.
+        appels.clear()
+        piege = client.post(
+            "/validate-form", data={**adresse, "street": "<script>alert(1)</script>"}
+        )
+        guard(
+            "<script>" not in piege.text and "&lt;script&gt;" in piege.text,
+            "la valeur saisie n'est plus echappee dans la page",
+        )
+
+        # 5. Un resultat degrade n'est pas un verdict sur l'adresse.
+        appels.clear()
+        resultats[0] = {**resultat, "validated": False, "degraded": True}
+        try:
+            degrade = client.post("/validate-form", data=adresse)
+        finally:
+            resultats[0] = resultat
+        guard(
+            "pas répondu" in degrade.text,
+            "un resultat degrade ne dit plus qu'il est degrade",
+        )
+        guard(
+            "pas une preuve d'inexistence" in degrade.text,
+            "un resultat degrade peut passer pour une adresse invalide",
+        )
+        guard(
+            "Adresse non reconnue" not in degrade.text,
+            "une panne du fournisseur est presentee comme une adresse invalide",
+        )
+
+        # 6. Le plafond : applique, annonce, exact, par IP, sans consommer d'essai.
+        appels.clear()
+        avant = metrics.snapshot()
+        for index in range(1, plafond + 1):
+            consomme = client.post(
+                "/validate-form", data=adresse, headers={"X-Forwarded-For": "203.0.113.9"}
+            )
+            guard(
+                consomme.status_code == 200,
+                f"l'essai {index} du plafond obtient {consomme.status_code}",
+            )
+        bloque = client.post(
+            "/validate-form", data=adresse, headers={"X-Forwarded-For": "203.0.113.9"}
+        )
+        guard(
+            bloque.status_code == 429,
+            f"l'essai {plafond + 1} obtient {bloque.status_code} au lieu de 429",
+        )
+        attente = int(bloque.headers.get("retry-after", "0"))
+        guard(
+            0 < attente <= 24 * 60 * 60,
+            f"Retry-After annonce {attente} s : nul, ou au-dela de la fenetre",
+        )
+        guard(
+            f"{plafond} essais gratuits" in bloque.text,
+            "le refus de plafond n'annonce plus la limite configuree",
+        )
+        guard(
+            'href="/signup"' in bloque.text,
+            "le refus de plafond ne propose pas de creer un compte",
+        )
+        guard(
+            metrics.snapshot()["validate_form_denied"] - avant["validate_form_denied"] == 1,
+            "le refus de plafond n'est pas compte dans /metrics",
+        )
+        encore = client.post(
+            "/validate-form", data=adresse, headers={"X-Forwarded-For": "203.0.113.9"}
+        )
+        guard(
+            encore.status_code == 429
+            and int(encore.headers["retry-after"]) <= attente,
+            "un refus de plafond repousse la fin de la fenetre du visiteur",
+        )
+        voisin = client.post(
+            "/validate-form", data=adresse, headers={"X-Forwarded-For": "198.51.100.9"}
+        )
+        guard(
+            voisin.status_code == 200,
+            "le plafond n'est plus par IP : un visiteur bloquerait les autres",
+        )
+        guard(
+            ratelimit.fallback_count() > 0,
+            "le repli local du plafond n'est pas compte : le garde-fou redevient invisible",
+        )
+
+    # 7. Le contrat publie suit le code.
+    guard(
+        plafond
+        == form_route.get_settings().validate_form_rate_limit_per_day,
+        "le plafond lu par la page n'est plus celui de la configuration",
+    )
+    guard(
+        "validate_form" in read("app/main.py"),
+        "/validate-form n'est plus monte par l'application",
+    )
+    guard(
+        "validate_form_rate_limit_per_day" in read("app/config.py"),
+        "le plafond des essais gratuits n'est plus configurable",
+    )
+    guard(
+        "VALIDATE_FORM_RATE_LIMIT_PER_DAY" in read(".env.example"),
+        "le plafond des essais gratuits a disparu du modele d'environnement",
+    )
+    guard(
+        "/validate-form" in read("app/web.py"),
+        "la page d'essai n'est plus dans la navigation du site",
+    )
+    guard(
+        "/validate-form" in read("app/ratelimit.py"),
+        "le second usage du plafond (essai gratuit) n'est plus documente",
+    )
+    from app.routes import metrics as metrics_module
+
+    payload = asyncio.run(metrics_module.get_metrics())
+    for compteur in (
+        "validate_form_requests",
+        "validate_form_validations",
+        "validate_form_denied",
+    ):
+        guard(compteur in payload, f"le compteur {compteur} est absent de /metrics")
+    guard(
+        "D46" in read("DECISIONS.md"),
+        "la decision D46 n'est plus consignee dans DECISIONS.md",
+    )
+    guard(
+        "/validate-form" in read("README.md"),
+        "la page d'essai n'est plus documentee dans README.md",
+    )
+    guard(
+        "essais gratuits" in read("SECURITY.md"),
+        "le plafond d'essais gratuits n'est plus documente dans SECURITY.md",
+    )
+
+
+def d47() -> None:
+    """Un resultat degrade ne se garde pas trente jours.
+
+    `degraded: true` ne dit pas « adresse invalide », il dit « le fournisseur n'a
+    pas repondu » (D23). Le garder aussi longtemps qu'un verdict le transformerait
+    en reponse fausse d'un mois, sur une adresse que le client paie a chaque appel
+    (ou consomme a son quota), et sans aucun moyen de forcer une nouvelle
+    verification. La porte mesure les deux cotes avec le **meme** double de cache
+    (un double qui retient les TTL demandes) :
+
+      * un resultat **degrade** est ecrit avec `CACHE_TTL_DEGRADED` (5 minutes) ;
+      * il est **bien** garde ces cinq minutes : une deuxieme demande identique est
+        servie depuis le cache, sans rappeler le fournisseur (c'est la protection
+        mesuree par D23/D25, qui ne doit pas disparaitre en corrigeant le TTL) ;
+      * un resultat **verifie** est ecrit avec `CACHE_TTL` (30 jours) : le temoin
+        positif du meme double, sans lequel « 5 minutes » pourrait vouloir dire
+        « ce double n'ecrit rien » ;
+      * l'entree courte expiree, la meme adresse est **re-verifiee** : une panne
+        passee ne fige pas l'adresse pour un mois.
+    """
+    from unittest import mock
+
+    from fastapi.testclient import TestClient
+
+    from app import cache as cache_module
+    from app.main import app
+    from app.payment import build_payment_proof
+
+    guard(
+        cache_module.CACHE_TTL == 60 * 60 * 24 * 30,
+        f"TTL du cache des resultats verifies = {cache_module.CACHE_TTL} s",
+    )
+    guard(
+        cache_module.CACHE_TTL_DEGRADED == 5 * 60,
+        f"TTL d'un resultat degrade = {cache_module.CACHE_TTL_DEGRADED} s",
+    )
+    guard(
+        cache_module.CACHE_TTL_DEGRADED < cache_module.CACHE_TTL,
+        "un resultat degrade est garde aussi longtemps qu'un resultat verifie",
+    )
+
+    class _Redis:
+        """Double minimal : retient ce qui est ecrit, et le TTL demande."""
+
+        def __init__(self) -> None:
+            self.store: dict = {}
+            self.ttls: dict = {}
+
+        def get(self, key):
+            return self.store.get(key)
+
+        def setex(self, key, ttl, value):
+            self.store[key] = value
+            self.ttls[key] = ttl
+
+        def ping(self):
+            return True
+
+    resultat = {
+        "validated": True,
+        "standardized": {
+            "line1": "1 Rue Oracle",
+            "line2": "",
+            "city": "Saint-Denis",
+            "state": "RE",
+            "zip": "97400",
+            "country": "RE",
+        },
+        "latitude": -20.88,
+        "longitude": 55.45,
+        "deliverability": "residential",
+        "confidence": 0.99,
+        "degraded": False,
+    }
+
+    def corps(rue: str) -> dict:
+        return {
+            "address": {
+                "street": rue,
+                "city": "Saint-Denis",
+                "state": "RE",
+                "zip": "97400",
+                "country": "RE",
+            }
+        }
+
+    double = _Redis()
+    panne = {"en_panne": True}
+    appels = {"fournisseur": 0}
+
+    def _valide(brut: dict) -> dict:
+        appels["fournisseur"] += 1
+        if panne["en_panne"]:
+            return {**resultat, "validated": False, "degraded": True}
+        return dict(resultat)
+
+    client = TestClient(app)
+    with (
+        mode_recette(),
+        mock.patch("app.routes.validate.validate_full", _valide),
+        mock.patch(
+            "app.routes.validate.record_transaction", lambda tx, montant, cle: True
+        ),
+        mock.patch.object(cache_module, "redis_client", double),
+    ):
+        cache_module.reset_backend_state()
+        entetes = {"X-Payment-Proof": build_payment_proof("0x" + "22" * 32)}
+        try:
+            degradee = client.post(
+                "/validate", json=corps("1 Rue Degradee"), headers=entetes
+            )
+            guard(
+                degradee.status_code == 200,
+                f"un appel pendant une panne fournisseur obtient {degradee.status_code}",
+            )
+            corps_degrade = degradee.json()["result"]
+            guard(
+                corps_degrade["degraded"] is True,
+                "le double n'a pas produit de resultat degrade : la suite ne mesure rien",
+            )
+            cle_degradee = corps_degrade["cache_key"]
+            guard(
+                double.ttls.get(f"addr:{cle_degradee}") == cache_module.CACHE_TTL_DEGRADED,
+                "TTL ecrit pour un resultat degrade : "
+                f"{double.ttls.get('addr:' + cle_degradee)} s",
+            )
+
+            # Il est bien garde ces cinq minutes : c'est ce qui evite de marteler un
+            # fournisseur en panne (D23/D25), et ca ne doit pas disparaitre.
+            avant = appels["fournisseur"]
+            repetee = client.post(
+                "/validate", json=corps("1 Rue Degradee"), headers=entetes
+            )
+            guard(
+                repetee.json()["result"]["cache_key"] == cle_degradee
+                and appels["fournisseur"] == avant,
+                "la reponse degradee gardee cinq minutes est recalculee a chaque appel",
+            )
+
+            # Temoin positif du meme double : un verdict, lui, se garde trente jours.
+            panne["en_panne"] = False
+            verifiee = client.post(
+                "/validate", json=corps("2 Rue Verifiee"), headers=entetes
+            )
+            corps_verifie = verifiee.json()["result"]
+            guard(corps_verifie["degraded"] is False, "le double n'a pas rendu de verdict")
+            guard(
+                double.ttls.get(f"addr:{corps_verifie['cache_key']}")
+                == cache_module.CACHE_TTL,
+                "TTL ecrit pour un resultat verifie : "
+                f"{double.ttls.get('addr:' + corps_verifie['cache_key'])} s",
+            )
+
+            # Et la fenetre courte laisse revenir la verite : l'entree expiree, la
+            # meme adresse repasse par le fournisseur.
+            double.store.pop(f"addr:{cle_degradee}")
+            reprise = client.post(
+                "/validate", json=corps("1 Rue Degradee"), headers=entetes
+            )
+            guard(
+                reprise.json()["result"]["degraded"] is False
+                and reprise.json()["result"]["validated"] is True,
+                "une adresse marquee degradee reste fausse apres la fenetre courte",
+            )
+        finally:
+            cache_module.reset_backend_state()
+
+    # La decision est consignee, et le contrat publie la dit.
+    guard("CACHE_TTL_DEGRADED" in read("app/cache.py"), "le TTL degrade a disparu du cache")
+    guard("D47" in read("DECISIONS.md"), "la decision D47 n'est plus consignee dans DECISIONS.md")
+    guard(
+        "5 minutes" in read("README.md") and "dégradé" in read("README.md"),
+        "README.md ne dit plus combien de temps un resultat degrade est garde",
+    )
+    guard(
+        "degrade" in fold(read("PRIVACY.md")),
+        "PRIVACY.md ne dit plus qu'un resultat degrade est garde brievement",
+    )
+
+
+def d48() -> None:
+    """Le guide d'integration dit la verite, et ne dit rien de secret.
+
+    Un guide est un contrat : s'il promet un en-tete que le serveur ne renvoie
+    pas, ou un code que la route n'emet jamais, il coute une journee a
+    l'integrateur. La porte mesure donc quatre choses, sur la page reellement
+    servie :
+
+      * elle est **publique** : `200`, indexable, cachable cinq minutes, et elle
+        ne charge **rien** (aucun script, aucune ressource externe) ;
+      * elle ne publie **aucun secret** : une page indexable est publique par
+        construction, donc la cle partagee et le mot de passe du tableau de bord
+        ne doivent pas y figurer, et la cle d'exemple reste un gabarit ;
+      * elle dit les faits du **code** : base publique de la configuration (aucun
+        gabarit non remplace), prix, plafond de l'essai gratuit, en-tetes
+        reellement poses par la route, plans reellement appliques, et les huit
+        codes de retour ;
+      * elle est **atteignable** : liee depuis la navigation partagee, donc depuis
+        `/pricing` et `/validate-form`, et `/pricing` ne recopie plus sa propre
+        copie de la navigation (une seule definition, comme la feuille de style).
+    """
+    from fastapi.testclient import TestClient
+
+    from app.config import get_settings
+    from app.main import app
+    from app.routes.guide import CODES
+
+    reglages = get_settings()
+    client = TestClient(app)
+
+    page = client.get("/guide")
+    guard(page.status_code == 200, f"/guide repond {page.status_code}")
+    guard(
+        page.headers.get("cache-control") == "public, max-age=300",
+        f"/guide est servi en {page.headers.get('cache-control')}",
+    )
+    csp = page.headers.get("content-security-policy", "")
+    guard("form-action 'none'" in csp, f"/guide accepte de poster ailleurs : {csp!r}")
+    guard(
+        'name="robots" content="index, follow"' in page.text,
+        "le guide n'est plus indexable",
+    )
+    for interdit in ("<script", "<link", "<img", "src=", "@import", "url("):
+        guard(
+            interdit not in page.text,
+            f"le guide charge quelque chose ({interdit}) : il n'est plus autonome",
+        )
+
+    # 2. Aucun secret sur une page indexable.
+    if reglages.api_secret_key:
+        guard(
+            reglages.api_secret_key not in page.text,
+            "le secret de signature est publie sur une page indexable",
+        )
+    if reglages.dashboard_password:
+        guard(
+            reglages.dashboard_password not in page.text,
+            "le mot de passe du tableau de bord est publie sur une page indexable",
+        )
+    guard(
+        "sk_live_VOTRE_CLE" in page.text,
+        "l'exemple de cle n'est plus un gabarit reconnaissable",
+    )
+
+    # 3. Les faits cites sont ceux du code.
+    base = reglages.public_base_url.rstrip("/")
+    guard(base in page.text, f"la base publique du guide n'est plus {base}")
+    guard("BASE_URL" not in page.text, "un gabarit d'URL est reste non remplace")
+    guard(
+        f"{reglages.x402_price:.2f}" in page.text,
+        "le prix publie n'est plus celui de la configuration",
+    )
+    guard(
+        str(reglages.validate_form_rate_limit_per_day) in page.text,
+        "le plafond de l'essai gratuit n'est plus celui de la configuration",
+    )
+    for en_tete in ("X-Payment-Mode", "X-Plan", "X-Quota-Remaining"):
+        guard(en_tete in page.text, f"l'en-tete {en_tete} a disparu du guide")
+        guard(
+            en_tete in read("app/routes/validate.py"),
+            f"l'en-tete {en_tete} est documente mais plus pose par la route",
+        )
+    for code, _situation, _quoi in CODES:
+        guard(f">{code}<" in page.text, f"le code {code} a disparu du guide")
+    for plan in ("trial", "starter", "pro", "enterprise"):
+        guard(plan in page.text, f"le plan {plan} n'est plus cite par le guide")
+
+    # 4. Il est atteignable, et la navigation n'est plus recopiee.
+    for chemin in ("/pricing", "/validate-form"):
+        vue = client.get(chemin)
+        guard(
+            'href="/guide"' in vue.text,
+            f"le guide n'est pas atteignable depuis {chemin}",
+        )
+    guard(
+        "site_head()" in read("app/routes/pricing.py"),
+        "/pricing recopie sa propre navigation : les pages peuvent diverger",
+    )
+
+    # 5. La decision est consignee.
+    guard("D48" in read("DECISIONS.md"), "la decision D48 n'est plus consignee dans DECISIONS.md")
+    guard("/guide" in read("README.md"), "le guide n'est plus documente dans README.md")
+
+
+def d49() -> None:
+    """L'email de bienvenue promet exactement ce que le service applique.
+
+    Un email commercial est une promesse : s'il annonce des jours d'essai, un quota
+    ou un prix que le service ne tient pas, le premier client le decouvre a ses
+    frais. La porte mesure donc, dans le texte reellement expedie :
+
+      * les chiffres de l'offre sont ceux du **code** : jours d'essai et quota du
+        plan d'essai (`accounts.JOURS_ESSAI`, `accounts.VALIDATIONS_ESSAI`), et les
+        deux prix mensuels de `/pricing` (29 EUR / 2 000, 79 EUR / 10 000) ;
+      * le mode est celui d'une **boutique** : `X-API-Key`, jamais un paiement a
+        l'appel — un commercant n'a pas de portefeuille a brancher, et l'email ne
+        doit pas lui apprendre une voie qui n'est pas la sienne ;
+      * il ne contient **aucun secret** : ni cle `sk_live_` complete, ni valeur par
+        defaut du depot (`change_me`) ;
+      * les routes citees existent vraiment (`/signup`, `/compte`, `/guide`,
+        `/validate-form`) ;
+      * il dit ses **limites** : aucun prelevement automatique, un resultat
+        `degraded` qui n'est pas un verdict, et une empreinte (pas une adresse)
+        conservee — avec la voie d'effacement ;
+      * l'exemplaire « pret a envoyer » ne contient plus **aucune** variable de
+        fusion, et chaque variable du gabarit est expliquee dans la table ;
+      * la decision est consignee, et `README.md` dit ou vit le message.
+    """
+    from app import accounts
+    from app.routes import pricing as pricing_route
+
+    email = read("EMAIL_BIENVENUE.md")
+
+    # 1. Les chiffres sont ceux du code, pas ceux du marketing.
+    guard(
+        str(accounts.JOURS_ESSAI) in email,
+        f"l'email n'annonce plus l'essai de {accounts.JOURS_ESSAI} jours",
+    )
+    guard(
+        str(accounts.VALIDATIONS_ESSAI) in email,
+        f"l'email n'annonce plus les {accounts.VALIDATIONS_ESSAI} validations offertes",
+    )
+    for offre in pricing_route.OFFRES:
+        if offre.get("prix_eur") is None:
+            continue
+        prix = f"{offre['prix_eur']:.0f}"
+        quota = f"{offre['validations']:,}".replace(",", " ")
+        guard(
+            f"{prix} €" in email and quota in email,
+            f"l'offre {offre['nom']} de /pricing ({prix} EUR / {quota}) "
+            "n'apparait plus dans l'email",
+        )
+    guard(
+        "/mois" in email,
+        "l'email ne dit plus que les plans sont mensuels (le quota applique l'est)",
+    )
+
+    # 2. Le mode est celui d'une boutique, et lui seul.
+    guard("X-API-Key" in email, "l'email n'indique plus l'en-tete X-API-Key")
+    for hors_sujet in ("X-Payment-Proof", "tx_hash", "X-PAYMENT"):
+        guard(
+            hors_sujet not in email,
+            f"l'email d'une boutique parle de {hors_sujet} : ce n'est pas sa voie",
+        )
+
+    # 3. Aucun secret, ni cle complete, ni valeur par defaut du depot.
+    guard(
+        re.search(r"sk_live_[A-Za-z0-9]{32}", email) is None,
+        "une cle API complete figure dans l'email",
+    )
+    guard("change_me" not in email, "une valeur par defaut du depot figure dans l'email")
+    guard(
+        "empreinte" in fold(email),
+        "l'email ne dit plus que seule une empreinte de la cle est conservee",
+    )
+
+    # 4. Les routes citees existent.
+    for route in ("/signup", "/compte", "/guide", "/validate-form"):
+        guard(route in email, f"l'email ne cite plus {route}")
+        guard(
+            route.lstrip("/") in read("app/main.py"),
+            f"la route {route} citee par l'email n'est plus montee par l'application",
+        )
+
+    # 5. Les limites sont dites.
+    guard(
+        "prelevement automatique" in fold(email),
+        "l'email ne dit plus qu'aucun prelevement automatique n'a lieu",
+    )
+    guard(
+        "degraded" in email and "ne dit rien" in fold(email),
+        "l'email ne dit plus qu'un resultat degrade n'est pas un verdict",
+    )
+    guard("cache_key" in email, "l'email ne dit plus comment demander un effacement")
+
+    # 6. Le gabarit est complet, et l'exemplaire est pret a envoyer.
+    variables = set(re.findall(r"\{\{(\w+)\}\}", email))
+    guard(variables, "le gabarit ne contient plus aucune variable de fusion")
+    exemplaire = email.split("## 2.")[-1].split("## 3.")[0]
+    guard(
+        "{{" not in exemplaire,
+        "l'exemplaire « pret a envoyer » contient encore une variable de fusion",
+    )
+    table = email.split("## 3.")[-1].split("## 4.")[0]
+    for variable in variables:
+        guard(
+            f"{{{{{variable}}}}}" in table,
+            f"la variable {{{{{variable}}}}} n'est expliquee nulle part",
+        )
+
+    # 7. La decision est consignee, et le depot dit ou vit le message.
+    guard("D49" in read("DECISIONS.md"), "la decision D49 n'est plus consignee dans DECISIONS.md")
+    guard(
+        "EMAIL_BIENVENUE.md" in read("README.md"),
+        "README.md ne dit plus ou vit l'email de bienvenue",
+    )
+
+
+def d50() -> None:
+    """Le suivi client dit l'etat servi, dans l'ordre d'urgence, sans secret ni ecriture.
+
+    Un tableau de suivi ne vaut que par son **accord** avec ce qui est reellement
+    servi : un rapport qui affiche « actif » un compte dont les appels recoivent
+    `403` rassure au lieu de decider — c'est pire que pas de rapport. La porte
+    mesure donc, sur une base SQLite reelle (les deux tables des comptes) :
+
+      * **l'accord etat / refus, et son inverse** : un compte dont
+        `accounts.refusal_reason` renvoie `compte_expire` est exactement un compte
+        annonce « essai fini » (idem `quota_atteint` / « quota atteint »), avec le
+        code HTTP lu dans `REFUS_HTTP` (`app/routes/validate.py`) ; et un compte
+        servi n'entre dans aucun etat de refus ;
+      * le cas que D44/D45 protegent : un **client payant dont la date d'essai est
+        passee** n'est pas « essai fini » — sinon le rapport ferait appeler au
+        telephone un client en regle ;
+      * l'**ordre publie** est un ordre : priorites uniques et croissantes dans
+        `suivi.ETATS`, l'etat sans action en dernier, et le classement reel suit
+        cet ordre d'urgence (un essai qui se termine passe avant un compte jamais
+        servi) ;
+      * **aucun secret** : le rapport porte le prefixe de cle et jamais la cle
+        complete, ni une empreinte ;
+      * `app/suivi.py` est en **lecture seule** (aucun `add`, `commit`, `flush` ni
+        `delete`) et ne laisse aucun objet en attente dans la session ;
+      * une base **sans table** fait sortir `scripts/suivi_clients.py` en code `2`
+        (lancement reel du script) au lieu de presenter zero comme un resultat,
+        tandis qu'une base garnie sort en code `0` avec un vrai rapport — CSV
+        compris, en-tete du module ;
+      * la decision est consignee (`DECISIONS.md`, `README.md`).
+    """
+    import subprocess
+    import tempfile
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import accounts, suivi
+    from app.models import Customer, CustomerValidation
+    from app.routes.validate import REFUS_HTTP
+
+    maintenant = datetime(2026, 10, 13, 9, 0, tzinfo=timezone.utc)
+    cles: list[str] = []
+
+    def compte(
+        session,
+        email: str,
+        *,
+        plan: str = "trial",
+        cree_il_y_a: int = 0,
+        essai_dans: int = accounts.JOURS_ESSAI,
+    ) -> Customer:
+        """Un compte reel en base.
+
+        L'empreinte du mot de passe est factice : le suivi ne verifie aucun mot de
+        passe, payer un hachage bcrypt ici ne mesurerait rien de plus.
+        """
+        cle, empreinte, prefixe = accounts.new_api_key()
+        client = Customer(
+            email=email,
+            password_hash="x" * 60,
+            shop_name=email.split("@")[0].capitalize(),
+            platform="shopify",
+            api_key_hash=empreinte,
+            api_key_prefix=prefixe,
+            plan=plan,
+            trial_ends_at=maintenant + timedelta(days=essai_dans),
+            created_at=(maintenant - timedelta(days=cree_il_y_a)).replace(tzinfo=None),
+        )
+        session.add(client)
+        session.commit()
+        cles.append(cle)
+        return client
+
+    def usage(
+        session, client: Customer, *, il_y_a_jours: int = 1, combien: int = 1
+    ) -> None:
+        """Des validations reellement servies, a une date choisie."""
+        quand = (maintenant - timedelta(days=il_y_a_jours)).replace(tzinfo=None)
+        for _ in range(combien):
+            session.add(
+                CustomerValidation(
+                    customer_id=client.id,
+                    cache_key=None,
+                    validated=True,
+                    created_at=quand,
+                )
+            )
+        session.commit()
+
+    with tempfile.TemporaryDirectory() as dossier:
+        base = Path(dossier) / "suivi.sqlite"
+        url = f"sqlite:///{base}"
+        moteur = create_engine(url)
+        Customer.__table__.create(moteur)
+        CustomerValidation.__table__.create(moteur)
+        session = sessionmaker(bind=moteur)()
+
+        expire = compte(session, "expire@example.re", essai_dans=-2)
+        epuise = compte(session, "epuise@example.re", essai_dans=10)
+        usage(session, epuise, combien=accounts.VALIDATIONS_ESSAI)
+        abonne = compte(
+            session, "abonne@example.re", plan="starter", essai_dans=-10, cree_il_y_a=40
+        )
+        usage(session, abonne, il_y_a_jours=2)
+        sain = compte(session, "sain@example.re", essai_dans=10)
+        usage(session, sain, combien=3)
+
+        # 1. L'etat affiche est l'etat servi : refus et etat coincident, et le code
+        #    HTTP affiche est celui que la route pose vraiment.
+        for client, attendu, refus_attendu in (
+            (expire, "essai_fini", accounts.REFUS_COMPTE_EXPIRE),
+            (epuise, "quota_atteint", accounts.REFUS_QUOTA_ATTEINT),
+        ):
+            refus = accounts.refusal_reason(session, client, maintenant)
+            guard(
+                refus == refus_attendu,
+                f"{client.email} n'est plus refuse ({refus}) : l'oracle ne mesure plus rien",
+            )
+            ligne = suivi.etat_client(session, client, maintenant=maintenant)
+            guard(
+                ligne["etat"] == attendu,
+                f"{client.email} est classe {ligne['etat']} alors que la route renvoie {refus}",
+            )
+            guard(
+                ligne["refus_http"] == REFUS_HTTP[refus],
+                f"{client.email} : le code HTTP affiche n'est plus celui de la route",
+            )
+
+        # 2. Et l'inverse, plus le cas que D44/D45 protegent : un abonne dont la
+        #    date d'essai est passee est servi, donc il n'est pas « essai fini ».
+        for client in (sain, abonne):
+            guard(
+                accounts.refusal_reason(session, client, maintenant) is None,
+                f"{client.email} est refuse alors que le rapport le dit servi",
+            )
+            ligne = suivi.etat_client(session, client, maintenant=maintenant)
+            guard(
+                ligne["refus"] is None and ligne["refus_http"] is None,
+                f"{client.email} : un refus est affiche pour un compte servi",
+            )
+            guard(
+                ligne["etat"] not in ("essai_fini", "quota_atteint"),
+                f"{client.email} est annonce refuse alors que ses appels passent",
+            )
+        guard(
+            suivi.etat_client(session, abonne, maintenant=maintenant)["etat"]
+            == suivi.ETAT_OK,
+            "un abonne dont la date d'essai est passee est annonce en essai fini (D44)",
+        )
+
+        # 3. L'ordre publie est un ordre, et le rapport le suit reellement.
+        priorites = [etat["priorite"] for etat in suivi.ETATS.values()]
+        guard(
+            priorites == sorted(priorites) == list(range(1, len(priorites) + 1)),
+            "les priorites des etats de suivi ne sont plus un ordre strict",
+        )
+        guard(
+            suivi.ETATS[suivi.ETAT_OK]["priorite"] == max(priorites),
+            "l'etat sans action n'est plus le dernier de l'ordre publie",
+        )
+        compte(session, "bientot@example.re", essai_dans=2)
+        compte(session, "muet@example.re", cree_il_y_a=9)
+        lignes = suivi.suivi(session, maintenant=maintenant)
+        attendus = {
+            "expire@example.re": "essai_fini",
+            "epuise@example.re": "quota_atteint",
+            "abonne@example.re": suivi.ETAT_OK,
+            "sain@example.re": suivi.ETAT_OK,
+            "bientot@example.re": "essai_bientot",
+            "muet@example.re": "jamais_utilise",
+        }
+        guard(
+            {ligne["email"]: ligne["etat"] for ligne in lignes} == attendus,
+            "le suivi ne classe plus les comptes stockes comme la porte l'exige",
+        )
+        rangs = {ligne["email"]: index for index, ligne in enumerate(lignes)}
+        guard(
+            rangs["bientot@example.re"] < rangs["muet@example.re"],
+            "un essai qui se termine n'est plus traite avant un compte jamais servi",
+        )
+        guard(
+            [ligne["priorite"] for ligne in lignes]
+            == sorted(ligne["priorite"] for ligne in lignes),
+            "le rapport ne suit plus l'ordre d'urgence publie",
+        )
+        compteurs = suivi.resume(lignes)
+        guard(
+            compteurs["total"] == len(attendus)
+            and compteurs["a_joindre"]
+            == sum(1 for etat in attendus.values() if etat != suivi.ETAT_OK),
+            "les compteurs du rapport ne correspondent plus aux comptes stockes",
+        )
+
+        # 4. Aucun secret dans ce qui sort, et un module qui ne fait que lire.
+        texte = suivi.rapport_texte(lignes, maintenant)
+        tableau = suivi.rapport_csv(lignes)
+        guard(
+            expire.api_key_prefix in texte and expire.api_key_prefix in tableau,
+            "le rapport ne porte plus le prefixe de cle : un compte n'est plus identifiable",
+        )
+        guard(
+            "cle_prefixe" in suivi.COLONNES_CSV,
+            "la colonne de prefixe de cle a disparu de l'export",
+        )
+        for cle in cles:
+            guard(
+                cle not in texte and cle not in tableau,
+                "une cle API complete apparait dans le rapport",
+            )
+        code = read("app/suivi.py")
+        for interdit in (".add(", ".commit(", ".flush(", ".delete("):
+            guard(
+                interdit not in code,
+                f"app/suivi.py n'est plus en lecture seule ({interdit})",
+            )
+        guard(
+            not session.new and not session.dirty and not session.deleted,
+            "le suivi a laisse des objets en attente dans la session : il ecrit",
+        )
+
+        # 5. Un rapport vide n'est pas un « tout va bien » : le script doit le dire
+        #    en code 2 quand rien ne peut etre mesure, et sortir 0 sinon.
+        script = ROOT / "scripts" / "suivi_clients.py"
+        vide = Path(dossier) / "sans-table.sqlite"
+        echec = subprocess.run(
+            [sys.executable, str(script), "--url", f"sqlite:///{vide}"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            cwd=ROOT,
+        )
+        guard(
+            echec.returncode == 2,
+            f"une base sans table sort en code {echec.returncode} au lieu de 2",
+        )
+        guard(
+            "compte(s) dans la base" not in echec.stdout,
+            "une base sans table est presentee comme un rapport vide (zero = tout va bien)",
+        )
+        guard(
+            "INDISPONIBLE" in echec.stderr,
+            "l'echec de mesure n'est plus dit explicitement sur la sortie d'erreur",
+        )
+
+        succes = subprocess.run(
+            [
+                sys.executable,
+                str(script),
+                "--url",
+                url,
+                "--maintenant",
+                maintenant.isoformat(),
+                "--format",
+                "csv",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            cwd=ROOT,
+        )
+        guard(
+            succes.returncode == 0,
+            f"le suivi sort en code {succes.returncode} sur une base garnie",
+        )
+        lignes_csv = succes.stdout.strip().splitlines()
+        guard(
+            lignes_csv[0].split(";") == list(suivi.COLONNES_CSV),
+            "l'en-tete CSV du script n'est plus celui du module",
+        )
+        guard(
+            len(lignes_csv) == len(lignes) + 1,
+            "le CSV ne contient plus une ligne par compte",
+        )
+        for cle in cles:
+            guard(cle not in succes.stdout, "une cle API complete sort du script")
+
+        session.close()
+        moteur.dispose()
+
+    # 6. La decision est consignee, et le depot dit comment lancer le suivi.
+    guard(
+        "D50" in read("DECISIONS.md"),
+        "la decision D50 n'est plus consignee dans DECISIONS.md",
+    )
+    guard(
+        "suivi_clients.py" in read("README.md"),
+        "README.md ne dit plus comment produire le suivi client",
+    )
+    guard(
+        "app/suivi.py" in read("README.md"),
+        "README.md ne dit plus ou vivent les regles du suivi",
+    )
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 51)}
 
 
 def catalog() -> list[tuple[str, str]]:

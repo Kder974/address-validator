@@ -38,3 +38,18 @@ eth-keys==0.8.0
 eth-utils==6.0.0
 eth-hash==0.8.0
 pycryptodome==3.24.0
+
+# --- Comptes clients (D44, campagne commerciale) ----------------------------
+# `bcrypt` est demande explicitement par la spec de l'inscription (« mot de passe
+# hashe avec bcrypt »). Version epinglee comme le reste du fichier : le hachage
+# du mot de passe d'un client ne doit pas dependre d'une mise a jour surprise.
+# Le module n'a aucune dependance native a compiler (wheel publie cp39-abi3),
+# il s'installe donc sur le VPS comme dans l'image Docker.
+bcrypt==5.0.0
+
+# `python-multipart` n'est pas optionnel des qu'une route lit un formulaire :
+# Starlette leve `AssertionError: The python-multipart library must be installed
+# to use form parsing` sur `await request.form()`. Les formulaires de la campagne
+# commerciale (`/signup`, puis `/validate-form`) en dependent, donc le paquet est
+# declare ici plutot que decouvert en production.
+python-multipart==0.0.32

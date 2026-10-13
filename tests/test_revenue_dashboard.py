@@ -137,7 +137,11 @@ def test_revenue_reads_the_durable_ledger(tmp_path):
     assert charge["ledger"]["real_validations_paid"] == 3
     assert charge["ledger"]["total_validations_paid"] == 5
     assert charge["windows"]["24h"]["test_revenue_usdc"] == 0.04
-    assert charge["test_mode"]["recording_now"] is False
+    # `recording_now` publie si *ce processus* tourne en recette : il suit
+    # `TEST_MODE`, jamais la table. La suite se déclare en recette (conftest.py,
+    # W1), donc il doit valoir vrai — c'est le signal qui doit rester visible
+    # quand on confond un essai avec un encaissement (D40).
+    assert charge["test_mode"]["recording_now"] is True
     assert {ligne["tx_hash"]: ligne["test_mode"] for ligne in charge["recent"]} == {
         "0xessai1": True,
         "0xessai2": True,
@@ -158,6 +162,15 @@ def test_revenue_degrades_honestly_when_the_ledger_is_silent(monkeypatch):
     assert charge["ledger"]["available"] is False
     assert "base muette" in charge["ledger"]["error"]
     assert charge["windows"] == {}
+
+
+def test_recording_now_follows_the_declared_mode(monkeypatch):
+    """D40/W1 : l'état de recette publié est celui du processus, pas de la table."""
+    mode = get_settings()
+    monkeypatch.setattr(mode, "test_mode", False)
+    assert revenue_stats()["test_mode"]["recording_now"] is False
+    monkeypatch.setattr(mode, "test_mode", True)
+    assert revenue_stats()["test_mode"]["recording_now"] is True
 
 
 def test_revenue_endpoint_answers_even_without_a_database():

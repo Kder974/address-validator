@@ -26,3 +26,11 @@ logs/
 # --- divers ---
 .DS_Store
 diag_*.txt
+
+# --- captures de session / base de démonstration ---
+# Sorties de commandes et base SQLite jetable (`scripts/demo_local.py`) :
+# des mesures locales, jamais du contenu de dépôt.
+.pytest-out.txt
+.oracles-out.txt
+.tmp_*
+demo.sqlite*

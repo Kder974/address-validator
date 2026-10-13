@@ -28,10 +28,15 @@ Critères de succès de la spec, et où ils sont vérifiés automatiquement :
 
 Ce que ce service **ne fait pas** : aucun rate limiting **applicatif** (D21) —
 la limite est tenue au niveau *edge* par Nginx (`nginx-hardening.conf` : 10
-requêtes/s par IP, rafale 20, `429` au-delà) — et la vérification de paiement
-on-chain est **disponible mais désactivée par défaut** (D15 pour le mode par
-défaut, D27 pour la couche optionnelle). Les deux sont documentés
-(`README.md` §7 et §9, `SECURITY.md` §3 et §6) plutôt que passés sous silence.
+requêtes/s par IP, rafale 20, `429` au-delà). Le paiement hérité (preuve HMAC à
+secret partagé, D15) n'est **plus accepté sur sa seule signature** : depuis le
+durcissement W1 (12/10/2026), la confirmation on-chain (D27) est **active par
+défaut** et exige, sur Base, un transfert USDC confirmé vers le portefeuille
+d'encaissement. Une preuve HMAC synthétique n'obtient un `200` que dans une
+**recette déclarée** (`TEST_MODE=true`), et la ligne écrite est alors marquée
+`test_mode`, donc exclue du revenu réel (D40). Tout est documenté (`README.md`
+§7 et §9, `SECURITY.md` §3 et §6, `AUDIT_TRAFIC_VPS.md` §5) plutôt que passé
+sous silence.
 
 ## 2. Démarrage rapide
 
@@ -107,7 +112,12 @@ Toutes les valeurs viennent de l'environnement ou de `.env` (pydantic-settings,
 | `GET` | `/metrics/revenue` | revenu agrégé 24 h / 7 j / 30 j — `real_*` hors recette, `total_*` registre entier (D40) — et disponibilité du registre | `app/routes/revenue.py` |
 | `GET` | `/dashboard` | tableau de bord d'exploitation — **privé** (Basic Auth ; `503` si `DASHBOARD_PASSWORD` est absent) | `app/routes/dashboard.py` |
 | `GET` | `/prospection` | CRM de prospection (liste, filtres, marquage, export) — **privé**, même garde que `/dashboard` (`503` si le mot de passe est absent ou si `PROSPECTION_DB` n'existe pas) | `app/routes/prospection.py`, `prospection/README.md` |
-| `POST` | `/validate` | **payant** — validation complète | `app/routes/validate.py` |
+| `GET` | `/pricing` | page publique de l'offre commerciale (D43) — **publique**, indexable, cachée 5 min ; aucune ressource externe, feuille de style partagée avec `/dashboard` (`app/web.py`) | `app/routes/pricing.py` |
+| `GET` `POST` | `/signup` | inscription self-service (D44) — **publique** ; mot de passe bcrypt, clé API `sk_live_` affichée **une fois**, 5 inscriptions par IP et par heure | `app/routes/signup.py`, `app/accounts.py` |
+| `GET` `POST` | `/validate-form` | essai gratuit public (D46) — **publique**, indexable, 10 essais par IP et par 24 h (`429` + `Retry-After` exact au-delà) ; aucune écriture, ne charge rien, résultat dégradé annoncé comme tel | `app/routes/validate_form.py`, `app/ratelimit.py` |
+| `GET` | `/guide` | guide d'intégration public (D48) — **publique**, indexable, cachable 5 min, sans secret : contrat JSON, codes de retour, cache, quotas, exemples appel direct / CSV / Shopify / WooCommerce | `app/routes/guide.py` |
+| `GET` `POST` | `/compte`, `/compte/cle` | espace client : consommation, adresses invalides, économies estimées, clé API, facturation — **privé** (Basic Auth email + mot de passe ; `503` si la base ne répond pas) | `app/routes/signup.py`, `app/accounts.py` |
+| `POST` | `/validate` | **payant** — validation complète ; **deux façons de payer** : abonnement (`X-API-Key`, D45) ou encaissement à l'appel (x402 / preuve HMAC) | `app/routes/validate.py` |
 | `GET` | `/docs` | documentation interactive (FastAPI) | auto |
 | `GET` | `/llms.txt`, `/AGENTS.md`, `/.well-known/security.txt` | fichiers de découverte pour agents, servis en statique par Nginx (voir `DISCOVERY.md`) | `nginx-discovery.conf` |
 | `POST` | `/mcp` | serveur MCP (JSON-RPC 2.0) : decouverte gratuite, `tools/call` **payant** | `app/routes/mcp.py` |
@@ -157,6 +167,134 @@ Pipeline de validation (`app/validation/__init__.py:26-41`) :
 | `degraded: true` | le fournisseur n'a pas pu être interrogé (panne, timeout, disjoncteur ouvert) : `deliverability` vaut alors `invalid` mais n'est **pas** une preuve d'adresse inexistante |
 | `deliverability` / `confidence` | issus du code DPV : `Y` → residential 0,99 ; `S` → residential 0,95 ; `D` → commercial 0,99 ; `X` → unknown 0,50 ; `N` → invalid 0,00 ; `+0,05` si les coordonnées ont été obtenues (`app/validation/scorer.py:17-36`) |
 | `cache_key` | SHA-256 de l'adresse brute canonisée : identifie l'entrée de cache et permet l'effacement (voir `PRIVACY.md` §5) |
+
+### 4.2 Deux façons de payer la même validation (D45)
+
+`POST /validate` sert deux clients : la **boutique abonnée**, qui présente sa clé API,
+et l'**agent autonome**, qui paie à l'appel (§5). La clé a la priorité : si les deux
+sont envoyés, l'abonnement tranche et l'appel n'est pas encaissé en USDC.
+
+| Mode | En-tête d'entrée | Ce qui est débité | `price_paid` |
+|------|------------------|-------------------|--------------|
+| Abonnement | `X-API-Key: sk_live_…` | le compteur du compte (`customer_validations`) | `0.0` |
+| x402 / HMAC | `X-PAYMENT` ou `X-Payment-Proof` | le registre des paiements (D29) | `0.02` (USDC) |
+
+La réponse porte `X-Payment-Mode` (`api_key`, `x402` ou `hmac`) : sans lui, un client
+ne peut pas distinguer un appel couvert par son abonnement d'un appel encaissé. En
+mode clé, deux en-têtes disent aussi l'état du compte — `X-Plan` et
+`X-Quota-Remaining` (absent pour un plan illimité, l'absence dit « illimité »).
+
+| Situation | Code | Pourquoi ce code-là |
+|-----------|------|---------------------|
+| Clé valide, quota du mois disponible | `200` | servi, compte débité, registre USDC **intact** |
+| Clé inconnue (ou vide) | `401` | c'est la configuration du client qu'il faut corriger |
+| Essai gratuit terminé (plan `trial`) | `403` | le compte existe, il n'ouvre plus le service |
+| Quota du **mois** consommé | `402` | plafond d'usage, pas défaut d'authentification |
+| Base des comptes injoignable | `503` | une clé non *vérifiée* n'est pas une clé *refusée* — jamais un `402` |
+
+Le quota est **mensuel**, comme publié sur `/pricing` : la fenêtre est le mois
+calendaire **UTC** (`accounts.month_start()`), le compteur à vie reste affiché dans
+`/compte` mais ne ferme aucune porte. Les corps de refus sont identifiables
+(`{"mode": "api_key", "reason": "cle_inconnue" | "compte_expire" | "quota_atteint"}`),
+ne contiennent que le **préfixe** de la clé (`sk_live_ab12`) et indiquent la sortie
+(`upgrade` → `/pricing`).
+
+```powershell
+$cle = "sk_live_..."   # affichée une seule fois à l'inscription, régénérable sur /compte
+$corps = '{"address":{"street":"1 Rue de Paris","city":"Saint-Denis","state":"RE","zip":"97400","country":"RE"}}'
+$r = Invoke-WebRequest -Uri http://127.0.0.1:8000/validate -Method POST `
+     -Headers @{ "X-API-Key" = $cle } -ContentType "application/json" -Body $corps
+$r.Headers["X-Payment-Mode"], $r.Headers["X-Plan"], $r.Headers["X-Quota-Remaining"]
+$r.Content | ConvertFrom-Json | Select-Object price_paid, transaction_id
+# -> api_key  trial  99 ; price_paid = 0.0, transaction_id = $null
+```
+
+Un même appel sans en-tête `X-API-Key` reste facturé en x402 : le mode clé n'a **rien**
+retiré aux agents autonomes. Compteurs publiés par `/metrics` : `api_key_requests`,
+`api_key_validations`, `api_key_denied`, `api_key_unavailable`.
+
+### 4.3 Essai gratuit public (D46)
+
+`GET /validate-form` sert une page publique — indexable, cachable 5 minutes, et
+**autonome** : aucun script, aucune ressource externe, la feuille de style
+partagée (`app/web.py`). C'est la première page qu'un visiteur voit ; la CSP
+(`form-action 'self'`) rend vérifiable par le navigateur ce que le code promet.
+
+| Point | Comportement |
+|-------|--------------|
+| Plafond | `VALIDATE_FORM_RATE_LIMIT_PER_DAY` (**10** par défaut) essais par IP et par 24 h ; fenêtre **fixe**, qui démarre au premier essai et ne se prolonge pas à chaque refus |
+| Refus | `429` + `Retry-After` **exact** (secondes restantes de la fenêtre), avec la limite rappelée et un lien vers `/signup` |
+| Écritures | **aucune** : ni `customers`, ni `customer_validations`, ni `payment_transactions`. Seuls les compteurs `validate_form_requests` / `validate_form_validations` / `validate_form_denied` avancent |
+| Pipeline | le **même** que `/validate` (`perform_validation`) : même verdict, même cache |
+| Cache et indexation | le formulaire vide est `public, max-age=300` et indexable ; toute réponse `POST` (résultat, erreur, refus) est `no-store` + `noindex`, parce qu'elle contient une adresse |
+| Résultat dégradé | affiché comme tel : « le fournisseur n'a pas répondu, cette réponse ne dit rien de l'adresse » — jamais présenté comme une adresse invalide |
+| Saisie | échappée et réaffichée pour correction ; un pays sans deux lettres est refusé (`400`) avant tout appel fournisseur |
+
+Compteurs du plafond visibles dans `/metrics` : un refus de plafond compté est la
+seule façon de distinguer « personne n'essaie » de « tout le monde est bloqué ».
+
+### 4.4 Guide d'intégration public (D48)
+
+`GET /guide` répond à la question que se pose un client qui vient de recevoir sa
+clé : authentification (`X-API-Key` ou x402), contrat JSON exact, les **huit**
+codes de retour avec l'action à mener, ce qui est mis en cache et ce qui est
+plafonné, puis quatre cas pratiques (appel direct PowerShell, import CSV en
+Python, Shopify, WooCommerce).
+
+| Point | Comportement |
+|-------|--------------|
+| Faits publiés | base publique, prix, plafond de l'essai gratuit, en-têtes `X-Payment-Mode` / `X-Plan` / `X-Quota-Remaining` et plans : **lus dans le code et la configuration**, jamais recopiés (la porte refuse un gabarit non remplacé) |
+| Secrets | aucun : la page est indexable, donc publique par construction. La clé d'exemple est un gabarit (`sk_live_VOTRE_CLE`) |
+| Autonomie | aucun script, aucune ressource externe, feuille de style partagée, `Cache-Control: public, max-age=300`, `form-action 'none'` |
+| Navigation | une seule définition (`app/web.py: site_head()`) : `/guide` est atteignable depuis toutes les pages publiques, et `/pricing` ne recopie plus sa propre copie du `<nav>` |
+| Limites dites | pas d'application Shopify ni d'extension WooCommerce fournie (l'appel vient du service du client) ; un résultat `degraded` est « à re-vérifier », jamais une adresse invalide |
+
+### 4.5 Email de bienvenue d'une boutique (D49)
+
+Pas une page, un **message** : celui qu'on envoie à la boutique qui vient de créer
+son compte. Il vit dans `EMAIL_BIENVENUE.md`, sous deux formes — le gabarit à
+charger dans n8n (variables `{{…}}`, expliquées dans une table) et un exemplaire
+**prêt à envoyer** pour le premier client (Tiitoune Art).
+
+| Point | Comportement |
+|-------|--------------|
+| Chiffres | jours d'essai, quota offert et prix mensuels **lus dans le code** (`accounts.JOURS_ESSAI`, `VALIDATIONS_ESSAI`) et sur `/pricing` — la porte refuse un email qui ne les reprendrait plus |
+| Voie annoncée | l'**abonnement** (`X-API-Key`) : ni `X-PAYMENT`, ni `X-Payment-Proof`, ni `tx_hash` — la porte les interdit dans ce message (le paiement à l'appel est la voie des agents, décrite dans `/guide`) |
+| Secrets | aucune clé, jamais : le texte renvoie à `/signup` et `/compte`. La porte refuse une clé `sk_live_` complète ou une valeur par défaut du dépôt |
+| Limites dites | aucun prélèvement automatique, `degraded` qui « ne dit rien » de l'adresse, empreinte (pas adresse) conservée, effacement par `cache_key` |
+| Envoi | l'exemplaire ne contient plus aucune variable de fusion (vérifié), et chaque variable du gabarit est expliquée (vérifié) |
+
+### 4.6 Suivi des clients (D50)
+
+Un tableau de suivi ne vaut que par son accord avec ce qui est réellement servi.
+Ce que la table des comptes contient déjà répond à la seule question qui décide du
+revenu : **quels comptes existent, lesquels se perdent en silence, et que faut-il
+leur dire ?** Les règles vivent dans `app/suivi.py` (états, seuils, ordre
+d'urgence), l'exécution dans `scripts/suivi_clients.py`.
+
+```powershell
+# rapport lisible, sur la base de la configuration (DATABASE_URL)
+.\.venv\Scripts\python.exe scripts\suivi_clients.py
+
+# export pour un tableur, seuils resserrés
+.\.venv\Scripts\python.exe scripts\suivi_clients.py --format csv --sortie suivi.csv --essai-bientot-jours 5
+
+# expliquer après coup un classement : rejouer le rapport à une date donnée
+.\.venv\Scripts\python.exe scripts\suivi_clients.py --maintenant 2026-10-01T09:00:00+00:00
+```
+
+| Point | Comportement |
+|-------|--------------|
+| État publié | celui de la route payante : `accounts.plan_status` / `consumption` / `refusal_reason`, et les codes HTTP lus dans `REFUS_HTTP` — aucun seuil recopié, donc aucun écart possible |
+| Ordre | ordre d'**urgence** : refusé maintenant, puis essai qui se termine ou quota bientôt atteint, puis intégration jamais aboutie ; à priorité égale, l'échéance la plus proche |
+| Secrets | le **préfixe** de clé (de quoi reconnaître un compte au téléphone), jamais la clé complète ni son empreinte ; aucune adresse validée n'est lue |
+| Lecture seule | uniquement des `SELECT` : un rapport ne peut pas modifier la base de production |
+| Export | `--format csv` écrit UTF-8, séparateur « ; » (Excel français), fins de ligne `\n` — le script le rappelle au moment d'écrire |
+| Codes de retour | `0` rapport produit (une base vide reste une mesure), `2` rien n'a pu être **mesuré** — un rapport vide n'est pas un « tout va bien » |
+
+Vérification : `.\.venv\Scripts\python.exe scripts\decisions_check.py D50` — la
+porte installe une base réelle et compare l'état publié au refus que la route
+applique, y compris le cas du client payant dont la date d'essai est passée.
 
 ## 5. Exemple d'appel payant
 
@@ -217,6 +355,7 @@ cette adresse) reste dans la charge brute, non exposée par l'API.
 | Mécanisme | Comportement | Décision |
 |-----------|--------------|----------|
 | Cache Redis | clé `addr:<sha256>`, TTL 30 jours, consulté **avant** tout appel réseau | D5 |
+| TTL d'un résultat **dégradé** | **5 minutes**, pas 30 jours : `degraded: true` dit « le fournisseur n'a pas répondu », pas « adresse invalide ». Le garder un mois figerait une panne passagère ; le garder 5 minutes suffit à ne pas marteler un fournisseur en panne. Un verdict vérifié, lui, reste 30 jours | D47 |
 | Cooldown cache | après un échec du backend, le cache est réputé indisponible 30 s : une panne Redis coûte une fois, pas à chaque requête. `/health` garde une sonde réelle | D25 |
 | Timeouts Redis | connexion 1 s, lecture 1 s ; compteur d'erreurs exposé | D12 |
 | Disjoncteur fournisseur | `closed → open → half-open → closed`, seuil applicatif **3** échecs, récupération 60 s ; une fois ouvert, la réponse est locale et immédiate | D23 |
@@ -386,8 +525,9 @@ passe Redis, et vérifier que Nginx a bien installé la redirection HTTPS
 | Paiement vérifié par secret partagé (mode par défaut) ; confirmation on-chain disponible mais désactivée | un `tx_hash` inventé mais correctement signé est accepté tant que `X402_ONCHAIN_VERIFY` est à `false` | `§7`, `SECURITY.md` §3, D15, D27 |
 | Preuve rejouable pendant 300 s | une même preuve peut servir plusieurs fois dans la fenêtre | `§7`, `SECURITY.md` §6 |
 | `address_validations` jamais alimentée | aucune trace d'adresse en base : la conservation repose sur le cache Redis (30 j) | `PRIVACY.md` §3 |
-| `record_transaction` en meilleur effort | un échec d'écriture laisse la réponse `200` sans trace de paiement | `SECURITY.md` §6 |
-| Pas de rate limiting applicatif | volume et abus traités au niveau *edge* : Nginx limite à 10 requêtes/s par IP (rafale 20, `429` au-delà) ; rien dans le code | `§9`, `SECURITY.md` §6, D21 |
+| `record_transaction` refuse de servir sans trace | depuis D41 un échec d'écriture rend un `500` (`ledger_write_failures_total`) : le paiement est accepté, la validation n'est pas servie, et l'encaissement doit être rapproché | `SECURITY.md` §5, D41 |
+| Pas d'expiration des plans payants | un plan accordé à la main reste ouvert jusqu'à son retrait manuel : seul le quota **mensuel** referme la porte (D45). Aucune facturation automatique, donc aucune date de fin d'abonnement à faire respecter | `SECURITY.md` §3, D45 |
+| Deux plafonds **produit** dans le code, l'anti-abus reste au *edge* | Nginx limite à 10 requêtes/s par IP (rafale 20, `429` au-delà) pour l'abus ; le code ajoute des plafonds métier qui **parlent** au client : 5 inscriptions par IP et par heure (`/signup`, D44) — et, avec `/validate-form`, 10 essais gratuits par IP et par 24 h (élément 3, D21 révisée) | `§9`, `SECURITY.md` §6, D21 (révisée), D44 |
 | Métriques en mémoire | perdues au redémarrage, pas d'export Prometheus ni d'alerte | `SECURITY.md` §5 |
 | Erreurs 4xx du fournisseur rejouées | latence dégradée mesurée à 11,1 s ; le back-off porte sur des erreurs non rejouables | `TEST_REPORT.md`, « Limites connues » |
 | `CORS *`, `/metrics` et `/docs` publics, secret par défaut `change_me` encore accepté par le code | restent à durcir ; le déploiement, lui, refuse `change_me` et tout secret de moins de 32 caractères (`scripts/deploy-kder-ai.sh`) | `§9`, `SECURITY.md` §2 et §6 |

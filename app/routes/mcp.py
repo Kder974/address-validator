@@ -31,6 +31,12 @@ La carte de découverte `GET /.well-known/mcp-server` est **servie par
 l'application**, et non par un fichier statique copié pour Nginx : elle décrit
 l'endpoint réel, elle doit donc disparaître avec lui. Un alias statique
 survivrait à l'arrêt du service et ferait déclarer une URL morte (D28).
+
+D41 : un encaissement qui n'a pas pu être inscrit au registre n'est pas servi.
+L'outil est le même service que `/validate`, il suit donc la même règle — erreur
+JSON-RPC `-32603` (statut HTTP `500`) et compteur `ledger_write_failures_total`.
+Servir une réponse sans ligne au registre, c'est encaisser sans trace : le
+client a payé, le revenu publié ne le verra jamais (D40).
 """
 
 from __future__ import annotations
@@ -50,6 +56,7 @@ from app.payment import (
     payment_result,
     record_transaction,
 )
+from app.routes.metrics import metrics
 from app.routes.validate import build_response, perform_validation
 from app.schemas import ValidationRequest, ValidationResponse
 from app.x402 import payment_requirements
@@ -208,8 +215,24 @@ async def _call_tool(request: Request, request_id: Any, params: dict[str, Any]) 
         return _payment_error(request_id, request, decision)
 
     result, key = perform_validation(body.address.model_dump())
-    if decision.transaction:
-        record_transaction(decision.transaction, settings.x402_price, key)
+    if decision.transaction and not record_transaction(
+        decision.transaction, settings.x402_price, key
+    ):
+        # D41 : meme regle qu'en HTTP. L'outil n'est pas servi, l'incident est
+        # compte, et l'appelant recoit le hash du reglement qu'il a paye pour
+        # pouvoir le rapprocher (meme statut 500 que /validate, mais en JSON-RPC).
+        metrics.incr("ledger_write_failures_total")
+        return _error(
+            request_id,
+            INTERNAL_ERROR,
+            "paiement non enregistre : outil non servi",
+            {
+                "detail": "l'inscription au registre a echoue ; encaissement a rapprocher",
+                "transaction": decision.transaction,
+                "price": settings.x402_price,
+            },
+            status=500,
+        )
 
     payload = build_response(result, key, decision.transaction).model_dump()
     return _result(

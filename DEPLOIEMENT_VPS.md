@@ -300,15 +300,19 @@ réalisées pendant le déploiement (`06:21:18` et `06:26:03`).
    connaître : `deliverability` est dérivé du code DPV (`Y` → `residential`,
    `scorer.py:17-23`), alors que le `rdi` du fournisseur (`Commercial` sur
    l'adresse de test) n'est pas exposé dans la réponse HTTP.
-2. **La preuve de paiement est un HMAC à secret partagé (D15) par défaut.** Toute
-   personne qui connaît `API_SECRET_KEY` peut forger une preuve valide et obtenir
-   un `200` sans payer. C'est documenté (`README.md` §7, `SECURITY.md`) et le
-   chemin de mise à niveau est décrit ; en attendant, l'endpoint payant doit être
-   considéré comme une démonstration. La confirmation on-chain (D27,
-   `app/onchain.py`) **est désormais déployée** (11/10/2026) mais reste
-   **désactivée** (`X402_ONCHAIN_VERIFY=false`) : l'activer (`.env` → `true`, puis
-   `systemctl restart address-validator`) rend obligatoire un transfert USDC
-   confirmé vers `CDP_WALLET_ADDRESS`, tout échec étant *fail-closed*.
+2. **La preuve de paiement est un HMAC à secret partagé (D15).** Toute personne
+   qui connaît `API_SECRET_KEY` peut forger une preuve *bien signée* — mais depuis
+   le durcissement W1 (12/10/2026) elle n'obtient plus de `200` pour autant : la
+   confirmation on-chain (D27, `app/onchain.py`) est **active par défaut** et
+   exige, sur Base, un transfert USDC confirmé vers `CDP_WALLET_ADDRESS` pour au
+   moins `X402_PRICE`, tout échec étant *fail-closed*. Les seuls `200` sans
+   encaissement vérifié sont donc une **recette déclarée** (`TEST_MODE=true`,
+   ligne marquée `test_mode` et exclue du revenu réel) ou un règlement x402 réel
+   (`X-PAYMENT`). Contrôle à faire avant tout changement de version :
+   `X402_ONCHAIN_VERIFY` doit valoir `true` dans `/opt/address-validator/.env` —
+   sinon **toutes** les preuves à secret partagé sont refusées en `402` ; une
+   recette en cours est le seul cadre où `false` est légitime, et il porte alors
+   `TEST_MODE=true`.
    **État mesuré le 11/10/2026 à 17 h 55 UTC : la vérification on-chain est
    active en production**, contrairement à la phrase ci-dessus
    (`X402_ONCHAIN_VERIFY=true`, `X402_FACILITATOR_VERIFY=true`,

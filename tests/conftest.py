@@ -10,6 +10,10 @@ Objectif : une suite **déterministe et hors-ligne**.
   vrai appel réseau. C'est exactement le scénario « fournisseur indisponible »
   que le critère de succès n°4 doit couvrir.
 * Le disjoncteur est réinitialisé avant/après chaque test.
+* Depuis D41 (W2), un paiement dont l'inscription au registre échoue n'est plus
+  servi (`500`) : la suite remplace donc `record_transaction` par un double qui
+  accepte et retient la ligne, afin qu'aucun test ne dépende d'un PostgreSQL
+  joignable. Le test qui mesure cet échec remet lui-même un refus.
 """
 
 import os
@@ -43,6 +47,15 @@ os.environ.setdefault("CDP_API_KEY_SECRET", "")
 # bidon interdirait de tester tout ce qui suit ce refus.
 os.environ.setdefault("CDP_WALLET_ADDRESS", "0x1234567890abcdef1234567890abcdef12345678")
 
+# Recette déclarée (W1). Depuis le durcissement W1, une preuve à secret partagé
+# (`X-Payment-Proof`) n'est servie QUE dans une recette déclarée : hors recette,
+# seule une confirmation on-chain ouvre un `200` (app/payment.py). La suite
+# n'encaisse rien et ne parle à aucune chaîne : elle se déclare donc en recette,
+# exactement comme le harnais de l'exploitant (`scripts/e2e_check.py`), et les
+# lignes qu'elle écrirait seraient marquées `test_mode` (D40). Les tests qui
+# mesurent le régime de production remettent `test_mode=False` eux-mêmes.
+os.environ.setdefault("TEST_MODE", "true")
+
 import pytest  # noqa: E402
 
 
@@ -51,12 +64,18 @@ class FakeRedis:
 
     def __init__(self):
         self.store: dict = {}
+        #: TTL réellement demandés par `setex` (clé → secondes). Le double les
+        #: **retient** sans les appliquer : c'est ce qui permet de mesurer qu'un
+        #: résultat dégradé n'est pas gardé trente jours (D47) sans dépendre du
+        #: temps qui passe.
+        self.ttls: dict = {}
 
     def get(self, key):
         return self.store.get(key)
 
     def setex(self, key, ttl, value):
         self.store[key] = value
+        self.ttls[key] = ttl
 
     def ping(self):
         return True
@@ -90,6 +109,38 @@ def _offline_provider(monkeypatch):
     yield
     verifier.breaker.reset()
     cache.reset_backend_state()
+
+
+@pytest.fixture(autouse=True)
+def _offline_ledger(monkeypatch):
+    """Neutralise l'écriture au registre (W2/D41) : la suite reste hors-ligne.
+
+    Depuis D41, `/validate` et `/mcp` refusent de servir quand
+    `record_transaction` renvoie `False`. Sans ce double, chaque test d'un chemin
+    payé dépendrait d'une base joignable — or ici elle ne l'est pas (port 5433
+    volontairement fermé), ce qui rendrait la suite à la fois lente et
+    dépendante de l'environnement. Le double retient les lignes demandées et
+    répond `True` ; le test W2 remplace cette écriture par un refus pour mesurer
+    le `500` et le compteur.
+    """
+    import app.routes.mcp as mcp_route
+    import app.routes.validate as http_route
+
+    ecritures: list[tuple[str, float, str]] = []
+
+    def _accepte(tx_hash: str, amount: float, address: str) -> bool:
+        ecritures.append((tx_hash, amount, address))
+        return True
+
+    monkeypatch.setattr(http_route, "record_transaction", _accepte)
+    monkeypatch.setattr(mcp_route, "record_transaction", _accepte)
+    yield ecritures
+
+
+@pytest.fixture
+def ledger(_offline_ledger):
+    """Lignes que le registre aurait reçues pendant le test (même double)."""
+    return _offline_ledger
 
 
 @pytest.fixture

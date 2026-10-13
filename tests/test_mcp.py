@@ -122,6 +122,40 @@ def test_tools_call_paid_returns_structured_content(facilitator):
     assert json.loads(result["content"][0]["text"]) == structured
 
 
+def test_ledger_write_failure_is_refused_not_served(facilitator, monkeypatch):
+    """W2/D41 : l'outil paye suit la meme regle que la route HTTP.
+
+    Le reglement x402 a reussi mais la ligne de registre n'a pas pu etre ecrite :
+    servir `structuredContent` ferait un revenu perdu et invisible (D40). La
+    reponse est une erreur JSON-RPC interne en `500`, et le compteur monte.
+    """
+    import app.routes.mcp as mcp_route
+    from app.routes.metrics import metrics
+
+    monkeypatch.setattr(mcp_route, "record_transaction", lambda tx, amount, key: False)
+    avant = metrics.snapshot()["ledger_write_failures_total"]
+    response = client.post(
+        "/mcp",
+        headers={"X-PAYMENT": _header()},
+        json={
+            "jsonrpc": "2.0",
+            "id": 9,
+            "method": "tools/call",
+            "params": {"name": "validate_address", "arguments": PAYLOAD},
+        },
+    )
+    apres = metrics.snapshot()["ledger_write_failures_total"]
+
+    assert response.status_code == 500
+    body = response.json()
+    assert "result" not in body
+    error = body["error"]
+    assert error["code"] == -32603
+    assert error["message"] == "paiement non enregistre : outil non servi"
+    assert error["data"]["transaction"] == TX
+    assert apres == avant + 1
+
+
 def test_mcp_and_http_share_the_same_pipeline_and_cache(facilitator):
     """Une seule verite : meme entree, meme cle de cache que /validate."""
     from app.payment import build_payment_proof

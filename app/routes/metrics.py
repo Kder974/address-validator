@@ -4,6 +4,20 @@ Non fourni par la spec (l'endpoint GET /metrics est exigé en Phase 2 / couche 1
 mais son contenu n'est pas spécifié). Décision D17 : registre de compteurs en
 mémoire, thread-safe, sans dépendance externe. Prometheus peut être branché
 ensuite sans changer les appels `metrics.incr(...)`.
+
+D41 (durcissement W2) ajoute `ledger_write_failures_total` : un paiement dont
+l'inscription au registre échoue n'est plus servi (500 côté `/validate`), donc il
+faut pouvoir le compter — un incident invisible serait indiscernable d'une
+absence de trafic.
+
+D45 (abonnement par clé API) ajoute les compteurs du mode clé. Sans eux, on ne
+peut pas distinguer « personne n'utilise les clés » de « les clés sont
+refusées » : les deux se ressemblent, et la seconde demande une action.
+
+D46 (essai gratuit public, `/validate-form`) ajoute `validate_form_requests`,
+`validate_form_validations` et `validate_form_denied` : un essai refusé par le
+plafond et un essai jamais tenté produisent tous deux « zéro validation » — seul
+le refus compté dit la différence.
 """
 
 import threading
@@ -30,6 +44,28 @@ class Metrics:
         "cache_misses",
         "degraded_results",
         "provider_errors",
+        # D41 : un encaissement qui n'a pas pu entrer au registre. Le compter est
+        # la seule facon de distinguer « personne ne paie » de « on n'arrive plus
+        # a inscrire ceux qui paient ».
+        "ledger_write_failures_total",
+        # D45 : le mode cle API. `api_key_requests` sont les appels qui ont
+        # presente une cle ; `api_key_validations` ceux qui ont ete servis ;
+        # `api_key_denied` les refus (cle inconnue, essai fini, quota du mois
+        # atteint) ; `api_key_unavailable` les appels refuses faute de base des
+        # comptes joignable — un 503 qui n'est ni la faute du client ni un refus
+        # de paiement.
+        "api_key_requests",
+        "api_key_validations",
+        "api_key_denied",
+        "api_key_unavailable",
+        # D46 : l'essai gratuit public. `validate_form_requests` compte les essais
+        # soumis, `validate_form_validations` ceux qui ont abouti a une reponse du
+        # pipeline, `validate_form_denied` les refus de plafond. Sans ces trois
+        # compteurs, « personne n'essaie » et « tout le monde est bloque »
+        # produiraient le meme chiffre : zero.
+        "validate_form_requests",
+        "validate_form_validations",
+        "validate_form_denied",
     )
 
     def __init__(self) -> None:

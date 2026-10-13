@@ -9,6 +9,7 @@ Nominatim, du portefeuille CDP et de l'hébergeur.
 | Élément | Exposition | Contrôle actuel |
 |---------|------------|-----------------|
 | `POST /validate` | public, payant | preuve `X-Payment-Proof`, *fail-closed* (`app/payment.py:111-147`) |
+| `POST /validate` (abonnement) | public, payant par clé | `X-API-Key` comparée par **empreinte SHA-256**, refus `401`/`403`/`402`, panne `503`, clé jamais journalisée (§3) |
 | `GET /health` | public | aucune donnée sensible ; sondes bornées (D22) |
 | `GET /metrics` | public | compteurs d'exploitation + état interne (disjoncteur, cache) — **à restreindre** |
 | `GET /manifest`, `GET /docs` | public | description du service, documentation auto-générée |
@@ -83,21 +84,53 @@ X-Payment-Proof: <tx_hash>:<timestamp>:<hmac_sha256_hex(tx_hash:timestamp)>
 | Comportement par défaut | `False` — toute exception renvoie `False` (*fail-closed*) |
 | `X-PAYMENT-RESPONSE` | **jamais** émis : un paiement HMAC n'est pas un règlement x402 |
 
-**Couche on-chain optionnelle (D27)** : quand `X402_ONCHAIN_VERIFY=true`, la
-signature HMAC ne suffit plus. Le `tx_hash` doit désigner, sur Base (chaîne
-8453), une transaction confirmée (`status == 0x1`) dont le reçu contient un
-événement ERC-20 `Transfer` émis par le contrat USDC vers `CDP_WALLET_ADDRESS`,
-pour au moins `X402_PRICE`, avec `X402_MIN_CONFIRMATIONS` blocs. La lecture est
-un **JSON-RPC en lecture seule** (`eth_getTransactionReceipt`,
+**Couche on-chain (D27) — active par défaut depuis le durcissement W1
+(12/10/2026)** : la signature HMAC ne suffit plus. Le `tx_hash` doit désigner,
+sur Base (chaîne 8453), une transaction confirmée (`status == 0x1`) dont le reçu
+contient un événement ERC-20 `Transfer` émis par le contrat USDC vers
+`CDP_WALLET_ADDRESS`, pour au moins `X402_PRICE`, avec `X402_MIN_CONFIRMATIONS`
+blocs. La lecture est un **JSON-RPC en lecture seule** (`eth_getTransactionReceipt`,
 `eth_blockNumber`) borné à 2 s connect / 4 s read, sans paquet web3 et sans
 paquet de magasin de clés : le reçu est décodé à la main (`app/onchain.py`) et un
 `tx_hash` malformé est refusé **avant** tout appel réseau. Tout échec vaut refus.
+
+**Note W1 — pourquoi le défaut a changé (12/10/2026).** Jusqu'à cette date,
+`X402_ONCHAIN_VERIFY` valait `false` par défaut : un déploiement qui omettait la
+variable acceptait une preuve HMAC **synthétique** — signature correcte,
+transaction inexistante — et servait un `200` sans aucun encaissement vérifiable.
+`AUDIT_TRAFIC_VPS.md` §5 consigne la mesure des `200` de `/validate` en production
+et la correction : le défaut est passé à `true` (`app/config.py:48-60`). La
+conséquence est explicite plutôt que subie — hors recette, la voie héritée
+n'obtient un `200` que si la chaîne confirme le transfert, et une couche on-chain
+coupée hors recette refuse désormais **toutes** les preuves à secret partagé
+(`app/payment.py`). Le seul `200` sans confirmation encore possible est celui
+d'une **recette déclarée** (`TEST_MODE=true`) : il est journalisé en `WARNING`,
+sa ligne de registre est marquée `test_mode` (D40) et sort de
+`real_revenue_usdc` — un service rendu sans paiement ne peut pas devenir du
+chiffre d'affaires. `TEST_MODE=true` sur un service de production est donc un
+état à surveiller : `/metrics/revenue` publie `test_mode.recording_now` pour le
+rendre visible.
 
 **Anti-rejeu, limite résiduelle.** La voie héritée ne consomme pas la preuve : la
 même preuve reste acceptée pendant sa fenêtre de 300 s, et le registre la
 déduplique (`ON CONFLICT DO NOTHING`), donc elle n'est pas facturée deux fois —
 mais elle rend le service deux fois. La voie x402, elle, refuse un nonce déjà
 réglé et s'appuie sur la chaîne comme source de vérité. Voir `README.md` §7.
+
+**Voie abonnement (`X-API-Key`, D45).**
+
+| Contrôle | Implémentation |
+|----------|----------------|
+| En-tête | `X-API-Key: sk_live_` + 32 caractères tirés de `secrets` (`app/accounts.py`) |
+| Recherche | par **empreinte SHA-256** (`api_key_hash`) : la clé présentée n'est jamais stockée ni comparée en clair, et un refus ne renseigne pas sur l'existence d'un secret (même règle que les connexions, D44) |
+| Stockage | la base ne garde que l'empreinte et un préfixe affichable (`sk_live_ab12`) ; la clé est montrée **une fois**, sur une page `Cache-Control: no-store`, et une clé perdue se régénère (`/compte/cle`, mot de passe exigé) |
+| Journalisation | un refus journalise le **préfixe** seulement (`cle API refusee (cle_inconnue) prefixe=sk_live_Qq7Z`) ; la clé n'entre ni dans un journal, ni dans un corps de réponse, ni dans un message d'erreur |
+| Réponses | `401` clé inconnue, `403` essai terminé, `402` quota du **mois** consommé ; le corps ne rend que `mode`, `reason`, `prefix`, l'état du plan (`plan`, `quota`, `validations_this_month`, `trial_ends_at`) et la sortie `upgrade` |
+| Priorité | quand `X-API-Key` et `X-PAYMENT` sont présentés ensemble, l'abonnement tranche : le paiement n'est pas examiné, donc un client abonné ne peut pas être encaissé en USDC par erreur |
+| Débit | le compteur du compte (`customer_validations`) : **aucune** ligne au registre des paiements (D29), donc le revenu publié (D40) ne compte jamais un abonnement comme un encaissement |
+| Panne des comptes | `503` explicite, **jamais** `402` : une clé qui n'a pas pu être *vérifiée* n'est pas une clé *refusée*, et demander un paiement sur une panne pousserait un client en règle à payer deux fois (`api_key_unavailable`) |
+| Transport | la clé voyage en clair dans l'en-tête jusqu'à Nginx, qui termine le TLS (§4) : en `http://` hors boucle locale, elle est lisible sur le réseau — un client ne doit l'envoyer qu'en `https://` |
+| Périmètre | la clé API ouvre `/validate` et **pas** `/compte` (Basic Auth email + mot de passe, D44) ; il n'existe encore ni expiration de plan payant ni révocation autre que la régénération |
 
 ## 4. Transport, chiffrement et réseau
 
@@ -158,12 +191,12 @@ Procédure en cas d'incident :
 | Sujet | État actuel | Recommandation |
 |-------|-------------|----------------|
 | Secret par défaut | `change_me` **refusé au déploiement** (`scripts/deploy-kder-ai.sh` : arrêt si `change_me` ou moins de 32 caractères) mais toujours accepté par le code | refuser aussi au démarrage de l'application (`app/config.py`) : `DEPLOIEMENT_VPS.md` §2 décrit l'état réel du VPS (secret de 64 caractères, tourné le 11/10/2026) |
-| Rate limiting par IP | **absent de l'application** (D21), **assuré au niveau edge** : `nginx-hardening.conf` (10 req/s, rafale 20 → `429`) | `fail2ban` pour les IP qui insistent, `limit_conn` si des clients ouvrent de nombreuses connexions |
+| Rate limiting par IP | **deux régimes, séparés volontairement.** La protection anti-abus générique reste **hors de l'application** (D21) et assurée par l'edge : `nginx-hardening.conf` (10 req/s, rafale 20 → `429`). Les **plafonds produit** vivent dans l'application (`app/ratelimit.py`, D44) — 5 inscriptions par IP et par heure, 10 essais gratuits par IP et par 24 h — parce qu'ils portent un **message** au client (`429` + `Retry-After`, « créez un compte pour continuer ») et non seulement un refus ; Redis les porte, un compteur local **compté** prend le relais s'il tombe | `fail2ban` pour les IP qui insistent, `limit_conn` si des clients ouvrent de nombreuses connexions |
 | En-têtes de sécurité | HSTS / `nosniff` / `Referrer-Policy` posés par `nginx-hardening.conf`, donc conservés lors des renouvellements Certbot | ajouter une CSP seulement si une interface web est servie un jour |
 | CORS | `allow_origins=["*"]` + `allow_credentials=True` (`app/main.py:43-49`) | restreindre aux origines nécessaires |
 | `/metrics`, `/docs` | publics | restreindre par IP ou *basic auth* |
 | Rejeu de preuve | possible pendant 300 s | consommer les `tx_hash` (`SETNX` Redis avec TTL 300 s) |
-| Preuve de paiement | secret partagé par défaut (D15) ; couche on-chain disponible mais **désactivée** (D27) | activer `X402_ONCHAIN_VERIFY` (confirmation du transfert USDC sur Base) et/ou vérifier une authorization EIP-3009 via un facilitateur x402 (`README.md` §7) |
+| Preuve de paiement | secret partagé (D15) : qui connaît `API_SECRET_KEY` peut forger une preuve bien signée — mais hors recette elle ne vaut plus rien, la chaîne devant confirmer le transfert (D27, W1). Reste le rejeu dans la fenêtre de 300 s (ligne ci-dessus) | vérifier une authorization EIP-3009 via le facilitateur x402 (`X-PAYMENT`) : la voie recommandée pour un client (D34-D36, `README.md` §7) |
 | 4xx rejoués | `@retry` rejoue aussi les 401/403 (~6,8 s mesurés par appel) | ne retenter que les erreurs réseau et 5xx (`TEST_REPORT.md`, « Limites connues ») |
 | Trace de paiement | `record_transaction` en meilleur effort : un échec d'écriture n'empêche pas la réponse 200 | rendre l'échec visible (métrique/alerte) |
 | Redis | sans mot de passe ni TLS | mot de passe + réseau privé, TLS si Redis sort de l'hôte |

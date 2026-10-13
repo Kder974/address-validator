@@ -15,10 +15,17 @@ reste à la charge de l'exploitant.
 | Adresse standardisée, latitude/longitude, code DPV, confiance | produite par le pipeline | `app/validation/__init__.py:33-41` |
 | Clé de cache = SHA-256 de l'adresse brute canonisée | produite par l'API | `app/routes/validate.py:32-34` |
 | Métadonnées de requête en cas de refus `402` : horodatage, endpoint, prix, `User-Agent`, `Referer`, **IP pseudonymisée** | produite par l'API (jamais l'adresse validée) | `app/observability.py:89-113` |
+| Compte client (depuis D44) : e-mail, nom de boutique, plateforme, **empreinte bcrypt** du mot de passe, **empreinte SHA-256** de la clé API et son préfixe affichable | fournie à l'inscription | `app/accounts.py`, `app/routes/signup.py` |
+| Compteurs d'usage du compte : une ligne par validation servie (clé de cache + issue) | produite par l'API en mode clé (D45) | `app/models.py`, `app/accounts.py` |
+| Essai gratuit public (D46) : l'adresse validée n'est **pas** conservée et la réponse est `no-store` ; seule une fenêtre de plafond anonyme par IP est tenue (Redis, ou la mémoire du processus) | produite par l'API | `app/routes/validate_form.py`, `app/ratelimit.py` |
 
-L'API ne traite **aucun identifiant de personne** : pas de compte, pas de nom,
-pas d'e-mail, pas de cookie, pas d'identifiant d'appareil. L'adresse postale est
-une donnée à caractère personnel lorsqu'elle se rattache à une personne (RGPD
+L'appel **payant** (`POST /validate`) ne traite aucun identifiant de personne :
+pas de nom, pas d'e-mail, pas de cookie, pas d'identifiant d'appareil. Depuis
+D44, un **compte client** existe pour l'abonnement : il porte un e-mail, un nom de
+boutique, une plateforme, l'empreinte bcrypt du mot de passe et l'empreinte
+SHA-256 de la clé API — jamais un mot de passe ni une clé en clair, et aucune
+autre donnée d'identité. L'adresse postale est une donnée à caractère personnel
+lorsqu'elle se rattache à une personne (RGPD
 art. 4-1) : aussi la clé de cache est-elle un **pseudonyme** (SHA-256), pas une
 adresse en clair.
 
@@ -39,10 +46,12 @@ aucune revente, aucune publicité, aucune donnée transmise à des régies.
 
 | Support | Contenu | Durée | Source |
 |---------|---------|-------|--------|
-| Redis (cache) | clé `addr:<sha256>` + résultat JSON (composants standardisés, latitude/longitude, score) | 30 jours (TTL) | `app/cache.py:37,98` |
+| Redis (cache) | clé `addr:<sha256>` + résultat JSON (composants standardisés, latitude/longitude, score) | **30 jours (TTL)** pour un résultat vérifié ; **5 minutes** pour un résultat **dégradé** (fournisseur injoignable, D47) : « je ne sais pas » n'est pas un verdict, et le garder un mois figerait une panne passagère | `app/cache.py:47-51,109-120` |
 | PostgreSQL `payment_transactions` | `tx_hash`, montant, devise, clé de cache | non purgé : **aucune politique de rétention dans le code** | `app/database.py:43-51`, `app/payment.py:140-145` |
 | PostgreSQL `address_validations` | schéma prévu (`raw_address JSONB`, `standardized JSONB`, …) | **table jamais alimentée** : le dépôt ne contient qu'un seul `INSERT`, et il vise `payment_transactions` | `app/database.py:27-39`, vérifié le 10/10/2026 |
 | `/metrics` | compteurs agrégés en mémoire (aucune adresse) | durée du processus, perdu au redémarrage | `app/routes/metrics.py` |
+| Plafond de l'essai gratuit (`/validate-form`, D46) | compteur anonyme par IP (clé `rl:validate-form:<ip>`) : ni adresse, ni résultat | fenêtre fixe de 24 h (TTL Redis, ou mémoire du processus) | `app/ratelimit.py`, `app/routes/validate_form.py` |
+| Essai gratuit (D46), base de données | **rien** : aucune ligne en base, ni adresse, ni résultat | — | `app/routes/validate_form.py` |
 | Journal de découverte (JSONL) | métadonnées des requêtes refusées en `402` : horodatage, endpoint, prix, `User-Agent`, `Referer`, IP **pseudonymisée** (sha256 + sel) | **30 jours** — purge appliquée par `scripts/daily_report.sh`, pas seulement annoncée | `app/observability.py:142-158`, `app/config.py:47-65` |
 | Journaux applicatifs | avertissements d'échecs non bloquants | selon le journal de journald (non défini dans le code) | `app/payment.py:148-149` |
 
@@ -100,9 +109,17 @@ entrée, il faut la **clé de cache**, délivrée dans chaque réponse
 
 ## 6. Cookies, traceurs, mineurs, évolution
 
-- **Aucun cookie, aucun traceur, aucun pixel** : l'API renvoie du JSON et ne
-  sert aucune page web. Les journaux d'accès du reverse proxy sont le seul
-  traceur résiduel, et il vit hors de l'application (voir §4).
+- **Aucun cookie, aucun traceur, aucun pixel, aucun script tiers** : l'API
+  renvoie du JSON, et les pages HTML publiques (`/pricing`, `/signup`,
+  `/validate-form`) ainsi que l'espace client (`/compte`) sont **autonomes** :
+  aucun script, aucune ressource externe, aucune police distante. Les journaux
+  d'accès du reverse proxy sont le seul traceur résiduel, et il vit hors de
+  l'application (voir §4).
+- Les pages qui affichent ou viennent d'afficher une donnée client (`/compte`, la
+  réponse d'un essai gratuit, celle d'une inscription) sont servies en
+  `Cache-Control: no-store` et `noindex` : elles ne doivent pas survivre dans un
+  proxy. Le formulaire d'essai **vide**, lui, est indexable et cachable quelques
+  minutes : il ne contient aucune donnée.
 - Le service s'adresse à des **professionnels** et ne collecte pas sciemment de
   données concernant des mineurs.
 - Toute évolution qui ajouterait une écriture dans `address_validations`, un

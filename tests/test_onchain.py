@@ -4,9 +4,12 @@ Aucun accès réseau : le point d'entrée RPC (`app.onchain._rpc`) est remplacé
 une fonction déterministe. Sont couverts le cas nominal et tous les refus
 *fail-closed* (hash malformé, transaction inconnue ou rejetée, mauvais
 destinataire, mauvais contrat, montant insuffisant, confirmations insuffisantes,
-RPC injoignable), plus l'articulation avec D15 : la preuve HMAC reste acceptée
-quand la vérification on-chain est désactivée, et une fausse preuve de paiement
-est refusée dès qu'elle est activée.
+RPC injoignable).
+
+Articulation avec D15/W1 : la preuve à secret partagé n'est servie que dans une
+**recette déclarée** (`TEST_MODE=true`, régime que la suite déclare dans
+`conftest.py`) ; hors recette elle est refusée — avec *ou* sans vérification
+on-chain — et la décision porte la raison du refus.
 """
 
 import httpx
@@ -14,7 +17,12 @@ import pytest
 
 from app import onchain
 from app.config import Settings, get_settings
-from app.payment import PROOF_HEADER, build_payment_proof, verify_payment
+from app.payment import (
+    PROOF_HEADER,
+    build_payment_proof,
+    payment_result,
+    verify_payment,
+)
 
 settings = get_settings()
 
@@ -77,13 +85,27 @@ class _Request:
 
 @pytest.fixture
 def onchain_enabled(monkeypatch):
+    """Hors recette, la chaîne est la seule autorité (W1) : on le dit ici."""
     monkeypatch.setattr(settings, "x402_onchain_verify", True)
+    monkeypatch.setattr(settings, "test_mode", False)
     return settings
 
 
-def test_default_is_disabled():
-    """D15 reste la référence : la couche on-chain est optionnelle."""
-    assert Settings.model_fields["x402_onchain_verify"].default is False
+@pytest.fixture
+def production(monkeypatch):
+    """Régime du VPS : `TEST_MODE` absent, la recette n'est pas déclarée (W1)."""
+    monkeypatch.setattr(settings, "test_mode", False)
+    return settings
+
+
+def test_onchain_verification_is_the_default():
+    """W1 : la couche on-chain est active par défaut.
+
+    Le défaut `false` était un fail-open : un déploiement qui omettait la
+    variable servait le service contre une preuve synthétique (AUDIT_TRAFIC_VPS
+    §5). Ce test échoue si le défaut repart en arrière.
+    """
+    assert Settings.model_fields["x402_onchain_verify"].default is True
 
 
 def test_amount_conversion_uses_six_decimals():
@@ -189,10 +211,47 @@ def test_confirmed_transfer_is_accepted(monkeypatch):
     assert "12 confirmation(s)" in reason
 
 
-def test_verify_payment_keeps_d15_behaviour_when_onchain_disabled():
-    """Sans activation explicite, la preuve HMAC seule reste acceptée (D15)."""
+def test_verify_payment_serves_a_shared_secret_proof_in_a_declared_recette():
+    """W1/D15 : en recette déclarée, la preuve synthétique reste servie.
+
+    C'est le seul chemin qui ouvre un `200` sans encaissement vérifié, il est
+    journalisé (WARNING) et la ligne écrite est marquée `test_mode` (D40).
+    """
+    assert settings.test_mode is True  # conftest.py déclare la suite en recette
     proof = build_payment_proof("0x" + "cd" * 32)
     assert verify_payment(_Request({PROOF_HEADER: proof})) is True
+
+
+def test_verify_payment_refuses_a_shared_secret_proof_outside_a_recette(
+    production, monkeypatch
+):
+    """W1 : hors recette, connaître le secret ne suffit plus.
+
+    La signature est parfaitement valide ; c'est l'encaissement qui manque, et
+    c'est la chaîne qui le dit (ici un reçu absent, donc aucun octet sorti).
+    """
+    rpc = _FakeRpc(None)
+    monkeypatch.setattr(onchain, "_rpc", rpc)
+    proof = build_payment_proof(TX)
+    assert verify_payment(_Request({PROOF_HEADER: proof})) is False
+    assert rpc.calls == ["eth_getTransactionReceipt"]
+
+
+def test_verify_payment_refuses_a_proof_when_onchain_is_cut_outside_a_recette(
+    production, monkeypatch
+):
+    """W1 : couper la vérification hors recette ne rouvre pas D15, elle ferme.
+
+    `X402_ONCHAIN_VERIFY=false` sur une production n'est donc pas un fail-open :
+    toute preuve à secret partagé est refusée, sans même interroger la chaîne.
+    """
+    monkeypatch.setattr(settings, "x402_onchain_verify", False)
+    rpc = _FakeRpc(None)
+    monkeypatch.setattr(onchain, "_rpc", rpc)
+    decision = payment_result(_Request({PROOF_HEADER: build_payment_proof("0xMADEUP")}))
+    assert decision.paid is False
+    assert "hors recette" in decision.reason
+    assert rpc.calls == [], "une couche coupée ne doit pas interroger la chaîne"
 
 
 def test_verify_payment_rejects_fake_proof_when_onchain_enabled(

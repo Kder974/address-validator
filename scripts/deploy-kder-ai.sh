@@ -62,11 +62,26 @@ if [ "$LONGUEUR_SECRET" -lt 32 ]; then
   die "API_SECRET_KEY fait $LONGUEUR_SECRET caracteres : minimum 32 (openssl rand -hex 32)"
 fi
 ok "API_SECRET_KEY : $LONGUEUR_SECRET caracteres, differente de la valeur par defaut"
-# Variables de la couche on-chain (D27), facultatives : si elles manquent, les
-# valeurs par defaut du code s'appliquent (verification on-chain desactivee).
-for v in X402_ONCHAIN_VERIFY BASE_RPC_URL X402_USDC_CONTRACT X402_MIN_CONFIRMATIONS; do
+# Couche on-chain (D27) : active par defaut dans le code depuis le durcissement
+# W1. Un .env qui la coupe hors recette fait refuser TOUTES les preuves a secret
+# partage en 402 (app/payment.py) : ce n'est donc plus une variable facultative.
+for v in BASE_RPC_URL X402_USDC_CONTRACT X402_MIN_CONFIRMATIONS; do
   if grep -q "^$v=" "$PROJET/.env"; then ok ".env : $v defini"; else note ".env : $v absent (valeur par defaut du code)"; fi
 done
+if grep -q '^X402_ONCHAIN_VERIFY=true' "$PROJET/.env"; then
+  ok ".env : X402_ONCHAIN_VERIFY=true (verification on-chain active)"
+elif grep -q '^X402_ONCHAIN_VERIFY=false' "$PROJET/.env"; then
+  if grep -q '^TEST_MODE=true' "$PROJET/.env"; then
+    note ".env : X402_ONCHAIN_VERIFY=false + TEST_MODE=true : recette declaree"
+  else
+    ko ".env : X402_ONCHAIN_VERIFY=false HORS recette : toute preuve HMAC sera refusee en 402 (W1)"
+  fi
+else
+  note ".env : X402_ONCHAIN_VERIFY absent : defaut du code = true (verification on-chain active, W1)"
+fi
+if grep -q '^TEST_MODE=true' "$PROJET/.env"; then
+  ko ".env : TEST_MODE=true : les paiements sont marques test_mode et exclus du revenu reel (D40)"
+fi
 WALLET="$(grep '^CDP_WALLET_ADDRESS=' "$PROJET/.env" | cut -d= -f2-)"
 if [ -n "$WALLET" ]; then
   ok "portefeuille d'encaissement : $WALLET"
@@ -413,10 +428,13 @@ echo "    une preuve bidon (test_tx:1234567890:test_signature) est refusee en 40
 echo "    par l'API elle-meme (controle 10.4), pas par le fournisseur."
 echo " 2. CDP_WALLET_ADDRESS : si la variable est vide dans .env, la reponse 402"
 echo "    annonce un portefeuille vide -> aucun encaissement possible."
-echo " 3. Paiement : preuve HMAC a secret partage (D15). La confirmation on-chain"
-echo "    du transfert USDC sur Base (D27) existe mais reste desactivee par defaut :"
-echo "    qui connait API_SECRET_KEY peut encore forger une preuve valide. Pour"
-echo "    l'activer : X402_ONCHAIN_VERIFY=true dans .env puis systemctl restart."
+echo " 3. Paiement : preuve HMAC a secret partage (D15), desormais confirmee"
+echo "    on-chain (D27). Depuis le durcissement W1, X402_ONCHAIN_VERIFY vaut true"
+echo "    par defaut : connaitre API_SECRET_KEY ne suffit plus, il faut un"
+echo "    transfert USDC confirme vers CDP_WALLET_ADDRESS (sinon 402). Le seul 200"
+echo "    sans encaissement est une recette declaree (TEST_MODE=true), tracee en"
+echo "    WARNING et exclue du revenu reel (D40). Si .env coupe la verification"
+echo "    hors recette, TOUTES les preuves a secret partage sont refusees en 402."
 echo " 4. '.env' en 640 root:www-data : ne pas le repasser en 600 root, le service"
 echo "    tourne sous www-data et perdrait la lecture de ses secrets."
 echo " 5. uvicorn ecoute sur 127.0.0.1:8000 (ExecStart) : seul Nginx publie l'API."

@@ -15,6 +15,16 @@ fournisseur ouvert (0 s) ne se voyait plus dans la latence. Après un échec, on
 marque le backend indisponible pendant `REDIS_RETRY_COOLDOWN` secondes : une
 panne Redis coûte une fois, pas à chaque requête. `check_redis()` reste une
 sonde réelle (le rôle de /health est de dire la vérité).
+
+D47 — un résultat **dégradé** ne se garde pas 30 jours. `degraded: true` ne dit
+pas « adresse invalide », il dit « le fournisseur n'a pas répondu » (D23) : le
+conserver `CACHE_TTL` reviendrait à transformer une panne passagère en réponse
+fausse d'un mois, pour une adresse que le client paie (ou consomme au quota) à
+chaque appel, et sans aucun moyen de forcer une nouvelle vérification. On le
+garde donc `CACHE_TTL_DEGRADED` (5 minutes) : assez pour ne pas marteler un
+fournisseur en panne — c'est ce que mesurent D23/D25 —, pas assez pour mentir
+longtemps. Un résultat normal, lui, reste trente jours : c'est ce qui évite de
+payer deux fois la même interrogation fournisseur.
 """
 
 import json
@@ -34,7 +44,11 @@ redis_client = redis.from_url(
     decode_responses=False,
 )
 
-CACHE_TTL = 60 * 60 * 24 * 30  # 30 jours
+CACHE_TTL = 60 * 60 * 24 * 30  # 30 jours — un résultat vérifié, jamais recalculé à l'identique
+#: TTL d'un résultat **dégradé** (D47) : « le fournisseur n'a pas répondu » n'est
+#: pas un verdict. Cinq minutes suffisent à ne pas marteler un fournisseur en
+#: panne ; au-delà, une nouvelle tentative doit pouvoir obtenir une vraie réponse.
+CACHE_TTL_DEGRADED = 5 * 60
 KEY_PREFIX = "addr:"
 REDIS_RETRY_COOLDOWN = 30.0  # secondes
 
@@ -92,10 +106,18 @@ def get_cached_result(key: str):
 
 
 def store_in_cache(key: str, result: dict) -> None:
+    """Écrit le résultat, avec le TTL qui correspond à ce qu'il affirme (D47).
+
+    Un résultat dégradé ne dit rien de l'adresse : il est gardé
+    `CACHE_TTL_DEGRADED` (5 minutes), pas `CACHE_TTL` (30 jours). Le reste du
+    contrat ne change pas — un cache injoignable reste un non-événement, compté
+    (D12/D25).
+    """
     if not _available():
         return
+    ttl = CACHE_TTL_DEGRADED if result.get("degraded") else CACHE_TTL
     try:
-        redis_client.setex(f"{KEY_PREFIX}{key}", CACHE_TTL, json.dumps(result))
+        redis_client.setex(f"{KEY_PREFIX}{key}", ttl, json.dumps(result))
     except Exception:
         _mark_down()
 
