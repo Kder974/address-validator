@@ -1,7 +1,8 @@
 # Address Validator API — kder-ai.com
 
 > Validation et standardisation d'adresses postales a l'appel, payees a l'usage.
-> Une requete HTTP, pas d'inscription, pas de cle d'API a negocier.
+> Une requete HTTP payee en x402, sans inscription ; les boutiques peuvent aussi
+> s'abonner avec une cle d'API.
 
 ## Appel principal
 
@@ -21,7 +22,8 @@ Reponse 200 : `result.validated`, `result.standardized` (line1, line2, city,
 state, zip, country), `result.latitude`, `result.longitude`,
 `result.deliverability`, `result.confidence`, `result.degraded`.
 
-Prix : 0,02 USDC par validation. Pas d'abonnement, pas de compte.
+Prix : 0,02 USDC par validation en x402, sans compte. Abonnement possible :
+voir « Abonnement par cle d'API ».
 
 ## Payer
 
@@ -48,7 +50,22 @@ l'en-tete `X-PAYMENT` : base64 d'un objet
   un paiement non encaisse est refuse (402).
 - La reponse 200 porte `X-PAYMENT-RESPONSE` : base64 de
   `{success, transaction, network, payer}`.
-- Cout : 0,02 USDC par validation. Pas d'abonnement, pas de compte.
+- Cout : 0,02 USDC par validation, sans compte.
+
+## Abonnement par cle d'API
+
+Une boutique peut s'abonner au lieu de payer a l'appel : compte sur
+https://kder-ai.com/signup, offres sur https://kder-ai.com/pricing, guide
+d'integration sur https://kder-ai.com/guide, essai sans compte sur
+https://kder-ai.com/validate-form. La cle se place dans l'en-tete `X-API-Key` de
+`POST /validate`.
+
+- Si `X-API-Key` et `X-PAYMENT` sont presents, la cle est prioritaire et rien
+  n'est encaisse en USDC.
+- Refus : `401` cle inconnue, `403` essai termine, `402` quota du mois consomme,
+  `503` base des comptes injoignable (jamais une demande de paiement).
+- L'espace client https://kder-ai.com/compte affiche la consommation et
+  regenere une cle perdue.
 
 ## Reponse 402
 

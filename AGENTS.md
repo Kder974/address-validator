@@ -38,6 +38,11 @@ qu'avec l'en-tete `X-PAYMENT` (payant).
   le corps dit exactement pourquoi (`error`).
 - Les paiements sont dedupliques par hash de reglement : rejouer la meme
   autorisation ne double pas la facturation, elle est refusee.
+- Un agent n'a besoin d'aucun compte : le paiement x402 suffit. L'autre voie,
+  l'abonnement par cle d'API (en-tete `X-API-Key`), sert les boutiques : compte
+  sur https://kder-ai.com/signup, offres sur https://kder-ai.com/pricing,
+  integration sur https://kder-ai.com/guide. Si `X-API-Key` et `X-PAYMENT` sont
+  presents, la cle est prioritaire et rien n'est encaisse en USDC.
 
 ## Ce qui n'existe pas
 
@@ -45,8 +50,6 @@ qu'avec l'en-tete `X-PAYMENT` (payant).
   listes vides), aucun flux SSE (`GET /mcp` repond 405), aucune session
   (`Mcp-Session-Id` n'est jamais emis) : le serveur MCP est sans etat, avec un
   seul outil.
-- Aucun abonnement, aucune cle d'API, aucun compte : le paiement est le seul
-  droit d'entree.
 - Aucun endpoint de remboursement ni support conversationnel : le contact est
   celui publie dans https://kder-ai.com/.well-known/security.txt et dans le champ
   `contact.email` du manifeste.
