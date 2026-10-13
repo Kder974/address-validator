@@ -324,3 +324,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
   EXPECT: DECISION OK D50
   EVIDENCE: automatic-evidence=v1; definition-sha256=411e079cfb66fa4c46d57ab82e37604c1f3a253bd3af0e2879a33529f1663733; exit=0; EXPECT=matched; output-sha256=ac89d6ed4891129ba5e3196a2f1f5d2367dc5e56840d0220b5463cd7d00589b8; output-bytes=17; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\mon-projet-agent\address-validator; path=d60a0eb116ce/23 entries
 
+- [ ] D51: parse_address and standardize_address no longer mangle addresses -- unit keywords match whole words only (Stewart and Florida are not units), unit extraction, abbreviation expansion and re-capitalization apply to US only (a Reunion street is kept as typed with an empty line2), a leading St followed by another word stays St (Saint), the unchanged US cases still hold, and the fix is recorded in DECISIONS.md
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D51
+  EXPECT: DECISION OK D51
