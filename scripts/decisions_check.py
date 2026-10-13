@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D53, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D54, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 53
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 54
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -4861,7 +4861,63 @@ def d53() -> None:
     guard("D53" in read("DECISIONS.md"), "la decision D53 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 54)}
+def d54() -> None:
+    """L'inscription libre ne cree que des comptes d'essai, quel que soit le plan poste."""
+    import tempfile
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import accounts, ratelimit
+    from app.main import app
+    from app.models import Customer, CustomerValidation
+    from app.routes import signup as signup_route
+
+    dossier = tempfile.mkdtemp(prefix="porte-d54-")
+    moteur = create_engine(f"sqlite:///{Path(dossier) / 'clients.sqlite'}")
+    Customer.__table__.create(moteur)
+    CustomerValidation.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+
+    session_avant = signup_route.SessionLocal
+    signup_route.SessionLocal = fabrique
+    ratelimit.reset()
+    client = TestClient(app)
+    try:
+        formulaire = client.get("/signup?plan=enterprise")
+        guard('name="plan"' not in formulaire.text, "le formulaire d'inscription porte encore un plan choisi par le client")
+        for numero, plan in enumerate(p for p in accounts.PLANS if p != accounts.PLAN_PAR_DEFAUT):
+            email = f"porte-d54-{numero}@example.re"
+            reponse = client.post(
+                "/signup",
+                data={
+                    "email": email,
+                    "password": "un-mot-de-passe-solide-12",
+                    "shop_name": "Porte D54",
+                    "platform": "shopify",
+                    "plan": plan,
+                },
+            )
+            guard(reponse.status_code == 200, f"inscription avec plan={plan} : {reponse.status_code}")
+            with fabrique() as session:
+                compte = accounts.find_by_email(session, email)
+                guard(compte is not None, f"aucun compte cree pour plan={plan}")
+                guard(
+                    compte.plan == accounts.PLAN_PAR_DEFAUT,
+                    f"plan={plan} poste par le client donne un compte {compte.plan!r} au lieu de l'essai",
+                )
+                guard(compte.trial_ends_at is not None, f"plan={plan} : compte sans date de fin d'essai")
+    finally:
+        signup_route.SessionLocal = session_avant
+        ratelimit.reset()
+        moteur.dispose()
+
+    guard("D54" in read("DECISIONS.md"), "la decision D54 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 55)}
 
 
 def catalog() -> list[tuple[str, str]]:

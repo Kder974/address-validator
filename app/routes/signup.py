@@ -81,7 +81,6 @@ def _formulaire(
     email: str = "",
     boutique: str = "",
     plateforme: str = "",
-    plan: str = accounts.PLAN_PAR_DEFAUT,
     erreurs: tuple[str, ...] = (),
     statut: int = 200,
 ) -> HTMLResponse:
@@ -105,7 +104,6 @@ def _formulaire(
 Votre clé API est affichée une seule fois, à la fin de cette étape.</p>
 {bloc_erreurs}
 <form method="post" action="/signup" class="col">
-  <input type="hidden" name="plan" value="{html.escape(plan, quote=True)}">
   <p><label for="email">Email professionnel</label><br>
      <input id="email" name="email" type="email" required size="34"
             value="{html.escape(email, quote=True)}"></p>
@@ -358,12 +356,9 @@ réinitialise tout seul.</p>
 
 
 @router.get("/signup")
-async def signup_form(request: Request) -> Response:
+async def signup_form() -> Response:
     """Le formulaire d'inscription (public, indexable, sans état)."""
-    plan = request.query_params.get("plan", accounts.PLAN_PAR_DEFAUT)
-    if plan not in accounts.PLANS:
-        plan = accounts.PLAN_PAR_DEFAUT
-    return _formulaire(plan=plan)
+    return _formulaire()
 
 
 @router.post("/signup")
@@ -381,9 +376,10 @@ async def signup_submit(request: Request) -> Response:
     mot_de_passe = str(donnees.get("password", "") or "")
     boutique = str(donnees.get("shop_name", "") or "")
     plateforme = str(donnees.get("platform", "") or "")
-    plan = str(donnees.get("plan", "") or accounts.PLAN_PAR_DEFAUT)
-    if plan not in accounts.PLANS:
-        plan = accounts.PLAN_PAR_DEFAUT
+    # D54 : l'inscription libre ne crée que des comptes d'essai. Le plan n'est
+    # jamais lu dans le formulaire (le client l'aurait choisi lui-même) ; un plan
+    # payant s'accorde côté exploitant.
+    plan = accounts.PLAN_PAR_DEFAUT
 
     erreurs: list[str] = []
     if not accounts.valid_email(email):
@@ -400,7 +396,6 @@ async def signup_submit(request: Request) -> Response:
             email=email,
             boutique=boutique,
             plateforme=plateforme,
-            plan=plan,
             erreurs=tuple(erreurs),
             statut=400,
         )
@@ -429,7 +424,6 @@ async def signup_submit(request: Request) -> Response:
             email=email,
             boutique=boutique,
             plateforme=plateforme,
-            plan=plan,
             erreurs=(
                 "Un compte existe déjà avec cet email. Connectez-vous depuis "
                 "/compte, ou utilisez une autre adresse.",
