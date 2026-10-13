@@ -79,6 +79,16 @@ def test_security_txt_is_rfc9116_and_not_expired():
     assert expire > datetime.now(timezone.utc), f"security.txt perime depuis {trouve.group(1)}"
 
 
+def test_security_txt_et_la_configuration_donnent_le_meme_contact():
+    """D55 : un seul contact publié, celui du domaine, dans le fichier statique comme dans le code."""
+    from app.config import Settings
+
+    texte = (ROOT / ".well-known" / "security.txt").read_text(encoding="utf-8")
+    contact = re.search(r"(?m)^Contact:\s*mailto:(\S+)", texte).group(1)
+    assert contact == Settings.model_fields["contact_email"].default
+    assert contact.endswith("@kder-ai.com")
+
+
 def test_mcp_card_is_served_by_the_app_and_not_copied_for_nginx():
     """D28/D37 : la carte decrit un endpoint reel, donc elle vit avec lui.
 

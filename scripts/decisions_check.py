@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D54, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D55, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 54
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 55
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -4917,7 +4917,20 @@ def d54() -> None:
     guard("D54" in read("DECISIONS.md"), "la decision D54 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 55)}
+def d55() -> None:
+    """Le contact publie est l'adresse du domaine, la meme dans security.txt et dans la configuration."""
+    from app.config import Settings
+
+    defaut = Settings.model_fields["contact_email"].default
+    guard(defaut.endswith("@kder-ai.com"), f"le contact par defaut n'est pas une adresse du domaine : {defaut}")
+    trouve = re.search(r"(?m)^Contact:\s*mailto:(\S+)", read(".well-known/security.txt"))
+    guard(trouve is not None, "security.txt sans champ Contact")
+    guard(trouve.group(1) == defaut, f"security.txt publie {trouve.group(1)} mais la configuration {defaut}")
+    guard("Kdera597420@gmail.com" not in read("PRIVACY.md"), "PRIVACY.md cite encore l'ancienne adresse Gmail")
+    guard("D55" in read("DECISIONS.md"), "la decision D55 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 56)}
 
 
 def catalog() -> list[tuple[str, str]]:

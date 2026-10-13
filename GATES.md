@@ -336,3 +336,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D54: self-service signup only creates trial accounts: the signup form carries no plan, and posting starter, pro or enterprise still stores the trial plan with a trial end date
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D54
   EXPECT: DECISION OK D54
+- [ ] D55: the published contact is the domain address contact@kder-ai.com, identical in .well-known/security.txt and in the configuration default, and PRIVACY.md no longer cites the old Gmail address
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D55
+  EXPECT: DECISION OK D55
