@@ -327,3 +327,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D51: parse_address and standardize_address no longer mangle addresses -- unit keywords match whole words only (Stewart and Florida are not units), unit extraction, abbreviation expansion and re-capitalization apply to US only (a Reunion street is kept as typed with an empty line2), a leading St followed by another word stays St (Saint), the unchanged US cases still hold, and the fix is recorded in DECISIONS.md
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D51
   EXPECT: DECISION OK D51
+- [ ] D52: the public texts (llms.txt, AGENTS.md, manifest limitations) describe both payment paths -- x402 without an account and the X-API-Key subscription -- no longer claim that no account or API key exists, and the Tiitoune Art welcome email no longer mentions a fragile piece
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D52
+  EXPECT: DECISION OK D52

@@ -93,8 +93,8 @@ Pré-en-tête : `Votre clé API, 100 validations offertes, puis 29 €/mois — 
 Bonjour,
 
 Merci pour votre intérêt : votre compte Tiitoune Art est ouvert. Une adresse
-incorrecte, sur une pièce fragile, c'est un aller-retour, un colis à réexpédier et
-un client qui attend — c'est exactement ce que ce service vérifie avant l'envoi.
+incorrecte, c'est un aller-retour, un colis à réexpédier et une cliente qui
+attend — c'est exactement ce que ce service vérifie avant l'envoi.
 
 VOTRE CLÉ API
 Créez votre compte (ou retrouvez-le) sur https://kder-ai.com/signup : la clé
