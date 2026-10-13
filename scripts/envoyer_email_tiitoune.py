@@ -6,19 +6,23 @@ QUOI : envoie l'email de bienvenue dont l'objet, le pre-en-tete et le corps sont
        lus dans la checklist `docs/commercial/checklist-tiitoune-art.md` (section 2),
        puis marque le prospect comme contacte dans le CRM de prospection.
 COMMENT : SMTP direct (`smtplib`, TLS implicite sur 465, STARTTLS sinon). Les
-       identifiants sont lus dans l'environnement (`SMTP_HOST`, `SMTP_PORT`,
-       `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_NAME`, plus `SMTP_FROM` et
-       `SMTP_REPLY_TO` facultatifs). Le mot de passe n'est jamais affiche, jamais
-       ecrit sur disque, jamais passe en argument de ligne de commande.
+       identifiants viennent de `address-validator/.env.smtp` (fichier ignore par
+       Git, charge par `scripts/charger_env_smtp.py`), ou, a defaut, de
+       l'environnement (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`,
+       `SMTP_FROM_NAME`, plus `SMTP_FROM` et `SMTP_REPLY_TO` facultatifs). Le mot
+       de passe n'est jamais affiche, jamais ecrit sur disque, jamais passe en
+       argument de ligne de commande.
 QUAND : le jour J, apres le controle des 5 liens (checklist section 1) ; une fois.
        Rejouer `--send` sur un prospect deja contacte est refuse, sauf `--renvoyer`.
-OU : ce fichier (`scripts/`), la checklist citee, et la base de prospection
-       (`prospection/data/prospects.db`, fiche du prospect).
+OU : ce fichier (`scripts/`), `.env.smtp` a la racine, la checklist citee, et la
+       base de prospection (`prospection/data/prospects.db`, fiche du prospect).
 
     .venv\\Scripts\\python.exe scripts\\envoyer_email_tiitoune.py                     # simulation
     .venv\\Scripts\\python.exe scripts\\envoyer_email_tiitoune.py --verifier-liens
     .venv\\Scripts\\python.exe scripts\\envoyer_email_tiitoune.py --test --vers moi@kder-ai.com
     .venv\\Scripts\\python.exe scripts\\envoyer_email_tiitoune.py --send
+
+    .venv\\Scripts\\python.exe scripts\\test_smtp_connection.py    # controle de la connexion, aucun email
 
 Codes de retour : 0 = message parti (ou simulation reussie), 1 = envoi impossible
 (configuration, base ou serveur SMTP), 2 = usage invalide.
@@ -41,6 +45,9 @@ from pathlib import Path
 from typing import Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = Path(__file__).resolve().parent
+if str(SCRIPTS) not in sys.path:  # `scripts/` n'est pas un paquet : import direct
+    sys.path.insert(0, str(SCRIPTS))
 if str(ROOT / "prospection" / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "prospection" / "scripts"))
 
@@ -71,6 +78,17 @@ except ImportError:  # pragma: no cover - repli explicite, jamais silencieux
         "protonmail.com",
         "proton.me",
     )
+
+try:  # identifiants SMTP du poste : fichier ignore par Git, quand il existe
+    from charger_env_smtp import (
+        FICHIER_DEFAUT as FICHIER_ENV_SMTP,
+        MARQUEUR_A_REMPLACER,
+        charger_env_smtp,
+    )
+except ImportError:  # pragma: no cover - repli explicite, jamais silencieux
+    FICHIER_ENV_SMTP = ROOT / ".env.smtp"
+    MARQUEUR_A_REMPLACER = "REMPLACER"
+    charger_env_smtp = None  # type: ignore[assignment]
 
 #: Checklist d'envoi : source unique de l'objet, du pre-en-tete et du corps.
 CHECKLIST = ROOT / "docs" / "commercial" / "checklist-tiitoune-art.md"
@@ -232,7 +250,68 @@ def lire_fiche(
     return dict(lignes[0])
 
 
-# --- Identifiants SMTP (environnement uniquement) ---------------------------
+# --- Identifiants SMTP (.env.smtp, sinon environnement) ---------------------
+
+
+def preparer_environnement(chemin: Path | str = FICHIER_ENV_SMTP) -> dict:
+    """Fait vivre `.env.smtp` dans l'environnement, et dit ce qu'il faut en dire.
+
+    Le fichier n'est pas obligatoire : sans lui, la suite lit l'environnement
+    exactement comme avant (docs/commercial/GUIDE-BREVO.md, section 4). S'il est
+    la, sa valeur fait foi ; un texte encore marque « REMPLACER » n'est jamais pose
+    dans l'environnement et bloque l'envoi reel.
+
+    Args:
+        chemin: fichier des identifiants (defaut : `.env.smtp`, a la racine).
+
+    Returns:
+        `{"trouve", "chemin", "messages", "a_remplacer"}` : lignes a afficher, et
+        noms des variables encore a remplacer (liste vide = rien ne bloque).
+    """
+    if charger_env_smtp is None:  # pragma: no cover - module versionne avec ce script
+        return {
+            "trouve": False,
+            "chemin": Path(chemin),
+            "messages": [
+                "charger_env_smtp.py absent : identifiants a poser dans l'environnement"
+            ],
+            "a_remplacer": [],
+        }
+    try:
+        rapport = charger_env_smtp(chemin)
+    except (OSError, ValueError) as erreur:
+        return {
+            "trouve": False,
+            "chemin": Path(chemin),
+            "messages": [f"{Path(chemin).name} illisible : {erreur}"],
+            "a_remplacer": [],
+        }
+
+    messages: list[str] = []
+    if not rapport["trouve"]:
+        messages.append(
+            f"{Path(chemin).name} absent - Creez .env.smtp avec vos identifiants "
+            "(modele : docs/commercial/GUIDE-BREVO.md, section 4) ; les variables "
+            "SMTP_* de l'environnement restent utilisees"
+        )
+    else:
+        messages.append(f"{Path(chemin).name} charge ({len(rapport['valeurs'])} variables)")
+        if rapport["ecrasees"]:
+            messages.append(
+                "fichier prioritaire sur l'environnement : " + ", ".join(rapport["ecrasees"])
+            )
+        messages.extend(rapport["problemes"])
+    a_remplacer = [
+        nom
+        for nom, valeur in rapport["valeurs"].items()
+        if MARQUEUR_A_REMPLACER in str(valeur).upper()
+    ]
+    return {
+        "trouve": rapport["trouve"],
+        "chemin": Path(chemin),
+        "messages": messages,
+        "a_remplacer": a_remplacer,
+    }
 
 
 def lire_identifiants(environ: dict | None = None) -> dict:
@@ -530,6 +609,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"Envoi de l'email de bienvenue - {BOUTIQUE}")
     print("=" * 72)
 
+    environnement = preparer_environnement()
+    for message in environnement["messages"]:
+        print(f"{'env SMTP':<18}: {message}")
+
     try:
         email = lire_email_exemplaire(args.checklist)
     except (FileNotFoundError, ValueError) as erreur:
@@ -583,6 +666,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     # A partir d'ici, un message part reellement.
+    if environnement["a_remplacer"]:
+        print(
+            "ENVOI FAIL .env.smtp contient encore un texte a remplacer ("
+            + ", ".join(environnement["a_remplacer"])
+            + ") : poser la vraie cle SMTP Brevo, puis relancer"
+        )
+        return 1
     try:
         identifiants = lire_identifiants()
         verifier_expediteur(identifiants, args.accepter_domaine_public)

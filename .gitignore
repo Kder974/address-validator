@@ -12,7 +12,10 @@ htmlcov/
 venv/
 
 # --- secrets / environnement ---
+# `.env.*` couvre les fichiers par usage (`.env.smtp` du script d'envoi, `.env.local`)
+# et `.env.example` reste l'exception : un secret vit sur le poste, jamais ici.
 .env
+.env.*
 *.env
 !.env.example
 
