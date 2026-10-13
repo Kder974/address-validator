@@ -106,10 +106,22 @@ def test_formulaire_public_et_indexable(base):
     for champ in ('name="email"', 'name="password"', 'name="shop_name"', 'name="platform"'):
         assert champ in page.text, champ
     assert "12 caractères minimum" in page.text
-    # Le plan vient de /pricing (?plan=enterprise) ; une valeur inconnue retombe
-    # sur l'essai plutot que d'ouvrir un plan hors offre.
-    assert 'value="enterprise"' in client.get("/signup?plan=enterprise").text
-    assert 'value="inconnu"' not in client.get("/signup?plan=inconnu").text
+    # D54 : le formulaire ne porte plus de plan, meme quand /pricing passe ?plan=.
+    assert 'name="plan"' not in client.get("/signup?plan=enterprise").text
+
+
+@pytest.mark.parametrize("plan_force", ["starter", "pro", "enterprise"])
+def test_un_plan_payant_poste_donne_un_essai(base, plan_force):
+    # D54 : un client qui poste lui-meme un plan payant obtient un essai, avec
+    # son quota et sa date de fin, jamais une cle illimitee.
+    reponse = client.post("/signup", data={**FORME, "plan": plan_force})
+    assert reponse.status_code == 200
+
+    with base() as session:
+        compte = accounts.find_by_email(session, FORME["email"])
+        assert compte.plan == accounts.PLAN_PAR_DEFAUT
+        assert accounts.quota_for(compte.plan) == accounts.VALIDATIONS_ESSAI
+        assert compte.trial_ends_at is not None
 
 
 def test_mot_de_passe_court_et_champs_invalides_refuses(base):

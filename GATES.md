@@ -333,3 +333,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D53: GET / serves the showcase page to browsers and keeps the exact previous JSON for programs, both with Vary: Accept, under the public CSP with form-action 'self', with no script, external resource or unfilled placeholder, the real trial form fields, and figures read from the code and the configuration
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D53
   EXPECT: DECISION OK D53
+- [ ] D54: self-service signup only creates trial accounts: the signup form carries no plan, and posting starter, pro or enterprise still stores the trial plan with a trial end date
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D54
+  EXPECT: DECISION OK D54
