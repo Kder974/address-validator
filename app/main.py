@@ -8,13 +8,16 @@ non bloquant : l'API démarre et `/health` remonte l'état réel de la base.
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.config import get_settings
 from app.database import init_db
 from app.observability import configure_logging
+from app.web import public_headers
 from app.routes import (
+    accueil,
     dashboard,
     guide,
     health,
@@ -97,13 +100,24 @@ app.include_router(guide.router, tags=["commercial"])
 
 
 @app.get("/")
-async def root():
-    return {
-        "service": "Address Validator API",
-        "version": "1.0.0",
-        "documentation": "/docs",
-        "manifest": "/manifest",
-        "health": "/health",
-        "mcp": "/mcp",
-        "pricing": "/pricing",
-    }
+async def root(request: Request):
+    # D53 : un navigateur reçoit la vitrine, un programme garde le JSON d'avant.
+    # `Vary: Accept` sur les deux : un cache partagé ne doit jamais servir l'une
+    # à la place de l'autre.
+    if accueil.veut_html(request.headers.get("accept", "")):
+        return HTMLResponse(
+            accueil.page(settings),
+            headers={**public_headers(form=True), "Vary": "Accept"},
+        )
+    return JSONResponse(
+        {
+            "service": "Address Validator API",
+            "version": "1.0.0",
+            "documentation": "/docs",
+            "manifest": "/manifest",
+            "health": "/health",
+            "mcp": "/mcp",
+            "pricing": "/pricing",
+        },
+        headers={"Vary": "Accept"},
+    )
