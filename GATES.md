@@ -348,3 +348,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D58: the integration guide speaks six languages: /guide (French) and /en/guide, /zh/guide, /hi/guide, /es/guide, /ar/guide are literal routes serving the validated design in their language and writing direction, with the same public headers, no script, no image, no external resource, the public base URL as the only absolute URL, a per-language sample key that is never a full sk_live_ key, and every figure (trial, caps, cache durations, x402 price and version, contact, base URL) injected from code and configuration
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D58
   EXPECT: DECISION OK D58
+- [ ] D59: the free trial page speaks six languages: /validate-form (French) and /en/validate-form to /ar/validate-form answer GET and POST on literal routes, each form posts to its own language, the real pipeline result is shown in that language, a provider outage is never shown as an invalid address, and the per-IP cap is shared across languages with an exact Retry-After and a localized 429
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D59
+  EXPECT: DECISION OK D59
