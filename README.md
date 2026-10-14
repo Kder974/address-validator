@@ -86,7 +86,7 @@ Toutes les valeurs viennent de l'environnement ou de `.env` (pydantic-settings,
 | `cdp_api_key_id` / `cdp_api_key_secret` | `CDP_API_KEY_ID` / `CDP_API_KEY_SECRET` | vide | SDK Coinbase CDP (facultatif) |
 | `cdp_wallet_address` | `CDP_WALLET_ADDRESS` | vide | portefeuille annoncé dans le `402` |
 | `x402_price` | `X402_PRICE` | `0.02` | prix par validation, en USDC |
-| `x402_onchain_verify` | `X402_ONCHAIN_VERIFY` | `false` | confirmation on-chain du transfert USDC (D27) — voir §7 |
+| `x402_onchain_verify` | `X402_ONCHAIN_VERIFY` | `true` | confirmation on-chain du transfert USDC (D27, active par défaut depuis W1) — `false` n'est admis qu'avec `TEST_MODE=true` ; hors recette, toute preuve à secret partagé est alors refusée — voir §7 |
 | `base_rpc_url` | `BASE_RPC_URL` | `https://mainnet.base.org` | nœud JSON-RPC Base (chaîne 8453) utilisé quand D27 est actif |
 | `x402_usdc_contract` | `X402_USDC_CONTRACT` | `0x833589…4bda02913` | contrat USDC natif de Base |
 | `x402_min_confirmations` | `X402_MIN_CONFIRMATIONS` | `1` | confirmations minimales exigées avant d'accepter le paiement |
@@ -437,9 +437,9 @@ Le domaine EIP-712 annoncé (`extra.name` / `extra.version`) est celui du contra
 **Ce qui reste hérité (D15).** L'en-tête `X-Payment-Proof`
 (`tx_hash:timestamp:hmac_sha256`) reste accepté pour l'outillage de l'exploitant
 et les clients déjà intégrés : fenêtre symétrique de 300 s, HMAC comparé en temps
-constant, et — si `X402_ONCHAIN_VERIFY=true` — confirmation du reçu sur Base par
-lecture JSON-RPC (`app/onchain.py`, sans paquet `web3` ni paquet de magasin de
-clés). Un paiement HMAC n'est jamais présenté comme un règlement x402 : il ne
+constant, et confirmation obligatoire du reçu sur Base (D27, active par défaut ;
+seule une recette déclarée `TEST_MODE=true` s'en passe) par lecture JSON-RPC
+(`app/onchain.py`, sans paquet `web3` ni paquet de magasin de clés). Un paiement HMAC n'est jamais présenté comme un règlement x402 : il ne
 porte pas `X-PAYMENT-RESPONSE`.
 
 **MCP.** Le même outil est exposé en MCP sur `POST /mcp` (JSON-RPC 2.0, sans état,
@@ -537,7 +537,7 @@ passe Redis, et vérifier que Nginx a bien installé la redirection HTTPS
 
 | Limite | Impact | Où c'est documenté |
 |--------|--------|--------------------|
-| Paiement vérifié par secret partagé (mode par défaut) ; confirmation on-chain disponible mais désactivée | un `tx_hash` inventé mais correctement signé est accepté tant que `X402_ONCHAIN_VERIFY` est à `false` | `§7`, `SECURITY.md` §3, D15, D27 |
+| La recette déclarée (`TEST_MODE=true`) accepte la preuve à secret partagé sans interroger la chaîne | réservé aux essais de l'exploitant : les lignes écrites sont marquées `test_mode` et exclues du revenu réel ; hors recette, une preuve sans transfert USDC confirmé reçoit `402` | `§7`, `SECURITY.md` §3, D27, D40, D42 |
 | Preuve rejouable pendant 300 s | une même preuve peut servir plusieurs fois dans la fenêtre | `§7`, `SECURITY.md` §6 |
 | `address_validations` jamais alimentée | aucune trace d'adresse en base : la conservation repose sur le cache Redis (30 j) | `PRIVACY.md` §3 |
 | `record_transaction` refuse de servir sans trace | depuis D41 un échec d'écriture rend un `500` (`ledger_write_failures_total`) : le paiement est accepté, la validation n'est pas servie, et l'encaissement doit être rapproché | `SECURITY.md` §5, D41 |
@@ -554,10 +554,7 @@ Suite recommandée, par ordre de valeur :
    back-off sur `401` et ramène la latence dégradée sous ~3 s.
 2. Consommer les preuves de paiement (anti-rejeu) et refuser le démarrage si
    `API_SECRET_KEY` est resté à sa valeur par défaut.
-3. Passer au paiement réellement vérifié : activer `X402_ONCHAIN_VERIFY` (D27)
-   **une fois le client capable de payer** (authorization EIP-3009 ou facilitateur
-   x402, `§7`).
-4. Brancher les métriques sur une supervision réelle et générer le `.env` au
+3. Brancher les métriques sur une supervision réelle et générer le `.env` au
    déploiement.
 
 
