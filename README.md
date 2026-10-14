@@ -313,9 +313,10 @@ Vérification : `.\.venv\Scripts\python.exe scripts\decisions_check.py D53`.
 
 ### 4.8 Six langues (D57)
 
-Le français reste à la racine ; les cinq autres langues ont leur préfixe. La vitrine,
-le guide (D58), l'essai gratuit (D59) et les tarifs (D60) existent aujourd'hui dans les
-six ; l'inscription et l'espace client suivront, aux mêmes adresses.
+Le français reste à la racine ; les cinq autres langues ont leur préfixe. Toutes les
+pages publiques existent dans les six : la vitrine, le guide (D58), l'essai gratuit (D59),
+les tarifs (D60), l'inscription et l'espace client (D61), chacune à son adresse française
+précédée du préfixe de la langue (`/en/guide`, `/ar/signup`…).
 
 | Langue | Accueil | Monnaie affichée (facturé en euros) |
 |---|---|---|

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D60, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D61, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 60
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 61
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -3102,7 +3102,7 @@ def d44() -> None:
     from sqlalchemy.exc import OperationalError
     from sqlalchemy.orm import sessionmaker
 
-    from app import accounts, ratelimit
+    from app import accounts, i18n, ratelimit
     from app.config import get_settings
     from app.main import app
     from app.models import Customer, CustomerValidation
@@ -3213,7 +3213,12 @@ def d44() -> None:
         guard(statut["restant"] == 97, f"reste d'essai faux : {statut['restant']}")
         espace = client.get("/compte", headers=auth(forme["email"], secret)).text
         guard("2 adresses invalides" in espace, "la formule d'estimation n'est plus affichee")
-        guard("34.00 $" in espace, "le total d'economies est faux ou a disparu")
+        # D57 : le total s'affiche dans la monnaie de la page (fr : euros), invalides x
+        # colis rate de `i18n` ; la base en dollars reste `COUT_ECHEC_USD` (34.0 ci-dessus).
+        guard(
+            f">{2 * i18n.MONTANTS['EUR']['colis_rate']} €<" in espace,
+            "le total d'economies est faux ou a disparu",
+        )
 
         # 7. Regeneration : la nouvelle cle remplace l'ancienne immediatement.
         nouvelle_page = client.post("/compte/cle", headers=auth(forme["email"], secret))
@@ -5346,7 +5351,83 @@ def d60() -> None:
     guard("D60" in read("DECISIONS.md"), "la decision D60 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 61)}
+def d61() -> None:
+    """L'inscription, la page de la cle et l'espace client tiennent leurs regles dans les six langues."""
+    import base64
+    import tempfile
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import accounts, i18n, ratelimit
+    from app.main import app
+    from app.models import Customer, CustomerValidation
+    from app.routes import signup as signup_route
+
+    dossier = tempfile.mkdtemp(prefix="porte-lot-signup-")
+    moteur = create_engine(f"sqlite:///{Path(dossier) / 'clients.sqlite'}")
+    Customer.__table__.create(moteur)
+    CustomerValidation.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+    session_avant = signup_route.SessionLocal
+    signup_route.SessionLocal = fabrique
+    client = TestClient(app)
+    try:
+        for lang in i18n.LANGUES:
+            ratelimit.reset()
+            inscription, compte = i18n.chemin(lang, "signup"), i18n.chemin(lang, "compte")
+            # 1. Le formulaire : dans sa langue, postant dans sa langue, sans plan (D54), sans script.
+            texte = client.get(inscription + "?plan=enterprise").text
+            balise = re.search(r'<html lang="([\w-]+)"( dir="rtl")?>', texte)
+            guard(balise is not None and balise.group(1).split("-")[0] == lang, f"{inscription} n'est pas en {lang}")
+            guard(bool(balise.group(2)) == (lang in i18n.RTL), f"{inscription} : sens d'ecriture faux")
+            guard(f'method="post" action="{inscription}"' in texte, f"{inscription} ne poste pas dans sa langue")
+            noms = re.findall(r'<(?:input|select|textarea)\b[^>]*\bname="(\w+)"', texte)
+            guard(noms == ["email", "password", "shop_name", "platform"], f"{inscription} : champs {noms} (D54 : jamais de plan)")
+            for interdit in ("<script", "{{", "<!--@"):
+                guard(interdit not in texte, f"{inscription} contient {interdit!r}")
+            guard(not re.search(r"https?://", texte), f"{inscription} cite une URL externe")
+
+            # 2. L'inscription : un essai, meme si un plan est poste ; la cle montree une fois, no-store,
+            #    noindex, la vraie cle dans le premier appel, seule son empreinte en base.
+            email, secret = f"porte-lot-{lang}@example.re", "porte-lot-mot-de-passe"
+            cree = client.post(inscription, data={
+                "email": email, "password": secret, "shop_name": "<b>Porte</b>", "platform": "shopify", "plan": "enterprise",
+            })
+            guard(cree.status_code == 200, f"POST {inscription} : {cree.status_code}")
+            guard(cree.headers.get("cache-control") == "no-store", f"la page de la cle ({lang}) est cachable")
+            guard('name="robots" content="noindex, nofollow"' in cree.text, f"la page de la cle ({lang}) est indexable")
+            guard("<b>Porte</b>" not in cree.text, f"la page de la cle ({lang}) n'echappe pas le nom de la boutique")
+            cles = re.findall(r"sk_live_[A-Za-z0-9]{32}", cree.text)
+            guard(bool(cles) and f'<span class="key-l">{cles[0]}</span>' in cree.text,
+                  f"la vraie cle n'est pas dans l'exemple de premier appel ({lang})")
+            with fabrique() as session:
+                compte_db = accounts.find_by_email(session, email)
+                guard(compte_db.plan == accounts.PLAN_PAR_DEFAUT, f"inscription {lang} : plan {compte_db.plan!r} (D54)")
+                guard(compte_db.api_key_hash == accounts.api_key_hash(cles[0]) and cles[0] not in compte_db.api_key_hash,
+                      f"inscription {lang} : la base ne garde pas l'empreinte de la cle affichee")
+
+            # 3. L'espace client : ferme par defaut, prive, sans la cle, regeneration dans sa langue,
+            #    estimation dans la monnaie de la langue.
+            anonyme = client.get(compte)
+            guard(anonyme.status_code == 401 and anonyme.headers.get("www-authenticate", "").lower().startswith("basic"),
+                  f"{compte} s'ouvre sans identifiants : {anonyme.status_code}")
+            jeton = base64.b64encode(f"{email}:{secret}".encode()).decode()
+            espace = client.get(compte, headers={"Authorization": f"Basic {jeton}"})
+            guard(espace.status_code == 200 and espace.headers.get("cache-control") == "no-store", f"{compte} : {espace.status_code}")
+            guard(cles[0] not in espace.text and compte_db.api_key_prefix in espace.text, f"{compte} : cle complete ou prefixe absent")
+            guard(f'action="{compte}/cle"' in espace.text, f"{compte} : la regeneration ne poste pas dans sa langue")
+            guard(f">{i18n.prix(lang, 'colis_rate')}<" in espace.text, f"{compte} : l'estimation n'est pas dans la monnaie de la langue")
+    finally:
+        signup_route.SessionLocal = session_avant
+        ratelimit.reset()
+        moteur.dispose()
+    guard("D61" in read("DECISIONS.md"), "la decision D61 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 62)}
 
 
 def catalog() -> list[tuple[str, str]]:

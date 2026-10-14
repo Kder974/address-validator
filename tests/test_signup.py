@@ -210,12 +210,15 @@ def test_statistiques_reelles_dans_l_espace_client(base):
             accounts.record_validation(session, compte.id, "cle-de-cache", issue)
 
     page = client.get("/compte", headers=_auth(FORME["email"], MOT_DE_PASSE)).text
-    assert "sur 100 incluses — reste 95" in page
+    assert "<b>5</b> utilisées sur <b>100</b> incluses" in page
+    assert '<strong class="num">95</strong><span>validations restantes' in page
     # D45 : le quota publie est mensuel, et la page le dit.
-    assert "ce mois-ci :" in page
-    assert "3 adresses invalides ×" in page
-    assert "51.00 $" in page  # 3 x 17 $, borne basse du cout d'un colis en echec
-    assert "17 $ (borne basse" in page  # la formule est montree, pas seulement le total
+    assert "Ce mois-ci (UTC)" in page and "mois calendaire en heure UTC" in page
+    # D57 : l'estimation est dans la monnaie de la page (fr : 15 € le colis rate,
+    # borne basse de la fourchette), et la formule est montree, pas seulement le total.
+    assert "3 adresses invalides multipliées par 15 €" in page
+    assert '<strong class="num">45 €</strong>' in page  # 3 x 15 €
+    assert '× <span class="s">15 €</span>' in page and "borne basse" in page
 
 
 def test_regenerer_la_cle_invalide_l_ancienne(base):
