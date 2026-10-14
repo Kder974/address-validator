@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D65, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D66, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 65
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 66
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -5767,7 +5767,49 @@ def d65() -> None:
     guard("D65" in read("DECISIONS.md"), "la decision D65 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 66)}
+def d66() -> None:
+    """Les pages agents IA et comparatif disent vrai : nos chiffres viennent du code, les leurs ont une source."""
+    from fastapi.testclient import TestClient
+
+    from app import i18n, seo
+    from app.config import get_settings
+    from app.main import app
+    from app.onchain import usdc_units
+    from app.routes import contenu
+
+    client = TestClient(app)
+    guard(set(contenu.PAGES) <= set(seo.PUBLIQUES), "les pages de contenu ne sont pas publiques pour le referencement")
+    for nom in contenu.PAGES:
+        for lang in i18n.LANGUES:
+            adresse = i18n.chemin(lang, nom)
+            reponse = client.get(adresse)
+            guard(reponse.status_code == 200, f"{adresse} : {reponse.status_code}")
+            texte = seo.hors_bloc(reponse.text)
+            guard("<!-- seo -->" in reponse.text and "{{" not in texte and "<script" not in texte, f"{adresse} : bloc absent, champ oublie ou script")
+            gabarit = read(f"app/templates/{nom}/{lang}.html")
+            guard("0.02 USDC" not in gabarit and "0,02 USDC" not in gabarit and "20000" not in gabarit, f"{adresse} : un chiffre du service ecrit dans le gabarit")
+
+    # D48 : le prix x402, ses unites et l'adresse du serveur suivent la configuration.
+    reglages = get_settings().model_copy(update={"x402_price": 0.05, "public_base_url": "https://exemple.test"})
+    agents = contenu.page(reglages, "fr", "agents")
+    guard("0,05 USDC" in agents and str(usdc_units(0.05)) in agents, "le prix x402 de /agents ne suit pas la configuration")
+    guard("https://exemple.test/mcp" in agents, "l'adresse du serveur MCP ne suit pas PUBLIC_BASE_URL")
+
+    # Honnete : sources citees, et quand choisir un autre service.
+    compare = seo.hors_bloc(client.get("/compare").text)
+    for source in ("developers.google.com/maps/billing-and-pricing/pricing", "smarty.com/pricing", "postgrid.com/pricing-address-verification", "geoapify.com/pricing"):
+        guard(source in compare, f"/compare ne cite plus {source}")
+    choix = re.search(r'<ul class="choix">(.*?)</ul>', compare, re.S)
+    guard(choix is not None and "<b>PostGrid</b>" in choix.group(1) and "<b>Google</b>" in choix.group(1), "/compare ne dit plus quand choisir un autre service")
+
+    # Le lien Serveur MCP mene a /agents, plus a /mcp (405 dans un navigateur).
+    for chemin in sorted(ROOT.joinpath("app", "templates").rglob("*.html")):
+        guard('href="/mcp"' not in chemin.read_text(encoding="utf-8"), f"{chemin.relative_to(ROOT)} : lien vers /mcp")
+    guard("](https://kder-ai.com/agents)" in read("llms.txt") and "](https://kder-ai.com/compare)" in read("llms.txt"), "llms.txt ne lie pas les pages de contenu")
+    guard("D66" in read("DECISIONS.md"), "la decision D66 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 67)}
 
 
 def catalog() -> list[tuple[str, str]]:

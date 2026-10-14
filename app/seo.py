@@ -2,13 +2,13 @@
 
 Ce que les moteurs lisent, et ce que le site leur donne :
 
-* **un seul bloc**, dans l'en-tête des cinq pages publiques (accueil, tarifs, guide,
-  essai gratuit, inscription), entre `<!-- seo -->` et `<!-- /seo -->`, produit
+* **un seul bloc**, dans l'en-tête des pages publiques (accueil, tarifs, guide,
+  essai gratuit, inscription, et depuis D66 agents IA et comparatif), entre `<!-- seo -->` et `<!-- /seo -->`, produit
   ici : adresse canonique, aperçus de partage (Open Graph, Twitter), icône, et
   données structurées schema.org en JSON-LD. Les pages privées (espace client,
   connexion, mot de passe) n'en ont pas : elles sont `noindex` ;
 * `robots.txt` (tout le site public ouvert, moteurs d'IA compris, avec l'adresse
-  du plan du site) et `sitemap.xml` (les cinq pages × six langues, avec leurs
+  du plan du site) et `sitemap.xml` (les pages publiques × six langues, avec leurs
   versions de langue `hreflang` en adresses complètes) ;
 * une seule adresse : `www.` renvoie en `301` vers `public_base_url` (Google avait
   indexé les deux).
@@ -42,7 +42,7 @@ DEBUT, FIN = "<!-- seo -->", "<!-- /seo -->"
 _BLOC = re.compile(re.escape(DEBUT) + r".*?" + re.escape(FIN) + r"\n?", re.S)
 
 #: Les pages publiques, indexables, par leur adresse française (`""` = l'accueil).
-PUBLIQUES = ("", "pricing", "guide", "validate-form", "signup")
+PUBLIQUES = ("", "pricing", "guide", "validate-form", "signup", "agents", "compare")
 LOCALES = {"fr": "fr_FR", "en": "en_US", "zh": "zh_CN", "hi": "hi_IN", "es": "es_ES", "ar": "ar_AR"}
 IMAGE = "/images/commercante-colis.jpg"
 ICONE = "/images/favicon.svg"
@@ -112,7 +112,7 @@ def donnees(lang: str, page: str, titre: str, description: str, reglages=None) -
                "publisher": {"@id": f"{base}/#organisation"}}
     if page in ("", "pricing"):
         principal = service
-    elif page == "guide":
+    elif page in ("guide", "agents"):
         principal = {"@type": "TechArticle", "headline": titre, "description": description, "url": url,
                      "inLanguage": lang, "about": {"@id": f"{base}/#api"}}
     elif page == "validate-form":

@@ -11,6 +11,8 @@
 - [Guide d'integration](https://kder-ai.com/guide) : contrat JSON, codes de retour, exemples d'appel.
 - [Tester une adresse](https://kder-ai.com/validate-form) : essai gratuit sans compte.
 - [Creer un compte](https://kder-ai.com/signup) : cle d'API, essai gratuit sans carte bancaire.
+- [Pour les agents IA](https://kder-ai.com/agents) : serveur MCP, paiement x402 a l'appel, sans compte.
+- [Comparatif des prix](https://kder-ai.com/compare) : Google, Smarty, PostGrid, Geoapify et nous, prix dates et sources.
 - [Espace client](https://kder-ai.com/compte) : quota, consommation, cle (connexion requise).
 - [Plan du site](https://kder-ai.com/sitemap.xml) : toutes les pages publiques, dans les six langues.
 

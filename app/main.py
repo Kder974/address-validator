@@ -22,6 +22,7 @@ from app.web import public_headers
 from app.routes import (
     accueil,
     connexion,
+    contenu,
     dashboard,
     guide,
     health,
@@ -111,6 +112,8 @@ app.include_router(guide.router, tags=["commercial"])
 # /en/, /zh/, /hi/, /es/, /ar/ : la vitrine dans les autres langues (D57), chemins
 # littéraux ; le français reste sur / (route `root` ci-dessous).
 app.include_router(accueil.router, tags=["commercial"])
+# /agents et /compare : les pages de contenu, pour être trouvé (D66).
+app.include_router(contenu.router, tags=["commercial"])
 # robots.txt, sitemap.xml, favicon.ico : ce que les moteurs lisent en premier (D65).
 app.include_router(seo.router, tags=["commercial"])
 

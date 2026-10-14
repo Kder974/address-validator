@@ -369,3 +369,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D65: the five public pages in six languages carry exactly one SEO block in their head (canonical URL, Open Graph, icon, schema.org JSON-LD) whose only script is an application/ld+json data block and whose only absolute URLs are PUBLIC_BASE_URL ones, private pages carry none, structured-data prices are those of accounts.OFFRES, a hostile value cannot leave the JSON-LD, search and AI crawlers get the showcase at the root while programs keep the JSON, robots.txt, sitemap.xml (30 URLs with hreflang alternates) and favicon answer, and www redirects to PUBLIC_BASE_URL
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D65
   EXPECT: DECISION OK D65
+- [ ] D66: /agents and /compare answer in six languages, public and indexable with their SEO block and in the sitemap, no unfilled field and no script outside the block; the service figures they show (x402 price and USDC units, MCP server URL, plan prices, quotas, trial) follow the configuration and none is written in their templates; every competitor price has its source as a plain domain and the page says when another service is the better choice; no template links to /mcp any more, the MCP server link leads to /agents
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D66
+  EXPECT: DECISION OK D66

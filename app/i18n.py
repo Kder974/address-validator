@@ -34,7 +34,7 @@ PREFIXEES = tuple(lang for lang in LANGUES if lang != DEFAUT)
 RTL = frozenset({"ar"})
 
 #: Pages publiques, par leur adresse française (`""` = l'accueil).
-PAGES = ("", "pricing", "guide", "validate-form", "signup", "compte")
+PAGES = ("", "pricing", "guide", "validate-form", "signup", "compte", "agents", "compare")
 
 
 def chemin(lang: str, page: str = "") -> str:
