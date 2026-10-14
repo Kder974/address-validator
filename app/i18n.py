@@ -8,7 +8,7 @@ navigation, sélecteur de langue et `hreflang` en sortent tous (`liens()`).
 Prix (décision du 14/10/2026, `PRIX-PAR-LANGUE.md`) : Kder facture en **euros** ;
 chaque langue affiche la conversion arrondie de ces euros dans sa monnaie, avec
 la mention « facturé en euros » (sauf fr/es, qui affichent déjà l'euro). Les
-montants en euros viennent du code (`pricing.OFFRES`) : ils ne sont pas recopiés
+montants en euros viennent du code (`accounts.OFFRES`) : ils ne sont pas recopiés
 ici, ce qui fait échouer les tests le jour où le prix change sans que la table
 convertie soit refaite. Le paiement à l'appel (USDC), les quotas et « Enterprise
 sur devis » ne se convertissent pas.
@@ -26,7 +26,7 @@ from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 
-from app.routes.pricing import OFFRES
+from app.accounts import OFFRES
 
 LANGUES = ("fr", "en", "zh", "hi", "es", "ar")
 DEFAUT = "fr"
@@ -93,7 +93,7 @@ def _euros(nom: str) -> Decimal:
     return Decimal(f"{_offre(nom)['prix_eur']:g}")
 
 
-#: Les montants en euros : ceux que l'API facture (`pricing.OFFRES`), prix
+#: Les montants en euros : ceux que l'API facture (`accounts.OFFRES`), prix
 #: unitaire **calculé** comme sur `/pricing` (D43). Seul le colis raté (15 € /
 #: 15–26 €) n'existe pas en euros dans le code.
 EUROS = {
@@ -109,7 +109,7 @@ EUROS = {
 #: Table de `PRIX-PAR-LANGUE.md`, recopiée telle quelle : conversion arrondie de
 #: 29 € et 79 € aux `TAUX`. `tests/test_i18n.py` et la porte D57 vérifient qu'elle
 #: suit les euros du code (à 1 % près) et que le prix unitaire vaut le prix divisé
-#: par le quota : changer `pricing.OFFRES` sans refaire cette table les fait échouer.
+#: par le quota : changer `accounts.OFFRES` sans refaire cette table les fait échouer.
 CONVERTIS = {
     "USD": {
         "essai": "0", "starter": "33", "pro": "90",

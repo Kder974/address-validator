@@ -314,8 +314,8 @@ Vérification : `.\.venv\Scripts\python.exe scripts\decisions_check.py D53`.
 ### 4.8 Six langues (D57)
 
 Le français reste à la racine ; les cinq autres langues ont leur préfixe. La vitrine,
-le guide (D58) et l'essai gratuit (D59) existent aujourd'hui dans les six ; les autres
-pages suivront, aux mêmes adresses.
+le guide (D58), l'essai gratuit (D59) et les tarifs (D60) existent aujourd'hui dans les
+six ; l'inscription et l'espace client suivront, aux mêmes adresses.
 
 | Langue | Accueil | Monnaie affichée (facturé en euros) |
 |---|---|---|
@@ -328,7 +328,8 @@ pages suivront, aux mêmes adresses.
 
 `app/i18n.py` fabrique les adresses (`chemin(lang, page)`), les nombres et les prix de
 chaque langue (`prix`, `mention_euros`, taux de septembre 2026) et rend les gabarits
-(`rendre`). Les montants en euros viennent de `pricing.OFFRES` : changer un prix sans
+(`rendre`). Les montants en euros viennent d'`accounts.OFFRES` (aussi lisibles sous
+`pricing.OFFRES`) : changer un prix sans
 refaire la table convertie fait échouer `tests/test_i18n.py` et la porte D57. Les
 photos sont servies par l'application sous `/images/` : la CSP publique n'ouvre que
 `img-src 'self'`.

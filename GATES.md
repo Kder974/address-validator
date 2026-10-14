@@ -351,3 +351,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D59: the free trial page speaks six languages: /validate-form (French) and /en/validate-form to /ar/validate-form answer GET and POST on literal routes, each form posts to its own language, the real pipeline result is shown in that language, a provider outage is never shown as an invalid address, and the per-IP cap is shared across languages with an exact Retry-After and a localized 429
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D59
   EXPECT: DECISION OK D59
+- [ ] D60: the pricing page speaks six languages: /pricing (French) and /en/pricing to /ar/pricing are literal public routes, prices come from i18n.prix with the billed-in-euros notice, unit prices are the price divided by the accounts.PLANS quota with the division shown, trial length, x402 price and contact follow the configuration, the Enterprise button opens mailto: to the configured contact, Starter and Pro lead to the sign-up of the same language without a plan, and no testimonial is ever published
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D60
+  EXPECT: DECISION OK D60
