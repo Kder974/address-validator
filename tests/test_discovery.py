@@ -156,3 +156,19 @@ def test_prune_applies_the_announced_retention(journal):
     assert observability.prune(journal, 30) == 1
     restant = [json.loads(l) for l in journal.read_text(encoding="utf-8").splitlines() if l.strip()]
     assert len(restant) == 1 and restant[0]["ts"] == recente
+
+
+def test_client_ip_lit_la_derniere_entree_de_x_forwarded_for():
+    """D56 : Nginx ajoute l'IP réelle à la fin ; ce qui précède vient du client."""
+    from types import SimpleNamespace
+
+    def requete(entete, socket="127.0.0.1"):
+        return SimpleNamespace(
+            headers={"X-Forwarded-For": entete} if entete is not None else {},
+            client=SimpleNamespace(host=socket),
+        )
+
+    assert observability.client_ip(requete("203.0.113.9")) == "203.0.113.9"
+    assert observability.client_ip(requete("6.6.6.6, 203.0.113.9")) == "203.0.113.9"
+    assert observability.client_ip(requete("1.1.1.1, 2.2.2.2,203.0.113.9 ")) == "203.0.113.9"
+    assert observability.client_ip(requete(None)) == "127.0.0.1"

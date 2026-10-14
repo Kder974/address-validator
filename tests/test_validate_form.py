@@ -228,6 +228,24 @@ def test_le_plafond_est_par_ip(monkeypatch):
     assert meme.status_code == 429
 
 
+def test_une_fausse_ip_glissee_devant_ne_contourne_pas_le_plafond(monkeypatch):
+    # D56 : derrière Nginx, l'IP réelle est la DERNIÈRE entrée de X-Forwarded-For ;
+    # ce que le client écrit devant ne doit pas lui ouvrir un nouveau plafond.
+    _pipeline(monkeypatch)
+    _limite(monkeypatch, 2)
+
+    codes = [
+        client.post(
+            "/validate-form",
+            data=ADRESSE,
+            headers={"X-Forwarded-For": f"198.51.100.{n}, 203.0.113.9"},
+        ).status_code
+        for n in range(4)
+    ]
+
+    assert codes == [200, 200, 429, 429]
+
+
 def test_un_resultat_degrade_n_est_pas_un_verdict(monkeypatch):
     """La panne du fournisseur n'est pas imputée à l'adresse du visiteur."""
     _pipeline(monkeypatch, resultat={**RESULTAT, "validated": False, "degraded": True})
