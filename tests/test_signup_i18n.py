@@ -36,6 +36,7 @@ from app.config import get_settings
 from app.main import app
 from app.models import Customer, CustomerValidation
 from app.routes import signup as route
+from app.routes import tableau
 
 client = TestClient(app)
 
@@ -308,13 +309,19 @@ def test_le_montant_suit_la_table_des_prix(lang):
 def test_l_espace_client_est_ferme_par_defaut(base, lang):
     textes = route.TEXTES[lang]
     email, _cle = _inscrit(base, lang)
-    for entetes, message in (({}, textes["auth_requise"]), (_auth(email, "mauvais"), textes["auth_refus"]),
+    # D62 : sans session, la page de connexion de la langue, jamais le défi Basic.
+    anonyme = client.get(_compte(lang), follow_redirects=False)
+    assert anonyme.status_code == 303 and anonyme.headers["location"] == _compte(lang) + "/connexion"
+    assert "www-authenticate" not in anonyme.headers and anonyme.headers["cache-control"] == "no-store"
+    # Un script qui envoie Basic de lui-même garde ses réponses.
+    for entetes, message in (({"Authorization": "Basic !!"}, textes["auth_requise"]),
+                             (_auth(email, "mauvais"), textes["auth_refus"]),
                              (_auth("inconnu@example.re"), textes["auth_refus"])):
         refus = client.get(_compte(lang), headers=entetes)
         assert refus.status_code == 401 and refus.text == message
         assert refus.headers["www-authenticate"].lower().startswith("basic")
         assert refus.headers["cache-control"] == "no-store"
-    assert client.post(_compte(lang) + "/cle").status_code == 401
+    assert client.post(_compte(lang) + "/cle", follow_redirects=False).status_code == 303
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUES)
@@ -337,25 +344,19 @@ def test_l_espace_client_montre_les_vraies_valeurs(base, lang):
     # Le préfixe seul, jamais la clé ; la régénération poste dans la langue de la page.
     assert f"{prefixe}…" in page and cle not in page and not CLE.search(page)
     assert f'<form method="post" action="{_compte(lang)}/cle">' in page
-    # Jauge du quota mensuel : compte réel, quota du plan, remise à zéro le 1er du mois suivant (UTC).
+    # D64 : le mois en tête (compte réel, quota du plan), le total depuis la création, la formule.
+    tab = tableau.TEXTES[lang]
     quota = accounts.PLANS["trial"]
-    assert '<i style="--u:5">' in page
-    assert f'<strong class="num">{nombre(quota - 5)}</strong>' in page
-    assert textes["jauge"].format(n=nombre(5), quota=nombre(quota), r=nombre(quota - 5)) in lu
-    suivant = (accounts.month_start() + timedelta(days=32)).replace(day=1)
-    reset = f"{suivant.month} 月 1 日" if lang == "zh" else route.MOIS_COURTS[lang][suivant.month - 1]
-    assert re.search(r'<li class="mile"><b>[^<]*(?:<sup>[^<]*</sup>)?[^<]*' + re.escape(reset), lu)
-    # À vie et ce mois-ci, invalides, économies avec leur formule, dans la monnaie de la langue.
-    assert page.count(f'<strong class="num">{nombre(5)}</strong>') == 2
-    assert page.count(f'<strong class="num">{nombre(2)}</strong>') == 2
+    assert f"\u2066{nombre(quota - 5)} / {nombre(quota)}\u2069" in page
+    assert tab["depuis"].format(v=nombre(5), i=nombre(2)) in lu
+    assert route._pluriel(lang, 2, tab["titre_inv"]).format(n=nombre(2)) in lu
+    assert route._date(lang, accounts.month_start(), "courte") in lu
     cout = i18n.prix(lang, "colis_rate")
     total = route._montant(lang, 2 * i18n.MONTANTS[i18n.DEVISE[lang]]["colis_rate"])
     assert textes["calcul"][1].format(n=nombre(2), cout=cout, total=total) in lu
     assert f">{total}<" in lu and f">{cout}<" in lu
-    assert route._montant(lang, i18n.MONTANTS[i18n.DEVISE[lang]]["colis_rate_max"]) in lu
-    # Essai en cours : pas de bandeau, la frise des jours et la fin d'essai dans la langue.
-    assert 'class="state ' not in page
-    assert '<span class="days"' in page and 'class="mile m-end"' in page
+    # Essai en cours : pas de bandeau d'état, la prochaine étape parle de l'essai.
+    assert 'class="state ' not in page and tab["prochaine"] in lu
     assert _bloc(lang, "compte", "fact_essai") in page and _bloc(lang, "compte", "fact_payant") not in page
     assert i18n.mention_euros(lang) in page
     assert re.findall(r'<a href="([^"]*)" hreflang="([\w-]+)"', page) == [(_compte(autre), autre) for autre in i18n.LANGUES]
@@ -391,7 +392,6 @@ def test_les_bandeaux_sont_ceux_que_le_code_produit(base, lang):
     lu = unescape(page)
     assert 'class="state s-expired"' in page and 'class="state s-quota"' not in page
     assert textes["etats"]["expire"]["titre"] in lu and i18n.prix(lang, "starter") in lu
-    assert 'class="mile m-end"' not in page  # la fin d'essai est passée : plus de jalon
 
     # Plan payant accordé à la main, sans date d'essai : servi, et dit comme tel.
     with base() as session:
@@ -403,9 +403,8 @@ def test_les_bandeaux_sont_ceux_que_le_code_produit(base, lang):
     lu = unescape(page)
     assert 'class="state s-paid"' in page and '<span class="code">Starter</span>' in page
     assert textes["essai_aucun"] in lu
-    assert '<span class="days"' not in page and 'class="mile m-end"' not in page
     assert _bloc(lang, "compte", "fact_payant") in page and _bloc(lang, "compte", "fact_essai") not in page
-    assert f">{i18n.nombre(lang, accounts.PLANS['starter'])}<" in page
+    assert tableau.TEXTES[lang]["offre_mois"].format(quota=i18n.nombre(lang, accounts.PLANS["starter"])) in lu
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUES)

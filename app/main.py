@@ -20,12 +20,14 @@ from app.observability import configure_logging
 from app.web import public_headers
 from app.routes import (
     accueil,
+    connexion,
     dashboard,
     guide,
     health,
     manifest,
     mcp,
     metrics,
+    mot_de_passe,
     pricing,
     prospection,
     revenue,
@@ -90,6 +92,12 @@ app.include_router(pricing.router, tags=["commercial"])
 # en écriture (l'inscription est ouverte), fermées en lecture (`/compte` exige le
 # couple email/mot de passe) et plafonnées par IP (`app/ratelimit.py`).
 app.include_router(signup.router, tags=["commercial"])
+# /compte/connexion et /compte/deconnexion : la page de connexion et la session
+# de l'espace client (D62), à la place de la fenêtre grise du défi Basic.
+app.include_router(connexion.router, tags=["commercial"])
+# /compte/mot-de-passe-oublie et /compte/nouveau-mot-de-passe : un lien par mail,
+# 30 minutes, une seule fois (D63). Le service ne connaît pas les mots de passe.
+app.include_router(mot_de_passe.router, tags=["commercial"])
 # /validate-form : l'essai gratuit public (D46, élément 3 de la campagne). Même
 # pipeline que la route payante, mais aucune écriture : ni base des comptes, ni
 # registre des paiements. Plafonné par IP (app/ratelimit.py), et le refus parle

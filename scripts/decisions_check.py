@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D61, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D64, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 61
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 64
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -3187,7 +3187,12 @@ def d44() -> None:
         guard("existe déjà" in doublon.text, "le doublon n'est pas explique")
 
         # 5. /compte ferme par defaut, et n'affiche jamais la cle complete.
-        guard(client.get("/compte").status_code == 401, "l'espace client s'ouvre sans identifiants")
+        # D62 : sans session, renvoi vers la page de connexion, jamais l'espace lui-meme.
+        anonyme = client.get("/compte", follow_redirects=False)
+        guard(
+            anonyme.status_code == 303 and anonyme.headers.get("location") == "/compte/connexion",
+            "l'espace client s'ouvre sans identifiants",
+        )
         guard(
             client.get("/compte", headers=auth(forme["email"], "mauvais")).status_code == 401,
             "un mauvais mot de passe ouvre l'espace client",
@@ -5411,9 +5416,10 @@ def d61() -> None:
 
             # 3. L'espace client : ferme par defaut, prive, sans la cle, regeneration dans sa langue,
             #    estimation dans la monnaie de la langue.
-            anonyme = client.get(compte)
-            guard(anonyme.status_code == 401 and anonyme.headers.get("www-authenticate", "").lower().startswith("basic"),
-                  f"{compte} s'ouvre sans identifiants : {anonyme.status_code}")
+            anonyme = client.get(compte, follow_redirects=False)
+            guard(anonyme.status_code == 303 and anonyme.headers.get("location") == compte + "/connexion"
+                  and "www-authenticate" not in anonyme.headers,
+                  f"{compte} s'ouvre sans identifiants : {anonyme.status_code} (D62 : page de connexion)")
             jeton = base64.b64encode(f"{email}:{secret}".encode()).decode()
             espace = client.get(compte, headers={"Authorization": f"Basic {jeton}"})
             guard(espace.status_code == 200 and espace.headers.get("cache-control") == "no-store", f"{compte} : {espace.status_code}")
@@ -5427,7 +5433,272 @@ def d61() -> None:
     guard("D61" in read("DECISIONS.md"), "la decision D61 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 62)}
+def d62() -> None:
+    """L'espace client a une page de connexion et une session : jamais le defi Basic pour un navigateur, cookie sur, echecs bloques, autre site refuse."""
+    import hashlib
+    import tempfile
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import i18n, ratelimit
+    from app.config import get_settings
+    from app.main import app
+    from app.models import Customer, CustomerSession, CustomerValidation
+    from app.routes import connexion as connexion_route
+    from app.routes import signup as signup_route
+
+    reglages = get_settings()
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp(prefix='porte-d62-')) / 'clients.sqlite'}")
+    for modele in (Customer, CustomerValidation, CustomerSession):
+        modele.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+    avant = signup_route.SessionLocal, connexion_route.SessionLocal, connexion_route.get_settings
+    signup_route.SessionLocal = connexion_route.SessionLocal = fabrique
+    try:
+        for lang in i18n.LANGUES:
+            ratelimit.reset()
+            client = TestClient(app, base_url="https://testserver")
+            compte = i18n.chemin(lang, "compte")
+            connexion = compte + "/connexion"
+            email, secret = f"porte-d62-{lang}@example.re", "porte-d62-mot-de-passe"
+            cree = client.post(i18n.chemin(lang, "signup"), data={"email": email, "password": secret, "shop_name": "Porte", "platform": "shopify"})
+            guard(cree.status_code == 200, f"inscription {lang} : {cree.status_code}")
+
+            # 1. Sans session : la page de connexion de la langue, jamais le defi Basic.
+            anonyme = client.get(compte, follow_redirects=False)
+            guard(
+                anonyme.status_code == 303 and anonyme.headers.get("location") == connexion and "www-authenticate" not in anonyme.headers,
+                f"{compte} sans session : {anonyme.status_code} {anonyme.headers.get('www-authenticate')}",
+            )
+            page = client.get(connexion)
+            guard(
+                page.status_code == 200 and page.headers.get("cache-control") == "no-store" and 'content="noindex, nofollow"' in page.text,
+                f"{connexion} n'est pas une page privee",
+            )
+            for interdit in ("<script", "{{", "<!--@"):
+                guard(interdit not in page.text, f"{connexion} contient {interdit!r}")
+            guard(f'method="post" action="{connexion}"' in page.text, f"{connexion} ne poste pas dans sa langue")
+
+            # 2. Echecs : N mots de passe faux bloquent, meme le bon ensuite.
+            for _ in range(reglages.login_max_failures):
+                faux = client.post(connexion, data={"email": email, "password": "faux"}, follow_redirects=False)
+                guard(faux.status_code == 400 and "set-cookie" not in faux.headers, f"{connexion} : un mot de passe faux obtient {faux.status_code}")
+            bloque = client.post(connexion, data={"email": email, "password": secret}, follow_redirects=False)
+            guard(
+                bloque.status_code == 429 and 0 < int(bloque.headers.get("retry-after", "0")) <= reglages.login_lock_minutes * 60,
+                f"{connexion} : apres {reglages.login_max_failures} echecs, le bon mot de passe obtient {bloque.status_code}",
+            )
+            ratelimit.reset()
+
+            # 3. Formulaire d'un autre site : refuse, sans cookie.
+            etranger = client.post(connexion, data={"email": email, "password": secret}, headers={"Origin": "https://pirate.example"}, follow_redirects=False)
+            guard(etranger.status_code == 403 and "set-cookie" not in etranger.headers, f"{connexion} accepte un formulaire d'un autre site")
+
+            # 4. Connexion : cookie sur, empreinte seule en base, espace ouvert.
+            entree = client.post(connexion, data={"email": email, "password": secret}, follow_redirects=False)
+            cookie = entree.headers.get("set-cookie", "")
+            trouve = re.match(rf"{connexion_route.COOKIE}=([^;]+);", cookie)
+            guard(entree.status_code == 303 and trouve is not None, f"{connexion} : connexion {entree.status_code}")
+            for attribut in ("httponly", "secure", "path=/", "samesite=lax", f"max-age={reglages.session_hours * 3600}"):
+                guard(attribut in cookie.lower(), f"cookie de session sans {attribut}")
+            with fabrique() as session:
+                empreintes = [ligne.token_hash for ligne in session.query(CustomerSession).all()]
+            guard(
+                hashlib.sha256(trouve.group(1).encode()).hexdigest() in empreintes and trouve.group(1) not in empreintes,
+                "la base ne garde pas seulement l'empreinte du jeton de session",
+            )
+            espace = client.get(compte)
+            guard(espace.status_code == 200 and espace.headers.get("cache-control") == "no-store", f"{compte} avec session : {espace.status_code}")
+
+            # 5. Deconnexion : la copie du cookie ne rouvre rien.
+            client.post(compte + "/deconnexion", follow_redirects=False)
+            copie = TestClient(app, base_url="https://testserver", cookies={connexion_route.COOKIE: trouve.group(1)})
+            guard(copie.get(compte, follow_redirects=False).status_code == 303, f"{compte} : un cookie de session ferme rouvre l'espace")
+
+        # 6. Ce qui est montre est ce qui est applique (D48) : changer la configuration change la page.
+        autre = reglages.model_copy(update={"session_hours": 7, "login_max_failures": 9, "login_lock_minutes": 23})
+        connexion_route.get_settings = lambda: autre
+        for lang in i18n.LANGUES:
+            texte = connexion_route.page(lang).body.decode()
+            for valeur in (7, 9, 23):
+                guard(re.search(rf"(?<![\d.,]){valeur}(?![\d.,])", texte) is not None, f"connexion {lang} : {valeur} n'est pas affiche")
+    finally:
+        signup_route.SessionLocal, connexion_route.SessionLocal, connexion_route.get_settings = avant
+        ratelimit.reset()
+        moteur.dispose()
+    guard("D62" in read("DECISIONS.md"), "la decision D62 n'est plus consignee dans DECISIONS.md")
+
+
+def d63() -> None:
+    """Mot de passe oublie : meme reponse compte connu ou non, lien sur l'adresse officielle, empreinte seule, une seule fois, sessions fermees."""
+    import tempfile
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import accounts, i18n, ratelimit
+    from app.config import get_settings
+    from app.main import app
+    from app.models import Customer, CustomerSession, CustomerValidation, PasswordReset
+    from app.routes import connexion as connexion_route
+    from app.routes import mot_de_passe as route
+    from app.routes import signup as signup_route
+
+    reglages = get_settings()
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp(prefix='porte-d63-')) / 'clients.sqlite'}")
+    for modele in (Customer, CustomerValidation, CustomerSession, PasswordReset):
+        modele.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+    mails: list = []
+    modules = (signup_route, connexion_route, route)
+    avant = [module.SessionLocal for module in modules], route.envoyer_mail, route.get_settings
+    for module in modules:
+        module.SessionLocal = fabrique
+    route.envoyer_mail = lambda *mail: mails.append(mail)
+    try:
+        for lang in i18n.LANGUES:
+            ratelimit.reset()
+            mails.clear()
+            client = TestClient(app, base_url="https://testserver")
+            email, ancien, nouveau = f"porte-d63-{lang}@example.re", "porte-d63-ancien-mot", "porte-d63-nouveau-mot"
+            client.post(i18n.chemin(lang, "signup"), data={"email": email, "password": ancien, "shop_name": "Porte", "platform": "shopify"})
+
+            # 1. Meme reponse, mot pour mot, que le compte existe ou non ; un seul mail.
+            connu = client.post(route.chemin_oubli(lang), data={"email": email}, headers={"Host": "pirate.example"})
+            inconnu = client.post(route.chemin_oubli(lang), data={"email": f"inconnu-{lang}@example.re"})
+            guard(connu.status_code == inconnu.status_code == 200 and connu.text == inconnu.text,
+                  f"{route.chemin_oubli(lang)} : la reponse dit si le compte existe")
+            guard(len(mails) == 1 and mails[0][0] == email, f"{route.chemin_oubli(lang)} : mails envoyes {[m[0] for m in mails]}")
+
+            # 2. Le lien : adresse officielle (jamais Host), empreinte seule en base.
+            prefixe = reglages.public_base_url.rstrip("/") + route.chemin_nouveau(lang) + "?jeton="
+            trouve = re.search(re.escape(prefixe) + r"([\w-]+)", mails[0][2])
+            guard(trouve is not None and "pirate.example" not in mails[0][2], f"lien {lang} : pas sur public_base_url")
+            jeton = trouve.group(1)
+            with fabrique() as session:
+                empreintes = [ligne.token_hash for ligne in session.query(PasswordReset).all()]
+            guard(accounts._empreinte_jeton(jeton) in empreintes and jeton not in empreintes,
+                  f"lien {lang} : la base ne garde pas que l'empreinte")
+
+            # 3. Nouveau mot de passe : connecte, ancien mot refuse, lien use.
+            page = client.get(f"{route.chemin_nouveau(lang)}?jeton={jeton}")
+            guard(page.status_code == 200 and page.headers.get("cache-control") == "no-store", f"lien {lang} : {page.status_code}")
+            fait = client.post(route.chemin_nouveau(lang), data={"jeton": jeton, "password": nouveau, "password2": nouveau}, follow_redirects=False)
+            guard(fait.status_code == 303 and connexion_route.COOKIE in fait.headers.get("set-cookie", ""), f"nouveau mot de passe {lang} : {fait.status_code}")
+            refuse = client.post(connexion_route.chemin_connexion(lang), data={"email": email, "password": ancien}, follow_redirects=False)
+            guard(refuse.status_code == 400, f"{lang} : l'ancien mot de passe ouvre encore le compte")
+            reutilise = client.post(route.chemin_nouveau(lang), data={"jeton": jeton, "password": nouveau, "password2": nouveau}, follow_redirects=False)
+            guard(reutilise.status_code == 400, f"{lang} : un lien deja servi marche encore")
+
+            # 4. Formulaire d'un autre site : refuse, aucun mail.
+            mails.clear()
+            etranger = client.post(route.chemin_oubli(lang), data={"email": email}, headers={"Origin": "https://pirate.example"})
+            guard(etranger.status_code == 403 and not mails, f"{route.chemin_oubli(lang)} accepte un formulaire d'un autre site")
+
+        # 5. Ce qui est montre est ce qui est applique (D48) : la duree du lien vient de la configuration.
+        autre = reglages.model_copy(update={"password_reset_minutes": 47})
+        route.get_settings = lambda: autre
+        for lang in i18n.LANGUES:
+            guard(i18n.nombre(lang, 47) in route._oubli_page(lang).body.decode(), f"oubli {lang} : la duree du lien n'est pas celle de la configuration")
+    finally:
+        for module, session_local in zip(modules, avant[0]):
+            module.SessionLocal = session_local
+        route.envoyer_mail, route.get_settings = avant[1], avant[2]
+        ratelimit.reset()
+        moteur.dispose()
+    guard("D63" in read("DECISIONS.md"), "la decision D63 n'est plus consignee dans DECISIONS.md")
+
+
+def d64() -> None:
+    """Le tableau de bord dit le mois reel et la prochaine etape que l'etat du compte impose, dans les six langues."""
+    import base64
+    import tempfile
+    from datetime import datetime, timedelta, timezone
+    from html import unescape
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import accounts, i18n, ratelimit
+    from app.main import app
+    from app.models import Customer, CustomerSession, CustomerValidation
+    from app.routes import signup as signup_route
+    from app.routes import tableau
+
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp(prefix='porte-d64-')) / 'clients.sqlite'}")
+    for modele in (Customer, CustomerValidation, CustomerSession):
+        modele.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+    avant = signup_route.SessionLocal
+    signup_route.SessionLocal = fabrique
+    try:
+        for lang in i18n.LANGUES:
+            ratelimit.reset()
+            t = tableau.TEXTES[lang]
+            client = TestClient(app, base_url="https://testserver")
+            email, secret = f"porte-d64-{lang}@example.re", "porte-d64-mot-de-passe"
+            client.post(i18n.chemin(lang, "signup"), data={"email": email, "password": secret, "shop_name": "Porte", "platform": "shopify"})
+            entete = {"Authorization": "Basic " + base64.b64encode(f"{email}:{secret}".encode()).decode()}
+            compte = i18n.chemin(lang, "compte")
+
+            # 1. Compte neuf : la prochaine etape est le premier appel.
+            neuf = unescape(client.get(compte, headers=entete).text)
+            guard(t["titre_vide"] in neuf and t["premier"] in neuf, f"{compte} : un compte neuf ne commence pas par le premier appel")
+
+            # 2. Des validations : les chiffres du mois sont ceux de la base, jour par jour.
+            with fabrique() as session:
+                client_db = accounts.find_by_email(session, email)
+                for issue in (True, True, False):
+                    accounts.record_validation(session, client_db.id, "cle", issue)
+                jours = accounts.daily_usage(session, client_db)
+                statut = accounts.plan_status(session, client_db)
+            guard(sum(n for n, _ in jours) == statut["validations_mois"] == 3, f"{lang} : les jours ne somment pas au compteur du mois")
+            reponse = client.get(compte, headers=entete)
+            texte, lu = reponse.text, unescape(reponse.text)
+            guard(reponse.status_code == 200 and reponse.headers.get("cache-control") == "no-store", f"{compte} : {reponse.status_code}")
+            for interdit in ("{{", "<!--@", "<script"):
+                guard(interdit not in texte, f"{compte} contient {interdit!r}")
+            nombre = lambda valeur: i18n.nombre(lang, valeur)  # noqa: E731
+            guard(signup_route._pluriel(lang, 1, t["titre_inv"]).format(n=nombre(1)) in lu, f"{compte} : le fait du mois n'est pas dit")
+            guard(f"⁦{nombre(97)} / {nombre(100)}⁩" in texte, f"{compte} : les validations restantes ne sont pas celles du compte")
+            calcul = signup_route._pluriel(lang, 1, signup_route.TEXTES[lang]["calcul"]).format(
+                n=nombre(1), cout=i18n.prix(lang, "colis_rate"), total=signup_route._montant(lang, i18n.MONTANTS[i18n.DEVISE[lang]]["colis_rate"]))
+            guard(calcul in lu, f"{compte} : la formule des economies a disparu")
+            guard(client_db.api_key_prefix in texte and f'action="{compte}/cle"' in texte, f"{compte} : prefixe ou regeneration absents")
+            guard(texte.count("<polyline") == 5, f"{compte} : les courbes du mois manquent")
+
+        # 3. La prevision n'apparait que si l'epuisement tombe avant la fin de l'essai.
+        maintenant, fin = datetime(2026, 10, 14, 12, tzinfo=timezone.utc), datetime(2026, 10, 28, 12, tzinfo=timezone.utc)
+        base = {"plan": "trial", "quota": 100, "validations": 69, "invalides": 0, "validations_mois": 69, "restant": 31,
+                "trial_ends_at": fin, "trial_expire": False, "expire": False, "trial_jours_restants": 13, "quota_atteint": False}
+        infos = {"shop_name": "P", "email": "p@example.re", "prefixe": "sk_live_ab12", "cree_le": None}
+        rapide = unescape(tableau.page("fr", infos=infos, statut=base, maintenant=maintenant, jours=[(5, 0)] * 13 + [(4, 0)]).body.decode())
+        date_epuise = signup_route._date("fr", maintenant + timedelta(days=7), "longue")
+        guard(f"elles seront épuisées vers le {date_epuise}" in rapide, "le rythme qui epuise l'essai n'est pas annonce")
+        lent = unescape(tableau.page("fr", infos=infos, statut={**base, "validations": 14, "validations_mois": 14, "restant": 86},
+                                     maintenant=maintenant, jours=[(1, 0)] * 14).body.decode())
+        guard("épuisées" not in lent, "une prevision est annoncee alors que le rythme ne l'impose pas")
+        # 4. Les etats du code passent avant tout : essai termine, quota atteint.
+        expire = tableau.page("fr", infos=infos, statut={**base, "trial_expire": True, "expire": True}, maintenant=maintenant, jours=[(5, 0)] * 14).body.decode()
+        guard('class="state s-expired"' in expire, "l'essai termine n'est pas la prochaine etape")
+        # 5. Rien d'ecrit en dur : un quota inconnu s'affiche tel quel.
+        autre = tableau.page("fr", infos=infos, statut={**base, "quota": 7777, "restant": 7708}, maintenant=maintenant, jours=[(5, 0)] * 14).body.decode()
+        guard("⁦7 708 / 7 777⁩" in autre, "le quota affiche n'est pas celui du plan")
+    finally:
+        signup_route.SessionLocal = avant
+        ratelimit.reset()
+        moteur.dispose()
+    guard("D64" in read("DECISIONS.md"), "la decision D64 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 65)}
 
 
 def catalog() -> list[tuple[str, str]]:

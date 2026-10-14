@@ -67,6 +67,40 @@ class Customer(Base):
     created_at = Column(DateTime, server_default=func.current_timestamp(), index=True)
 
 
+class CustomerSession(Base):
+    """Une connexion ouverte à l'espace client (D62).
+
+    La base garde l'**empreinte** SHA-256 du jeton, jamais le jeton : une copie de
+    la base ne permet d'ouvrir aucune session. Fermer une session, c'est effacer
+    sa ligne ; une ligne échue ne vaut plus rien, même si le cookie revient.
+    """
+
+    __tablename__ = "customer_sessions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, server_default=func.current_timestamp())
+    expires_at = Column(DateTime, nullable=False)
+
+
+class PasswordReset(Base):
+    """Un lien « mot de passe oublié » envoyé par mail (D63).
+
+    Comme pour les sessions, la base garde l'**empreinte** du jeton du lien, jamais
+    le jeton. `used_at` rempli = lien consommé : il ne sert qu'une fois.
+    """
+
+    __tablename__ = "password_resets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, server_default=func.current_timestamp())
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime)
+
+
 class CustomerValidation(Base):
     """Une validation servie à un compte (D44) : source des statistiques.
 
