@@ -1,0 +1,476 @@
+<!doctype html>
+<!--
+  inscription-cle-ar · Version arabe (RTL) de inscription-cle-fr.html (page affichée une fois après POST /signup) ; sources et hypothèses : voir inscription-cle-fr.html.
+  Mécanique RTL reprise de accueil-ar.html. Spécifique à cette page :
+  - le coffre est en miroir (icône à droite, tampon « affiché une seule fois » à gauche) mais la boîte de la clé est un ilot LTR :
+    sk_live_ à gauche, coupure après le préfixe, reflet qui balaie dans le sens de lecture de la clé ; liseré et halos du coffre en miroir ;
+  - empreinte, identifiant et raccourcis clavier (⌘C, Ctrl C) en ilots LTR isolés ;
+  - barre d'essai qui se remplit depuis la droite, dates « aujourd'hui » à droite et « fin » à gauche ; frise des trois gestes à droite ;
+  - bloc de code LTR, commentaires en arabe isolés en RTL.
+-->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تم إنشاء حسابك · Address Validator</title>
+<meta name="description" content="تم إنشاء حسابك في Address Validator: يظهر مفتاح API الخاص بك مرة واحدة فقط في هذه الصفحة.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="alternate" hreflang="fr" href="inscription-cle-fr.html">
+<link rel="alternate" hreflang="en" href="inscription-cle-en.html">
+<link rel="alternate" hreflang="zh" href="inscription-cle-zh.html">
+<link rel="alternate" hreflang="hi" href="inscription-cle-hi.html">
+<link rel="alternate" hreflang="es" href="inscription-cle-es.html">
+<link rel="alternate" hreflang="ar" href="inscription-cle-ar.html">
+<link rel="alternate" hreflang="x-default" href="inscription-cle-en.html">
+<style>
+:root{
+  --ink:#0b1b34;--ink-soft:#14223d;--muted:#4b5974;--faint:#66738c;
+  --line:#e2e7f0;--bg:#fff;--soft:#f5f7fb;
+  --accent:#1f3bff;--accent-deep:#1429cc;--accent-wash:#e9edff;
+  --ok:#0a7350;--ok-bg:#dff5ea;--warn:#9a5b00;--warn-bg:#fff1d6;--bad:#b42318;
+  --navy:#0b1b34;--navy-2:#0d2242;
+  --saffron:#ffc15e;--tang:#ff9455;--coral:#ff6f61;--aqua:#2fd3c1;--sky:#4ab3ff;--cobalt:#3150ff;
+  --sans:"SF Arabic","Geeza Pro","Segoe UI","Noto Sans Arabic","Tahoma",-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif;
+  --latin:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --expo:cubic-bezier(.16,1,.3,1);
+  --sh-lg:0 50px 100px -20px rgba(20,40,110,.26),0 30px 60px -30px rgba(0,0,0,.3);
+  --sh-md:0 13px 27px -5px rgba(20,40,110,.16),0 8px 16px -8px rgba(0,0,0,.16);
+  --sh-sm:0 2px 5px -1px rgba(20,40,110,.12),0 1px 3px -1px rgba(0,0,0,.1);
+  --g:clamp(16px,4vw,40px);
+  --nav-h:84px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;font-size:106.25%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1.0625rem/1.85 var(--sans);letter-spacing:normal;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:inherit}
+h1,h2,h3,p,ul,ol,dl,dd,figure{margin:0}
+h1,h2,h3{text-wrap:balance}
+p,li,dd{text-wrap:pretty}
+code,.mono{font-family:var(--mono)}
+/* RTL : ilots latins en police latine (le point et la virgule des polices arabes sont reduits), fragments arabes dans le code en police arabe */
+.lat,.brand,.mail{font-family:var(--latin)}
+.ar{font-family:var(--sans);font-size:1.12em}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:8px}
+.dark :focus-visible{outline-color:#9db2ff}
+.wrap{width:min(100% - 2*var(--g),1180px);margin-inline:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.skip{position:absolute;inset-inline-start:16px;top:-80px;z-index:99;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none}
+.skip:focus{top:12px}
+
+/* ---------- Boutons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;min-height:48px;padding:0 1.35rem;border:0;border-radius:999px;font:600 .97rem/1 var(--sans);letter-spacing:normal;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background-color .2s ease,box-shadow .35s var(--expo)}
+.btn-accent{background:var(--accent);color:#fff;box-shadow:0 1px 1px rgba(11,27,52,.14),0 8px 18px -8px rgba(31,59,255,.6)}
+.btn-accent:hover{background:var(--accent-deep)}
+.btn-glass{background:rgba(255,255,255,.74);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.btn-glass:hover{background:#fff}
+.btn-ink{background:var(--ink);color:#fff}
+.btn-ink:hover{background:#1b2f52}
+.btn-sm{min-height:44px;padding:0 1.1rem;font-size:.93rem}
+.arr{width:10px;height:10px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;overflow:visible;transform:scaleX(-1)}
+.arr .l{opacity:0;transition:opacity .2s ease}
+.arr .h{transition:transform .35s var(--expo)}
+a:hover .arr .l,button:hover .arr .l{opacity:1}
+a:hover .arr .h,button:hover .arr .h{transform:translateX(2px)}
+.link{display:inline-flex;align-items:center;gap:.45em;min-height:44px;font-weight:600;color:var(--accent);text-decoration:none}
+.link:hover{color:var(--accent-deep)}
+
+/* ---------- En-tête ---------- */
+.top{position:sticky;top:0;z-index:50;height:var(--nav-h);padding-top:12px;pointer-events:none}
+.bar{pointer-events:auto;display:flex;align-items:center;gap:20px;height:60px;padding-block:0;padding-inline:16px 10px;border-radius:16px;background:rgba(255,255,255,.72);box-shadow:inset 0 0 0 1px rgba(255,255,255,.7),0 10px 30px -18px rgba(20,40,110,.45);-webkit-backdrop-filter:saturate(1.6) blur(16px);backdrop-filter:saturate(1.6) blur(16px)}
+.brand{display:inline-flex;align-items:center;gap:10px;min-height:44px;text-decoration:none;font-weight:650;font-size:1.02rem;letter-spacing:-.015em;white-space:nowrap}
+.mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:conic-gradient(from 210deg,var(--cobalt),var(--aqua),var(--saffron),var(--coral),var(--cobalt));box-shadow:inset 0 0 0 1px rgba(11,27,52,.08)}
+.mark svg{width:17px;height:17px}
+.nav{display:flex;gap:2px;margin-inline-start:auto}
+.nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;border-radius:10px;text-decoration:none;font-weight:500;font-size:.95rem;color:var(--ink-soft)}
+.nav a:hover{background:rgba(11,27,52,.06)}
+.menu{display:none;position:relative;margin-inline-start:auto}
+.menu summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;background:var(--ink);color:#fff;font-weight:600;font-size:.93rem}
+.menu summary::-webkit-details-marker{display:none}
+.menu summary i{display:block;width:14px;height:8px;border-block:2px solid currentColor}
+.menu-panel{position:absolute;inset-inline-end:0;top:calc(100% + 10px);width:min(86vw,300px);display:grid;gap:2px;padding:8px;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.menu-panel a{display:flex;align-items:center;min-height:46px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.menu-panel a:hover{background:var(--soft)}
+.menu-panel .btn{margin-top:6px;color:#fff;justify-content:center}
+/* Sélecteur de langue */
+.lang{position:relative}
+.lang summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;padding:0 12px;border-radius:999px;font-weight:600;font-size:.9rem;color:var(--ink-soft);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12)}
+.lang summary::-webkit-details-marker{display:none}
+.lang summary:hover,.lang[open] summary{background:rgba(11,27,52,.06)}
+.lang summary svg{width:15px;height:15px;flex:none}
+.lang-panel{position:absolute;inset-inline-end:0;top:calc(100% + 10px);width:200px;display:grid;gap:2px;padding:8px;list-style:none;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.lang-panel a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.lang-panel a:hover{background:var(--soft)}
+.lang-panel [lang="ar"]{font-size:1.12em}
+.lang-panel [aria-current]{color:var(--accent);background:var(--accent-wash);font-weight:600}
+.lang-panel [aria-current]::after{content:"";width:9px;height:5px;margin-top:-3px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg)}
+
+/* ---------- Bandeau d'en-tête de page (en miroir) ---------- */
+.phead{position:relative;margin-top:calc(-1*var(--nav-h));padding:calc(var(--nav-h) + clamp(36px,5vw,72px)) 0 clamp(56px,7vw,96px);overflow-x:clip}
+.band{position:absolute;inset:0 0 auto 0;height:clamp(420px,36vw,500px);overflow:hidden;clip-path:polygon(0 0,100% 0,100% 100%,0 calc(100% - 9vw));background:linear-gradient(258deg,#fff6ea 0%,#ffe8c6 17%,#ffd391 33%,#ffb469 47%,#ff9160 57%,#ff7766 66%,#3fd4c4 80%,#4cb2ff 91%,#3552ff 100%)}
+.band i{position:absolute;display:block;border-radius:50%}
+.b1{width:50vw;height:44vw;inset-inline-start:64%;top:-34%;background:radial-gradient(closest-side,rgba(49,80,255,.95),rgba(49,80,255,0))}
+.b2{width:40vw;height:32vw;inset-inline-start:54%;top:18%;background:radial-gradient(closest-side,rgba(47,211,193,.92),rgba(47,211,193,0))}
+.b4{width:46vw;height:34vw;inset-inline-start:-8%;top:26%;background:radial-gradient(closest-side,rgba(255,196,100,.85),rgba(255,196,100,0))}
+.guides{position:absolute;inset:0;width:min(100% - 2*var(--g),1180px);margin-inline:auto;pointer-events:none;background:linear-gradient(90deg,rgba(11,27,52,.075) 1px,transparent 1px) 0 0/25% 100%;box-shadow:inset -1px 0 rgba(11,27,52,.075);-webkit-mask-image:repeating-linear-gradient(180deg,#000 0 4px,transparent 4px 9px);mask-image:repeating-linear-gradient(180deg,#000 0 4px,transparent 4px 9px)}
+.pill{display:inline-flex;align-items:center;gap:10px;padding-block:5px;padding-inline:5px 14px;border-radius:999px;background:rgba(255,255,255,.7);box-shadow:inset 0 0 0 1px rgba(11,27,52,.08);font-size:.875rem;font-weight:500;color:var(--ink-soft)}
+.pill b{font:700 .8rem/1.2 var(--sans);letter-spacing:normal;color:#fff;background:var(--ok);padding:5px 10px;border-radius:999px}
+h1{margin-top:24px;font-size:clamp(2.3rem,1rem + 3.5vw,3.75rem);line-height:1.3;font-weight:400;letter-spacing:normal;color:var(--ink)}
+.lead{margin-top:22px;max-width:31em;font-size:clamp(1.06rem,.98rem + .35vw,1.2rem);line-height:1.9;color:var(--ink-soft)}
+.ok-head{position:relative;max-width:760px}
+.inline{font-size:.86em;padding:.12em .4em;border-radius:6px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
+.mini-h{font-size:.95rem;font-weight:600;letter-spacing:normal;color:var(--accent)}
+
+.key-grid{position:relative;display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:clamp(24px,3vw,40px);align-items:start;margin-top:clamp(36px,4vw,52px)}
+
+/* ---------- Le coffre de la clé (le détail fort) ---------- */
+.vault{position:relative;border-radius:22px;background:#fff;box-shadow:var(--sh-lg),0 0 0 1px rgba(11,27,52,.04);overflow:hidden}
+.vault-top{display:flex;align-items:center;gap:14px;padding:18px clamp(20px,3vw,32px);border-bottom:1px solid #edf0f6}
+.vault-ic{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:var(--navy-2);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.vault-ic svg{width:19px;height:19px;stroke:#7ff0c4}
+.vault-t{min-width:0}
+.vault-t h2{font-size:1.06rem;line-height:1.5;font-weight:600;letter-spacing:normal}
+.vault-t p{font-size:.88rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.once{margin-inline-start:auto;flex:none;display:inline-flex;align-items:center;gap:7px;padding-block:6px;padding-inline:9px 11px;border-radius:999px;background:var(--warn-bg);color:var(--warn);font:700 .8rem/1.3 var(--sans);letter-spacing:normal;box-shadow:inset 0 0 0 1px rgba(154,91,0,.18)}
+.once svg{width:15px;height:15px;stroke:currentColor}
+.vault-body{padding:clamp(20px,3vw,30px) clamp(20px,3vw,32px) 24px}
+.key-lbl{font-size:.88rem;font-weight:600;color:var(--ink-soft)}
+/* ilot LTR : la clé se lit de gauche à droite ; liseré et halos en miroir comme la bande */
+.keybox{position:relative;container-type:inline-size;margin-top:10px;padding:clamp(16px,2.4vw,24px) clamp(16px,2.6vw,26px);border:2px solid transparent;border-radius:14px;background:linear-gradient(#071429,#071429) padding-box,linear-gradient(260deg,var(--saffron),var(--coral) 34%,var(--aqua) 68%,var(--cobalt)) border-box;box-shadow:0 22px 44px -22px rgba(31,59,255,.6);overflow:hidden}
+.keybox::before{content:"";position:absolute;inset:0;background:radial-gradient(70% 120% at 0% 0%,rgba(49,80,255,.28),transparent 60%),radial-gradient(50% 100% at 100% 100%,rgba(47,211,193,.12),transparent 70%);pointer-events:none}
+.keybox::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.2) 50%,transparent 65%);transform:translateX(-120%);pointer-events:none}
+.key{position:relative;display:block;font:500 clamp(14px,3.7cqi,22px)/1.6 var(--mono);letter-spacing:.02em;color:#fff;overflow-wrap:anywhere;font-variant-ligatures:none;-webkit-user-select:all;user-select:all;cursor:text}
+@container (max-width:520px){.key{font-size:clamp(12px,4.8cqi,20px)}}
+.key ::selection,.key::selection{background:#3150ff;color:#fff}
+.kp{color:#7ff0c4;text-decoration:underline 2px rgba(127,240,196,.55);text-underline-offset:8px}
+.ks{text-decoration:underline 2px rgba(147,197,255,.5);text-underline-offset:8px}
+.anat{list-style:none;padding:0;margin-top:14px;display:flex;flex-wrap:wrap;gap:6px 22px;font-size:.84rem;color:var(--muted)}
+.anat li{display:inline-flex;align-items:center;gap:8px}
+.anat i{flex:none;width:16px;height:3px;border-radius:2px;background:#2fbf98}
+.anat .sw-s{background:#6aa8f0}
+.anat code{font-size:.92em;color:var(--ink);font-weight:600}
+.copy-how{display:flex;gap:12px;align-items:flex-start;margin-top:20px;font-size:.95rem;color:var(--ink-soft)}
+.copy-how svg{flex:none;width:20px;height:20px;margin-top:5px;stroke:var(--accent)}
+kbd{display:inline-block;min-width:1.7em;padding:.08em .42em;margin:0 .08em;border-radius:6px;background:#fff;box-shadow:inset 0 0 0 1px #cfd7e4,0 1.5px 0 #cfd7e4;font:600 .82em/1.45 var(--latin);text-align:center;color:var(--ink)}
+.vault-warn{display:flex;gap:14px;align-items:flex-start;margin:0 clamp(20px,3vw,32px);padding:16px 18px;border-radius:14px;background:var(--warn-bg);box-shadow:inset 0 0 0 1px rgba(154,91,0,.16);color:#5c3700;font-size:.95rem}
+.vault-warn svg{flex:none;width:22px;height:22px;margin-top:4px;stroke:var(--warn)}
+.vault-warn strong{display:block;margin-bottom:2px;color:#4a2c00;font-weight:650}
+.vault-keep{margin:22px clamp(20px,3vw,32px) 0;padding-top:18px;border-top:1px dashed #d5dce8}
+.keep-h{font:600 .82rem/1.4 var(--sans);letter-spacing:normal;color:var(--muted)}
+.vault-keep dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+.vault-keep dl div{min-width:0;padding:12px 14px;border-radius:12px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line)}
+.vault-keep dt{font-size:.8rem;color:var(--muted)}
+.vault-keep dd{margin-top:4px;font:600 .86rem/1.3 var(--mono);color:var(--ink);overflow-wrap:anywhere}
+.vault-keep .none{font-family:var(--sans);color:var(--ok)}
+.vault-foot{display:flex;align-items:center;gap:8px;margin-top:22px;padding:12px clamp(20px,3vw,32px);border-top:1px solid #edf0f6;font-size:12.5px;font-weight:500;color:var(--muted)}
+.vault-foot::before{content:"";flex:none;width:14px;height:1px;background:currentColor}
+
+/* ---------- L'offre ---------- */
+.offer{padding:clamp(22px,3vw,30px);border-radius:20px;background:#fff;box-shadow:var(--sh-md),0 0 0 1px rgba(11,27,52,.04)}
+.offer dl{margin-top:14px}
+.offer dl div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.offer dt{font-size:.92rem;color:var(--muted)}
+.offer dd{font-weight:600;text-align:end;font-variant-numeric:tabular-nums}
+.offer dd code{font-size:.9rem}
+.offer .big{font-family:var(--latin);font-size:1.9rem;line-height:1;font-weight:300;letter-spacing:-.04em}
+.trial{margin-top:6px;padding:14px 0 4px;border-top:1px solid var(--line)}
+.trial-track{position:relative;height:8px;border-radius:4px;background:#eaeef5;overflow:hidden}
+.trial-track i{position:absolute;inset:0;border-radius:4px;background:linear-gradient(270deg,var(--aqua),var(--sky),var(--cobalt))}
+.trial-track::after{content:"";position:absolute;inset-inline-start:1px;top:1px;width:6px;height:6px;border-radius:50%;background:#fff}
+.trial-dates{display:flex;justify-content:space-between;gap:12px;margin-top:8px;font:500 .82rem/1.4 var(--sans);color:var(--muted)}
+.trial-dates bdi{font-family:var(--mono)}
+.offer-note{margin-top:16px;font-size:.92rem;color:var(--muted)}
+.offer .link{margin-top:6px}
+.offer-ex{margin-top:6px;font-size:.8rem;color:var(--faint)}
+
+/* ---------- Et maintenant ---------- */
+.sec{position:relative;padding-block:clamp(72px,9vw,128px)}
+.next{background:var(--soft);clip-path:polygon(0 0,100% 4vw,100% 100%,0 100%);padding-top:calc(4vw + clamp(72px,8vw,112px))}
+.eyebrow{font-size:.95rem;font-weight:600;color:var(--accent);letter-spacing:normal}
+h2.big-h{margin-top:14px;font-size:clamp(2rem,1.15rem + 2.7vw,3.1rem);line-height:1.35;font-weight:500;letter-spacing:normal}
+.next-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(36px,6vw,88px);align-items:start}
+.todo{list-style:none;padding:0;padding-inline-start:28px;margin-top:40px;display:grid;gap:30px;position:relative}
+.todo::before{content:"";position:absolute;inset-inline-start:5px;top:6px;bottom:6px;width:2px;border-radius:2px;background:linear-gradient(180deg,var(--saffron),var(--coral),var(--aqua),var(--cobalt))}
+.todo li{position:relative}
+.todo li::before{content:"";position:absolute;inset-inline-start:-28px;top:4px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:inset 0 0 0 2.5px var(--ink)}
+.num{display:block;font:600 .8rem/1 var(--mono);color:var(--accent);margin-bottom:10px}
+.todo h3{font-size:1.2rem;line-height:1.5;font-weight:600;letter-spacing:normal}
+.todo p{margin-top:6px;color:var(--muted)}
+.call{border-radius:18px;background:#071429;box-shadow:var(--sh-lg);overflow:hidden}
+.call-top{display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+.dots{display:flex;gap:6px;margin-right:4px}
+.dots i{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.14)}
+.verb{font:700 11px/1 var(--mono);color:#0b1b34;background:#7ff0c4;padding:5px 7px;border-radius:5px}
+.path{font:600 12.5px/1 var(--mono);color:#fff}
+.call-lbl{margin-left:auto;font:600 .8rem/1.3 var(--sans);letter-spacing:normal;color:#a3b3cf}
+.codeblock{margin:0;padding:18px 20px 20px;font-size:12.5px;line-height:1.8;color:#dbe4f3;overflow-x:auto}
+.codeblock code>span{display:block;white-space:pre}
+.codeblock .v{color:#ffcf9a}.codeblock .hk{color:#93c5ff}.codeblock .c{color:#93a5c3}.codeblock .k{color:#c8d4ea}.codeblock .key-l{color:#7ff0c4}
+.code-cap{margin-top:16px;font-size:.95rem;color:var(--muted)}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}
+.cta .btn-glass{background:#fff}
+.fine{margin-top:22px;font-size:.88rem;color:var(--muted)}
+
+/* ---------- Pied de page ---------- */
+.foot{padding:56px 0 48px;border-top:1px solid var(--line)}
+.foot-grid{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(0,1fr));gap:36px}
+.foot-brand p{margin-top:14px;color:var(--muted);font-size:.95rem;max-width:30em}
+.foot-brand a.mail{display:inline-flex;align-items:center;min-height:44px;color:var(--accent);font-weight:600;text-decoration:none}
+.foot-brand a.mail:hover{text-decoration:underline}
+.foot-h{font-size:.85rem;font-weight:600;color:var(--ink)}
+.foot ul{list-style:none;padding:0;margin:8px 0 0}
+.foot li a{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);text-decoration:none;font-size:.95rem}
+.foot li a:hover{color:var(--ink)}
+.legal{margin-top:40px;padding-top:22px;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted)}
+
+/* ---------- Survol ---------- */
+@media (hover:hover){
+  .btn:hover{translate:0 -1px}
+  .btn{transition:background-color .2s ease,box-shadow .35s var(--expo),translate .35s var(--expo)}
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1060px){
+  .nav a{padding:0 9px;font-size:.92rem}
+}
+@media (max-width:960px){
+  .nav{display:none}
+  .bar{gap:12px}
+  .menu{display:block;margin-inline-start:0}
+  .lang{margin-inline-start:auto}
+  .key-grid,.next-grid{grid-template-columns:minmax(0,1fr)}
+  .offer{max-width:600px}
+  .band{height:clamp(440px,64vw,540px);clip-path:polygon(0 0,100% 0,100% 100%,0 calc(100% - 16vw));background:linear-gradient(188deg,#fff6ea 0%,#ffe5bd 22%,#ffcd84 40%,#ffad66 56%,#ff8a62 68%,#ff7a66 76%,#43d3c4 90%,#4cb2ff 100%)}
+  .b1{display:none}
+  .b2{width:90vw;height:60vw;inset-inline-start:30%;top:70%}
+  .b4{width:90vw;height:60vw;inset-inline-start:-30%;top:4%}
+  .foot-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .foot-brand{grid-column:1/-1}
+}
+@media (max-width:640px){
+  .bar > .btn{display:none}
+  .vault-top{flex-wrap:wrap}
+  .once{margin-inline-start:54px}
+  .vault-keep dl{grid-template-columns:minmax(0,1fr)}
+  .vault-keep dl div{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+  .vault-keep dd{margin-top:0;text-align:end}
+}
+@media (max-width:480px){
+  .menu summary{width:44px;padding:0;justify-content:center}
+  .menu-t{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .cta .btn{flex:1 1 100%}
+  .codeblock{padding:16px;font-size:12px}
+  .codeblock code>span{white-space:pre-wrap;overflow-wrap:anywhere}
+  .vault-warn{padding:14px}
+  .vault-warn svg{display:none}
+}
+@media (max-width:370px){
+  .lang summary svg{display:none}
+}
+
+/* ---------- Mouvement (seulement si l'utilisateur l'accepte) ---------- */
+@keyframes rise{from{opacity:0;transform:translateY(24px)}}
+@keyframes card-in{from{opacity:0;transform:translateY(56px) scale(.96)}}
+@keyframes pop{0%{opacity:0;transform:scale(.55)}60%{opacity:1}}
+@keyframes sweep{to{transform:translateX(120%)}}
+@keyframes grow{from{transform:scaleX(0)}}
+@keyframes d1{50%{transform:translate(-6vw,4vw) scale(1.12)}100%{transform:translate(3vw,7vw) scale(.94)}}
+@keyframes d2{50%{transform:translate(7vw,-3vw) scale(.9)}100%{transform:translate(-4vw,-6vw) scale(1.1)}}
+@keyframes d4{50%{transform:translate(8vw,3vw) scale(1.08)}100%{transform:translate(2vw,-4vw) scale(.92)}}
+@media (prefers-reduced-motion:no-preference){
+  html{scroll-behavior:smooth}
+  .b1{animation:d1 26s ease-in-out infinite alternate}
+  .b2{animation:d2 22s ease-in-out infinite alternate}
+  .b4{animation:d4 28s ease-in-out infinite alternate}
+  .bar{animation:rise .9s var(--expo) both}
+  .in{animation:rise 1.1s var(--expo) both;animation-delay:calc(var(--i,0)*90ms + 60ms)}
+  .vault{animation:card-in 1.3s var(--expo) .25s both}
+  .offer{animation:card-in 1.4s var(--expo) .45s both}
+  .keybox::after{animation:sweep 1.2s var(--expo) 1.05s both}
+  .once{animation:pop .6s cubic-bezier(.34,1.56,.64,1) 1.35s both}
+  .trial-track i{transform-origin:right;animation:grow .9s var(--expo) 1.2s both}
+  @supports (animation-timeline:view()){
+    .reveal{animation:rise both var(--expo);animation-timeline:view();animation-range:entry 5% cover 28%}
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+.fx-note{margin-top:14px;max-width:46em;font-size:.88rem;line-height:1.7;color:var(--muted)}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">الانتقال إلى المحتوى</a>
+
+<header class="top">
+  <div class="wrap bar">
+    <a class="brand" href="accueil-ar.html" dir="ltr" aria-label="Address Validator، الصفحة الرئيسية">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>
+      Address Validator
+    </a>
+    <nav class="nav" aria-label="التنقل الرئيسي">
+      <a href="tarifs-ar.html">الأسعار</a>
+      <a href="guide-ar.html">الدليل</a>
+      <a href="test-ar.html">اختبر عنوانًا</a>
+      <a href="compte-ar.html">حساب العميل</a>
+    </nav>
+    <details class="lang" name="entete">
+      <summary><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6.3"/><path d="M1.7 8h12.6M8 1.7c1.9 2 2.8 4.1 2.8 6.3S9.9 12.3 8 14.3C6.1 12.3 5.2 10.2 5.2 8S6.1 3.7 8 1.7z"/></svg><span class="sr">اللغة: العربية</span><span aria-hidden="true">ع</span></summary>
+      <ul class="lang-panel">
+        <li><a href="inscription-cle-fr.html" hreflang="fr" lang="fr">Français</a></li>
+        <li><a href="inscription-cle-en.html" hreflang="en" lang="en">English</a></li>
+        <li><a href="inscription-cle-zh.html" hreflang="zh" lang="zh">中文</a></li>
+        <li><a href="inscription-cle-hi.html" hreflang="hi" lang="hi">हिन्दी</a></li>
+        <li><a href="inscription-cle-es.html" hreflang="es" lang="es">Español</a></li>
+        <li><a href="inscription-cle-ar.html" hreflang="ar" lang="ar" aria-current="page">العربية</a></li>
+      </ul>
+    </details>
+    <a class="btn btn-ink btn-sm" href="inscription-ar.html">أنشئ حسابًا <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+    <details class="menu" name="entete">
+      <summary><i aria-hidden="true"></i><span class="menu-t">القائمة</span></summary>
+      <nav class="menu-panel" aria-label="التنقل على الجوال">
+        <a href="tarifs-ar.html">الأسعار</a>
+        <a href="guide-ar.html">الدليل</a>
+        <a href="test-ar.html">اختبر عنوانًا</a>
+        <a href="compte-ar.html">حساب العميل</a>
+        <a class="btn btn-ink" href="inscription-ar.html">أنشئ حسابًا</a>
+      </nav>
+    </details>
+  </div>
+</header>
+
+<main id="contenu">
+
+<section class="phead" aria-labelledby="titre">
+  <div class="band" aria-hidden="true"><i class="b4"></i><i class="b2"></i><i class="b1"></i></div>
+  <div class="guides" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="ok-head">
+      <p class="pill in" style="--i:0"><b>تمّ</b>إنشاء حساب التجربة لمتجر المثال</p>
+      <h1 id="titre" class="in" style="--i:1">تم إنشاء حسابك.</h1>
+      <p class="lead in" style="--i:2">إليك مفتاح API الخاص بك. هذه هي المرة الوحيدة التي يمكننا فيها عرضه عليك: لا نحتفظ إلا ببصمته.</p>
+    </div>
+
+    <div class="key-grid">
+      <section class="vault" aria-labelledby="h-cle">
+        <div class="vault-top">
+          <span class="vault-ic" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="8.5" width="13" height="9" rx="2"/><path d="M6.5 8.5V6a3.5 3.5 0 0 1 7 0v2.5"/><path d="M10 12v2"/></svg></span>
+          <div class="vault-t">
+            <h2 id="h-cle">مفتاح API السري</h2>
+            <p>متجر المثال</p>
+          </div>
+          <span class="once"><svg viewBox="0 0 16 16" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8s2.2-4.2 6-4.2S14 8 14 8s-2.2 4.2-6 4.2S2 8 2 8z"/><circle cx="8" cy="8" r="1.8"/><path d="M2.5 13.5 13.5 2.5"/></svg>يظهر مرة واحدة فقط</span>
+        </div>
+
+        <div class="vault-body">
+          <p class="key-lbl" id="key-lbl">مفتاحك، انسخه الآن</p>
+          <div class="keybox" dir="ltr">
+            <code class="key" aria-describedby="key-lbl"><span class="kp">sk_live_</span><wbr><span class="ks">EXEMPLE0000000000000000000000000</span></code>
+          </div>
+          <ul class="anat">
+            <li><i aria-hidden="true"></i><span><code dir="ltr">sk_live_</code>: بادئة ثابتة في كل المفاتيح</span></li>
+            <li><i class="sw-s" aria-hidden="true"></i><span>32 حرفًا سريًا، مختارة عشوائيًا</span></li>
+          </ul>
+          <p class="copy-how"><svg viewBox="0 0 20 20" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3.5v11l3-2.6 2 4.6 2-.9-2-4.5h4z"/></svg><span>نقرة واحدة تحدد المفتاح كله. انسخه بالضغط على <bdi dir="ltr"><kbd>⌘</kbd><kbd>C</kbd></bdi> على Mac أو <bdi dir="ltr"><kbd>Ctrl</kbd><kbd>C</kbd></bdi> على غيره، ثم الصقه في إعدادات متجرك أو في مدير الأسرار لديك. لا تضعه أبدًا في مستودع git.</span></p>
+        </div>
+
+        <div class="vault-warn">
+          <svg viewBox="0 0 22 22" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 3 20 18.5H2z"/><path d="M11 9v4.5M11 16v.01"/></svg>
+          <p><strong>لن نتمكن من عرضه عليك مرة أخرى.</strong> بمجرد مغادرتك هذه الصفحة، لا يبقى في قاعدة البيانات إلا بصمته، ولا يمكن استعادة المفتاح منها. إذا فُقد فلا سبيل إلى استرجاعه: يُستبدل من حساب العميل.</p>
+        </div>
+
+        <div class="vault-keep">
+          <p class="keep-h">ما تحتفظ به قاعدة بياناتنا</p>
+          <dl>
+            <div><dt>بصمة SHA-256</dt><dd><bdi dir="ltr">968ca1a3…472688ba</bdi></dd></div>
+            <div><dt>المعرّف الظاهر</dt><dd><bdi dir="ltr">sk_live_EXEM…</bdi></dd></div>
+            <div><dt>المفتاح كنص صريح</dt><dd class="none">أبدًا</dd></div>
+          </dl>
+        </div>
+        <p class="vault-foot">مفتاح على سبيل المثال، غير صالح. هذه الصفحة لا تُحفظ في ذاكرة التخزين المؤقت.</p>
+      </section>
+
+      <aside class="offer" aria-labelledby="h-offre">
+        <h2 id="h-offre" class="mini-h">باقتك</h2>
+        <dl>
+          <div><dt>المتجر</dt><dd>متجر المثال</dd></div>
+          <div><dt>الباقة</dt><dd>التجربة المجانية</dd></div>
+          <div><dt>عمليات التحقق المشمولة</dt><dd class="big">100</dd></div>
+          <div><dt>نهاية التجربة</dt><dd><bdi class="lat" dir="ltr">28/10/2026</bdi></dd></div>
+          <div><dt>معرّف المفتاح</dt><dd><code dir="ltr">sk_live_EXEM…</code></dd></div>
+        </dl>
+        <div class="trial" aria-hidden="true">
+          <div class="trial-track"><i></i></div>
+          <p class="trial-dates"><span><bdi dir="ltr">14/10</bdi>، اليوم</span><span><bdi dir="ltr">28/10</bdi>، النهاية</span></p>
+        </div>
+        <p class="offer-note">بعد ذلك <span class="lat" dir="ltr">$33</span> شهريًا قبل الضريبة (Starter، 2,000 عملية تحقق) أو <span class="lat" dir="ltr">$90</span> شهريًا قبل الضريبة (Pro، 10,000)، عند الطلب. لا يوجد أي خصم تلقائي.</p>
+        <p class="fx-note">أسعار تقريبية. تتم الفوترة باليورو: <span dir="ltr">€29</span> و<span dir="ltr">€79</span> شهريًا قبل الضريبة (سعر الصرف في سبتمبر 2026).</p>
+        <a class="link" href="tarifs-ar.html">اطّلع على الأسعار <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        <p class="offer-ex">قيم على سبيل المثال لتسجيل بتاريخ <bdi dir="ltr">14/10/2026</bdi>.</p>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<section class="sec next" aria-labelledby="h-next">
+  <div class="wrap next-grid">
+    <div class="reveal">
+      <p class="eyebrow">والآن</p>
+      <h2 id="h-next" class="big-h">ثلاث خطوات للبدء.</h2>
+      <ol class="todo">
+        <li><span class="num">01</span><h3>انسخ المفتاح</h3><p>إلى إعدادات متجرك أو مدير الأسرار لديك، قبل مغادرة هذه الصفحة.</p></li>
+        <li><span class="num">02</span><h3>أجرِ أول استدعاء</h3><p>أرسل المفتاح في الترويسة <code class="inline" dir="ltr">X-API-Key</code> مع استدعاءاتك إلى <code class="inline" dir="ltr">POST /validate</code>.</p></li>
+        <li><span class="num">03</span><h3>تابع استهلاكك</h3><p>يعرض حساب العميل عمليات التحقق لهذا الشهر وما تبقى من الحصة، ويتيح إعادة إنشاء المفتاح. يُفتح ببريدك الإلكتروني وكلمة المرور: مفتاح API لا يمنح الوصول إليه.</p></li>
+      </ol>
+    </div>
+    <div class="reveal">
+      <div class="call">
+        <div class="call-top" dir="ltr"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="verb">POST</span><span class="path">/validate</span><span class="call-lbl" dir="rtl">أول استدعاء</span></div>
+        <pre class="codeblock mono" dir="ltr"><code><span><span class="hk">X-API-Key</span>: <span class="key-l">sk_live_EXEMPLE…</span></span><span><span class="hk">content-type</span>: application/json</span><span> </span><span>{<span class="k">"address"</span>: {</span><span>  <span class="k">"street"</span>: <span class="v">"100 stewart st"</span>,</span><span>  <span class="k">"city"</span>: <span class="v">"seattle"</span>, <span class="k">"state"</span>: <span class="v">"wa"</span>,</span><span>  <span class="k">"zip"</span>: <span class="v">"98101"</span>, <span class="k">"country"</span>: <span class="v">"us"</span>}}</span><span> </span><span class="c">// <span dir="rtl"><span dir="ltr">200</span>: <span class="ar">العنوان بصيغة موحّدة، وقابلية التسليم، والثقة</span></span></span><span class="c">// <span dir="rtl"><span dir="ltr">401</span>: <span class="ar">مفتاح غير معروف أو ناقص أو أُعيد إنشاؤه</span></span></span></code></pre>
+      </div>
+      <p class="code-cap">يشرح دليل التكامل كل حالة بالتفصيل: Shopify وWooCommerce واستيراد CSV والاستدعاء المباشر.</p>
+      <div class="cta">
+        <a class="btn btn-accent" href="guide-ar.html">اقرأ دليل التكامل <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        <a class="btn btn-glass" href="compte-ar.html">انتقل إلى حساب العميل</a>
+      </div>
+      <p class="fine">يُفتح حسابك ببريدك الإلكتروني وكلمة المرور.</p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="accueil-ar.html" dir="ltr"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>Address Validator</a>
+        <p class="lat">Address Validator, Kder Daoud</p>
+        <a class="mail" href="mailto:address-validator@kder-ai.com" dir="ltr">address-validator@kder-ai.com</a>
+      </div>
+      <div>
+        <p class="foot-h">المتاجر</p>
+        <ul>
+          <li><a href="tarifs-ar.html">الأسعار</a></li>
+          <li><a href="guide-ar.html">دليل التكامل</a></li>
+          <li><a href="test-ar.html">اختبر عنوانًا</a></li>
+          <li><a href="compte-ar.html">حساب العميل</a></li>
+          <li><a href="inscription-ar.html">أنشئ حسابًا</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="foot-h">المطورون والوكلاء</p>
+        <ul>
+          <li><a href="/docs">التوثيق</a></li>
+          <li><a href="/mcp">خادم MCP</a></li>
+          <li><a href="/manifest">ملف البيان</a></li>
+          <li><a class="lat" href="/llms.txt" dir="ltr">llms.txt</a></li>
+          <li><a class="lat" href="/AGENTS.md" dir="ltr">AGENTS.md</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">الأسعار قبل الضريبة. الاستدعاء المباشر دون اشتراك: <span class="lat" dir="ltr">0.02&nbsp;USDC</span> لكل عملية تحقق.</p>
+  </div>
+</footer>
+</body>
+</html>

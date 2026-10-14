@@ -1,0 +1,856 @@
+<!doctype html>
+<!--
+  guide-fr · इंटीग्रेशन गाइड (route /guide), sorti du même studio que accueil-hi.html (v2-2, langage Stripe).
+  Référence : la documentation Stripe. Décomposition retenue :
+  - En-tête de page court : la bande dégradée en biais de l'accueil, adoucie sous un voile blanc, qui passe sous la navigation ; titre léger à interlettrage serré.
+  - Deux colonnes : sommaire collant à gauche (simple liste d'ancres, aucun JavaScript), texte à 68 caractères par ligne au plus à droite. Sur mobile, le sommaire passe au-dessus du contenu, en carte sur deux colonnes.
+  - Blocs de code sombres repris de la carte API de l'accueil (marine #071429, mêmes couleurs de syntaxe), barre de titre avec le langage ; le défilement horizontal reste dans le bloc, jamais dans la page.
+  - Badges : verbe HTTP (POST) et codes de statut colorés par famille ; références de champs en lignes définition plutôt qu'en tableaux, pour tenir à 375 px.
+  Détail fort (120 %) : la référence des huit codes de retour. Une carte des familles en tête (servi, à corriger chez vous, limite ou paiement, incident côté service), des puces 200 à 503 dans le sommaire, puis une ligne par code : badge, situation, action, et « Relancer ? » lisible d'un coup d'oeil. Le 402 montre ses deux corps côte à côte (quota du mois ou paiement absent), le 503 dit qu'il n'est jamais une demande de paiement.
+  Contenu : source-site/guide.py (CODES, corps d'exemple, en-têtes X-Payment-Mode, X-Plan, X-Quota-Remaining, cache 30 jours et 5 minutes, quota mensuel UTC, exemples PowerShell, CSV Python, Shopify, WooCommerce, données conservées). /mcp (outil validate_address, découverte gratuite), /AGENTS.md, le réseau Base et la couverture États-Unis viennent de accueil-hi.html et du brief.
+  Hypothèses à valider : BASE_URL reste un modèle dans les exemples (le vrai site y injecte public_base_url ; la maquette n'a droit à aucune URL http). Essai sans compte : 10 validations par jour, valeur par défaut documentée dans validate_form.py. Contact du pied de page : address-validator@kder-ai.com (brief) au lieu de l'adresse gmail de l'accueil. Photo developpeur.jpg non utilisée : elle n'apporte rien à une page de référence.
+-->
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>इंटीग्रेशन गाइड · Address Validator</title>
+<meta name="description" content="Address Validator API इंटीग्रेट करें: API कुंजी या x402 भुगतान, JSON अनुबंध, रिटर्न कोड, कैश और कोटा, Shopify, WooCommerce और CSV इम्पोर्ट के उदाहरण।">
+<link rel="alternate" hreflang="fr" href="guide-fr.html">
+<link rel="alternate" hreflang="en" href="guide-en.html">
+<link rel="alternate" hreflang="zh" href="guide-zh.html">
+<link rel="alternate" hreflang="hi" href="guide-hi.html">
+<link rel="alternate" hreflang="es" href="guide-es.html">
+<link rel="alternate" hreflang="ar" href="guide-ar.html">
+<link rel="alternate" hreflang="x-default" href="guide-en.html">
+<style>
+:root{
+  --ink:#0b1b34;--ink-soft:#14223d;--muted:#4b5974;--faint:#66738c;
+  --line:#e2e7f0;--bg:#fff;--soft:#f5f7fb;
+  --accent:#1f3bff;--accent-deep:#1429cc;--accent-wash:#e9edff;
+  --ok:#0a7350;--ok-bg:#dff5ea;--warn:#9a5b00;--warn-bg:#fff1d6;--bad:#b42318;
+  --navy:#0b1b34;--navy-2:#0d2242;
+  --saffron:#ffc15e;--tang:#ff9455;--coral:#ff6f61;--aqua:#2fd3c1;--sky:#4ab3ff;--cobalt:#3150ff;
+  --sans:"Kohinoor Devanagari","Nirmala UI","Noto Sans Devanagari","Mangal",-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --expo:cubic-bezier(.16,1,.3,1);
+  --sh-lg:0 50px 100px -20px rgba(20,40,110,.26),0 30px 60px -30px rgba(0,0,0,.3);
+  --sh-md:0 13px 27px -5px rgba(20,40,110,.16),0 8px 16px -8px rgba(0,0,0,.16);
+  --sh-sm:0 2px 5px -1px rgba(20,40,110,.12),0 1px 3px -1px rgba(0,0,0,.1);
+  --g:clamp(16px,4vw,40px);
+  --nav-h:84px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1.0625rem/1.75 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:inherit}
+h1,h2,h3,p,ul,ol,dl,dd,figure{margin:0}
+h1,h2,h3{text-wrap:balance}
+p,li,dd{text-wrap:pretty}
+code,.mono{font-family:var(--mono)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:8px}
+.dark :focus-visible{outline-color:#9db2ff}
+.wrap{width:min(100% - 2*var(--g),1180px);margin-inline:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.skip{position:absolute;left:16px;top:-80px;z-index:99;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none}
+.skip:focus{top:12px}
+
+/* ---------- Boutons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;min-height:48px;padding:0 1.35rem;border:0;border-radius:999px;font:600 .97rem/1 var(--sans);letter-spacing:-.005em;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background-color .2s ease,box-shadow .35s var(--expo)}
+.btn-accent{background:var(--accent);color:#fff;box-shadow:0 1px 1px rgba(11,27,52,.14),0 8px 18px -8px rgba(31,59,255,.6)}
+.btn-accent:hover{background:var(--accent-deep)}
+.btn-glass{background:rgba(255,255,255,.74);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.btn-glass:hover{background:#fff}
+.btn-ink{background:var(--ink);color:#fff}
+.btn-ink:hover{background:#1b2f52}
+.btn-light{background:#fff;color:var(--ink)}
+.btn-light:hover{background:#e9eef7}
+.btn-sm{min-height:44px;padding:0 1.1rem;font-size:.93rem}
+.arr{width:10px;height:10px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.arr .l{opacity:0;transition:opacity .2s ease}
+.arr .h{transition:transform .35s var(--expo)}
+a:hover .arr .l,button:hover .arr .l{opacity:1}
+a:hover .arr .h,button:hover .arr .h{transform:translateX(2px)}
+.link{display:inline-flex;align-items:center;gap:.45em;min-height:44px;font-weight:600;color:var(--accent);text-decoration:none}
+.link:hover{color:var(--accent-deep)}
+
+/* ---------- En-tête ---------- */
+.top{position:sticky;top:0;z-index:50;height:var(--nav-h);padding-top:12px;pointer-events:none}
+.bar{pointer-events:auto;display:flex;align-items:center;gap:20px;height:60px;padding:0 10px 0 16px;border-radius:16px;background:rgba(255,255,255,.72);box-shadow:inset 0 0 0 1px rgba(255,255,255,.7),0 10px 30px -18px rgba(20,40,110,.45);-webkit-backdrop-filter:saturate(1.6) blur(16px);backdrop-filter:saturate(1.6) blur(16px)}
+.brand{display:inline-flex;align-items:center;gap:10px;min-height:44px;text-decoration:none;font-weight:650;font-size:1.02rem;letter-spacing:-.015em;white-space:nowrap}
+.mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:conic-gradient(from 210deg,var(--cobalt),var(--aqua),var(--saffron),var(--coral),var(--cobalt));box-shadow:inset 0 0 0 1px rgba(11,27,52,.08)}
+.mark svg{width:17px;height:17px}
+.nav{display:flex;gap:2px;margin-left:auto}
+.nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;border-radius:10px;text-decoration:none;font-weight:500;font-size:.95rem;color:var(--ink-soft)}
+.nav a:hover{background:rgba(11,27,52,.06)}
+.nav a[aria-current="page"],.menu-panel a[aria-current="page"]{color:var(--accent)}
+.menu{display:none;position:relative;margin-left:auto}
+.menu summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;background:var(--ink);color:#fff;font-weight:600;font-size:.93rem}
+.menu summary::-webkit-details-marker{display:none}
+.menu summary i{display:block;width:14px;height:8px;border-block:2px solid currentColor}
+.menu-panel{position:absolute;right:0;top:calc(100% + 10px);width:min(86vw,300px);display:grid;gap:2px;padding:8px;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.menu-panel a{display:flex;align-items:center;min-height:46px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.menu-panel a:hover{background:var(--soft)}
+.menu-panel .btn{margin-top:6px;color:#fff;justify-content:center}
+/* Sélecteur de langue */
+.lang{position:relative}
+.lang summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;padding:0 12px;border-radius:999px;font-weight:600;font-size:.9rem;color:var(--ink-soft);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12)}
+.lang summary::-webkit-details-marker{display:none}
+.lang summary:hover,.lang[open] summary{background:rgba(11,27,52,.06)}
+.lang summary svg{width:15px;height:15px;flex:none}
+.lang-panel{position:absolute;right:0;top:calc(100% + 10px);width:200px;display:grid;gap:2px;padding:8px;list-style:none;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.lang-panel a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.lang-panel a:hover{background:var(--soft)}
+.lang-panel [lang="ar"]{font-size:1.12em}
+.lang-panel [aria-current]{color:var(--accent);background:var(--accent-wash);font-weight:600}
+.lang-panel [aria-current]::after{content:"";width:9px;height:5px;margin-top:-3px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg)}
+
+/* ---------- En-tête de page (bande adoucie) ---------- */
+.phead{position:relative;margin-top:calc(-1*var(--nav-h));padding:calc(var(--nav-h) + clamp(36px,5vw,72px)) 0 clamp(44px,5vw,72px);overflow-x:clip}
+.band{position:absolute;inset:0;overflow:hidden;clip-path:polygon(0 0,100% 0,100% calc(100% - 7vw),0 100%);background:linear-gradient(102deg,#fff6ea 0%,#ffe8c6 17%,#ffd391 33%,#ffb469 47%,#ff9160 57%,#ff7766 66%,#3fd4c4 80%,#4cb2ff 91%,#3552ff 100%)}
+.band::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.86) 0%,rgba(255,255,255,.7) 46%,rgba(255,255,255,.18) 78%,rgba(255,255,255,0) 100%)}
+.band i{position:absolute;display:block;border-radius:50%}
+.b2{width:40vw;height:32vw;left:58%;top:-10%;background:radial-gradient(closest-side,rgba(47,211,193,.8),rgba(47,211,193,0))}
+.b4{width:46vw;height:34vw;left:-8%;top:10%;background:radial-gradient(closest-side,rgba(255,196,100,.7),rgba(255,196,100,0))}
+.b5{width:30vw;height:26vw;left:80%;top:4%;background:radial-gradient(closest-side,rgba(74,179,255,.85),rgba(74,179,255,0))}
+.guides{position:absolute;inset:0;width:min(100% - 2*var(--g),1180px);margin-inline:auto;pointer-events:none;background:linear-gradient(90deg,rgba(11,27,52,.075) 1px,transparent 1px) 0 0/25% 100%;box-shadow:inset -1px 0 rgba(11,27,52,.075);-webkit-mask-image:repeating-linear-gradient(180deg,#000 0 4px,transparent 4px 9px);mask-image:repeating-linear-gradient(180deg,#000 0 4px,transparent 4px 9px)}
+.phead-in{position:relative}
+.pill{display:inline-flex;align-items:center;gap:10px;padding:5px 14px 5px 5px;border-radius:999px;background:rgba(255,255,255,.78);box-shadow:inset 0 0 0 1px rgba(11,27,52,.08);font-size:.875rem;font-weight:500;color:var(--ink-soft)}
+.pill b{font:700 .72rem/1 var(--sans);letter-spacing:.06em;color:#fff;background:var(--ink);padding:6px 9px;border-radius:999px}
+h1{margin-top:22px;font-size:clamp(2.5rem,1.2rem + 3.6vw,4rem);line-height:1.03;font-weight:400;letter-spacing:-.026em;color:var(--ink)}
+.lead{margin-top:20px;max-width:36em;font-size:clamp(1.06rem,.98rem + .35vw,1.22rem);line-height:1.55;color:var(--ink-soft)}
+.quick{list-style:none;padding:0;margin-top:28px;display:flex;flex-wrap:wrap;gap:10px}
+.quick li{display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:0 12px 0 6px;border-radius:10px;background:rgba(255,255,255,.82);box-shadow:inset 0 0 0 1px rgba(11,27,52,.08),var(--sh-sm);font:600 .82rem/1 var(--mono);color:var(--ink)}
+.quick li:not(:has(.verb)){padding-left:12px}
+
+/* ---------- Badges ---------- */
+.verb{font:700 11px/1 var(--mono);color:var(--accent);background:var(--accent-wash);padding:5px 7px;border-radius:5px;letter-spacing:.02em}
+.inline{font-size:.86em;padding:.12em .4em;border-radius:6px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
+.st{display:inline-block;font:600 .72rem/1 var(--sans);letter-spacing:.04em;padding:5px 8px;border-radius:6px}
+.st-ok{color:var(--ok);background:var(--ok-bg)}
+.st-warn{color:var(--warn);background:var(--warn-bg)}
+.st-info{color:var(--accent);background:var(--accent-wash)}
+
+/* ---------- Mise en page documentation ---------- */
+.doc{display:grid;grid-template-columns:220px minmax(0,1fr);gap:clamp(40px,5vw,72px);align-items:start;padding-block:clamp(24px,3vw,40px) clamp(72px,8vw,120px)}
+.toc{position:sticky;top:calc(var(--nav-h) + 16px);max-height:calc(100vh - var(--nav-h) - 32px);overflow-y:auto;padding:4px 4px 12px 0;font-size:.92rem}
+.toc-h{font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.toc ol{list-style:none;padding:0;margin:12px 0 0;border-left:1px solid var(--line)}
+.toc li a{display:flex;align-items:center;min-height:36px;padding:4px 0 4px 16px;margin-left:-1px;border-left:2px solid transparent;color:var(--muted);text-decoration:none;line-height:1.3}
+.toc li a:hover{color:var(--ink);border-left-color:var(--ink)}
+.toc .toc-sub a{padding-left:30px;font-size:.86rem;min-height:32px}
+.toc-codes{list-style:none;display:flex;flex-wrap:wrap;gap:4px;padding:6px 0 8px 16px;margin:0}
+.toc .toc-codes a{display:inline-grid;place-items:center;min-width:44px;min-height:30px;padding:0 6px;margin:0;border:0;border-radius:6px;font:700 .76rem/1 var(--mono);color:var(--fam);background:var(--fam-bg)}
+.toc .toc-codes a:hover{box-shadow:inset 0 0 0 1.5px var(--fam);border:0}
+.content{min-width:0}
+.dsec{padding-top:clamp(44px,5vw,64px);scroll-margin-top:calc(var(--nav-h) + 8px)}
+.dsec:first-child{padding-top:8px}
+[id]{scroll-margin-top:calc(var(--nav-h) + 16px)}
+.eyebrow{font-size:.92rem;font-weight:600;color:var(--accent);letter-spacing:-.005em}
+h2{margin-top:10px;font-size:clamp(1.7rem,1.25rem + 1.4vw,2.35rem);line-height:1.12;font-weight:500;letter-spacing:-.022em}
+h3{font-size:1.18rem;line-height:1.3;font-weight:600;letter-spacing:-.018em}
+.content h3.sub{margin-top:40px}
+.prose{max-width:68ch}
+.prose p,.content > .dsec > p{max-width:68ch}
+.dsec > p:not(.eyebrow),.dsec .prose{margin-top:16px;color:var(--ink-soft)}
+.dsec p + p{margin-top:14px}
+.dsec a:not([class]){color:var(--accent);text-underline-offset:3px}
+.dsec a:not([class]):hover{color:var(--accent-deep)}
+.content p code,.content li code,.content dd code,.content dt code,.note code{font-size:.88em;padding:.1em .38em;border-radius:6px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);overflow-wrap:anywhere}
+.hr{height:1px;margin-top:clamp(44px,5vw,64px);background:var(--line)}
+
+/* Étapes */
+.steps{list-style:none;padding:0;margin-top:24px;display:grid;gap:14px;counter-reset:s;max-width:68ch}
+.steps li{position:relative;padding-left:44px;color:var(--ink-soft)}
+.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:-1px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:700 .8rem/1 var(--mono);color:var(--accent);background:var(--accent-wash)}
+.steps strong{color:var(--ink)}
+
+/* Blocs de code (thème de la carte API) */
+.cb{margin-top:20px;border-radius:12px;background:#071429;box-shadow:var(--sh-md),inset 0 0 0 1px rgba(255,255,255,.06);overflow:hidden;min-width:0}
+.cb-top{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.08);font:600 .74rem/1.2 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#a3b3cf}
+.cb-top .dots{display:flex;gap:6px;margin-right:2px}
+.cb-top .dots i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.14)}
+.cb-top .verb{background:rgba(147,197,255,.14);color:#b9d8ff;text-transform:none}
+.cb-top .cb-path{font:600 .8rem/1 var(--mono);color:#e8eef8;text-transform:none;letter-spacing:0}
+.cb-top .cb-lang{margin-left:auto}
+.cb pre{margin:0;padding:16px 18px 18px;overflow-x:auto;font:500 13px/1.72 var(--mono);font-variant-ligatures:none;color:#dbe4f3;white-space:pre;tab-size:4;scrollbar-color:rgba(255,255,255,.25) transparent}
+.cb pre:focus-visible{outline:3px solid #9db2ff;outline-offset:-3px;border-radius:0 0 12px 12px}
+.cb .k{color:#93c5ff}.cb .s{color:#ffcf9a}.cb .c{color:#93a5c3}.cb .v{color:#7ff0c4}.cb .n{color:#ffb3a6}
+.cb-note{margin-top:10px;font-size:.88rem;color:var(--muted)}
+
+/* Encadrés */
+.note{margin-top:22px;max-width:68ch;padding:16px 18px 16px 20px;border-radius:12px;background:var(--accent-wash);box-shadow:inset 3px 0 var(--accent);color:var(--ink-soft);font-size:.98rem}
+.note strong{color:var(--ink)}
+.note-warn{background:var(--warn-bg);box-shadow:inset 3px 0 #d98a00}
+.note-ok{background:var(--ok-bg);box-shadow:inset 3px 0 var(--ok)}
+
+/* Deux portes d'authentification */
+.auth{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:24px}
+.door{padding:24px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm)}
+.door-dev{background:var(--navy);color:#e8eef8;box-shadow:var(--sh-md)}
+.kicker{font:600 .78rem/1 var(--mono);letter-spacing:.02em;color:var(--accent)}
+.door-dev .kicker{color:#7ff0c4}
+.door h3{margin-top:10px}
+.door dl{margin-top:16px;display:grid;gap:14px}
+.door dt{font-size:.78rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+.door-dev dt{color:#a3b3cf}
+.door dd{margin-top:4px;font-size:.96rem;color:var(--ink-soft)}
+.door-dev dd{color:#dbe4f3}
+.door-dev dd code{background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);color:#fff}
+.door-dev strong{color:#fff}
+
+/* Références en lignes (champs, en-têtes, cache, intégrations) */
+.ref{margin-top:24px;border-top:1px solid var(--line)}
+.ref-head{display:grid;gap:8px 24px;padding:12px 0 10px;border-bottom:1px solid var(--line);font-size:.76rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.ref-row{display:grid;gap:6px 24px;padding:16px 0;border-bottom:1px solid var(--line)}
+.ref-2 .ref-head,.ref-2 .ref-row{grid-template-columns:minmax(0,190px) minmax(0,1fr)}
+.ref-3 .ref-head,.ref-3 .ref-row{grid-template-columns:minmax(0,160px) minmax(0,1fr) minmax(0,1fr)}
+.ref dt{font-weight:600;color:var(--ink);font-size:.98rem}
+.ref dt code{font-weight:600}
+.ref dd{color:var(--ink-soft);font-size:.96rem}
+.ref .rr-l{display:none}
+.map{list-style:none;padding:0;display:grid;gap:6px}
+.ref-wide .ref-head,.ref-wide .ref-row{grid-template-columns:minmax(0,210px) minmax(0,1fr)}
+
+/* ---------- Codes de retour (le détail fort) ---------- */
+.f-ok{--fam:var(--ok);--fam-bg:var(--ok-bg)}
+.f-fix{--fam:var(--bad);--fam-bg:#fde8e5}
+.f-lim{--fam:var(--warn);--fam-bg:var(--warn-bg)}
+.f-srv{--fam:var(--accent);--fam-bg:var(--accent-wash)}
+.codemap{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:28px}
+.cm{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm);border-top:3px solid var(--fam)}
+.cm-h{font-size:.92rem;font-weight:600;line-height:1.25;color:var(--ink)}
+.cm-codes{display:flex;flex-wrap:wrap;gap:6px}
+.cm-codes a{display:inline-grid;place-items:center;min-width:52px;min-height:44px;padding:0 10px;border-radius:9px;font:700 1.05rem/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fam);background:var(--fam-bg);text-decoration:none;transition:box-shadow .25s var(--expo)}
+.cm-codes a:hover{box-shadow:inset 0 0 0 2px var(--fam)}
+.cm-d{font-size:.86rem;line-height:1.45;color:var(--muted)}
+.codes-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.55fr) 184px;gap:24px;margin-top:32px;padding:0 20px 10px 23px;font-size:.76rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.codes{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+.code-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.55fr) 184px;gap:12px 24px;align-items:start;padding:18px 20px 18px 23px;border-radius:14px;background:#fff;box-shadow:inset 3px 0 var(--fam),inset 0 0 0 1px var(--line),var(--sh-sm)}
+.code-row:target{box-shadow:inset 3px 0 var(--fam),inset 0 0 0 2px var(--fam),var(--sh-md)}
+.cr-id h3{display:flex;align-items:flex-start;gap:14px;font-size:1.02rem;line-height:1.35}
+.sc{flex:none;display:inline-grid;place-items:center;min-width:64px;padding:8px 0;border-radius:9px;font:700 1.32rem/1 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:var(--fam);background:var(--fam-bg)}
+.cr-t{padding-top:3px}
+.cr-fam{margin-top:10px;margin-left:78px;font-size:.8rem;font-weight:600;color:var(--fam)}
+.cr-do{color:var(--ink-soft);font-size:.96rem}
+.cr-do p + p{margin-top:8px}
+.cr-do strong{color:var(--ink)}
+.rt{position:relative;display:inline-block;padding:7px 10px 7px 26px;border-radius:8px;font-size:.84rem;font-weight:600;line-height:1.25;color:var(--fam);background:var(--fam-bg)}
+.rt::before{content:"";position:absolute;left:10px;top:calc(7px + .625em - 4px);width:8px;height:8px;border-radius:50%;background:currentColor}
+.rt-no::before{border-radius:2px;width:9px;height:2.5px;top:calc(7px + .625em - 1px)}
+.rt-none{color:var(--muted);background:var(--soft)}
+.rt code{padding:0!important;background:none!important;box-shadow:none!important;color:inherit;font-size:.95em!important;overflow-wrap:normal!important}
+.split{grid-column:2/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:-2px}
+.split div{padding:12px 14px;border-radius:10px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);font-size:.88rem;line-height:1.45}
+.split .sb{display:block;margin-bottom:6px;padding:0!important;background:none!important;box-shadow:none!important;font-size:.82rem!important;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.never{display:inline-block;margin-top:8px;padding:3px 8px;border-radius:6px;font-size:.84rem;font-weight:600;color:var(--accent);background:var(--accent-wash)}
+
+/* Agents */
+.flow{list-style:none;padding:0;margin-top:24px;display:grid;gap:0;max-width:72ch}
+.flow li{position:relative;padding:0 0 22px 44px;color:var(--ink-soft)}
+.flow li::before{content:"";position:absolute;left:13px;top:30px;bottom:2px;width:2px;background:linear-gradient(180deg,var(--aqua),var(--cobalt));border-radius:2px;opacity:.5}
+.flow li:last-child::before{display:none}
+.flow b{position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:700 .8rem/1 var(--mono);color:#fff;background:var(--navy)}
+.flow strong{color:var(--ink)}
+.res{list-style:none;padding:0;margin-top:22px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.res a{display:flex;flex-direction:column;gap:4px;min-height:44px;height:100%;padding:14px 16px;border-radius:12px;background:#fff;box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm);text-decoration:none;color:var(--muted)!important;font-size:.9rem;line-height:1.4;transition:box-shadow .3s var(--expo)}
+.res a:hover{box-shadow:inset 0 0 0 1px var(--accent),var(--sh-md)}
+.res .rp{font:700 .95rem/1.2 var(--mono);color:var(--accent)}
+
+
+/* Fin de page */
+.next{margin-top:clamp(56px,6vw,80px);padding:clamp(24px,3vw,36px);border-radius:20px;background:linear-gradient(160deg,#fff7ec 0%,#fff 46%,#eefbf8 100%);box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm)}
+.next h2{margin-top:0;font-size:clamp(1.5rem,1.2rem + 1vw,1.9rem)}
+.next > p{margin-top:10px;color:var(--muted);max-width:52ch}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
+
+/* Pied de page */
+.foot{padding:56px 0 48px;border-top:1px solid var(--line)}
+.foot-grid{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(0,1fr));gap:36px}
+.foot-brand p{margin-top:14px;color:var(--muted);font-size:.95rem;max-width:30em}
+.foot-brand a.mail{display:inline-flex;align-items:center;min-height:44px;color:var(--accent);font-weight:600;text-decoration:none}
+.foot-brand a.mail:hover{text-decoration:underline}
+.foot-h{font-size:.85rem;font-weight:600;color:var(--ink)}
+.foot ul{list-style:none;padding:0;margin:8px 0 0}
+.foot li a{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);text-decoration:none;font-size:.95rem}
+.foot li a:hover{color:var(--ink)}
+.legal{margin-top:40px;padding-top:22px;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted)}
+
+/* ---------- Survol ---------- */
+@media (hover:hover){
+  .btn:hover{translate:0 -1px}
+  .btn{transition:background-color .2s ease,box-shadow .35s var(--expo),translate .35s var(--expo)}
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1060px){
+  .nav a{padding:0 9px;font-size:.92rem}
+  .codes-head,.code-row{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)}
+  .codes-head span:last-child{display:none}
+  .cr-retry{grid-column:2}
+  .split{grid-column:2}
+  .codemap{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:960px){
+  .nav{display:none}
+  .bar{gap:12px}
+  .menu{display:block;margin-left:0}
+  .lang{margin-left:auto}
+  .band{clip-path:polygon(0 0,100% 0,100% calc(100% - 12vw),0 100%)}
+  .band::after{background:linear-gradient(180deg,rgba(255,255,255,.8) 0%,rgba(255,255,255,.66) 60%,rgba(255,255,255,.3) 100%)}
+  .doc{grid-template-columns:minmax(0,1fr);gap:8px}
+  .toc{position:static;max-height:none;overflow:visible;padding:18px 18px 10px;border-radius:16px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line)}
+  .toc > ol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;border-left:0}
+  .toc li a{padding-left:0;margin-left:0;border-left:0;min-height:44px}
+  .toc .toc-codes a{min-height:44px;min-width:46px}
+  .toc .toc-sub{display:none}
+  .toc-codes{grid-column:1/-1;padding-left:0}
+  .toc-li-codes{grid-column:1/-1}
+  .foot-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .foot-brand{grid-column:1/-1}
+}
+@media (max-width:720px){
+  .auth,.res{grid-template-columns:minmax(0,1fr)}
+  .codes-head{display:none}
+  .codes{margin-top:20px}
+  .code-row{grid-template-columns:minmax(0,1fr);padding:16px 16px 16px 19px}
+  .cr-retry,.split{grid-column:auto}
+  .cr-fam{margin-left:0;margin-top:8px}
+  .ref-head{display:none}
+  .ref-2 .ref-row,.ref-3 .ref-row,.ref-wide .ref-row{grid-template-columns:minmax(0,1fr)}
+  .ref .rr-l{display:block;margin-top:4px;font-size:.74rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+}
+@media (max-width:640px){
+  .bar > .btn{display:none}
+}
+@media (max-width:560px){
+  .split{grid-template-columns:minmax(0,1fr)}
+  .cb pre{font-size:12.5px;padding:14px 16px 16px}
+  .cta .btn{flex:1 1 100%}
+  .door{padding:20px}
+}
+@media (max-width:480px){
+  .menu summary{width:44px;padding:0;justify-content:center}
+  .menu-t{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .codemap{gap:8px}
+  .cm{padding:14px 12px}
+  .cm-codes{gap:5px}
+  .cm-codes a{min-width:44px;padding:0 6px;font-size:.95rem}
+}
+@media (pointer:coarse){
+  .toc li a{min-height:44px}
+  .toc .toc-codes a{min-height:44px;min-width:46px}
+}
+@media (max-width:370px){
+  .lang summary svg{display:none}
+}
+
+/* ---------- Mouvement (seulement si l'utilisateur l'accepte) ---------- */
+@keyframes rise{from{opacity:0;transform:translateY(20px)}}
+@keyframes d2{50%{transform:translate(7vw,-3vw) scale(.9)}100%{transform:translate(-4vw,-6vw) scale(1.1)}}
+@keyframes d4{50%{transform:translate(8vw,3vw) scale(1.08)}100%{transform:translate(2vw,-4vw) scale(.92)}}
+@media (prefers-reduced-motion:no-preference){
+  html{scroll-behavior:smooth}
+  .b2{animation:d2 22s ease-in-out infinite alternate}
+  .b4{animation:d4 28s ease-in-out infinite alternate}
+  .b5{animation:d2 30s ease-in-out -8s infinite alternate}
+  .bar{animation:rise .9s var(--expo) both}
+  .in{animation:rise 1.1s var(--expo) both;animation-delay:calc(var(--i,0)*90ms + 60ms)}
+  @supports (animation-timeline:view()){
+    .reveal{animation:rise both var(--expo);animation-timeline:view();animation-range:entry 5% cover 22%}
+    .code-row,.cm{animation:rise both var(--expo);animation-timeline:view();animation-range:entry 0% cover 18%}
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+
+/* ---------- Devanagari ---------- */
+*,*::before,*::after{letter-spacing:normal!important;text-transform:none!important}
+h1,h2,h3,h4{line-height:1.3!important;padding-top:.08em}
+h1{line-height:1.25!important}
+p,li,dd{line-height:1.75}
+.g-num,.big,.plan-cur,.q-big,.q-big *,.amount,.amount *,.wait *,.perks strong,.stat strong,.num{line-height:1.25}
+.btn,.pill,.badge,.st,.tag,.kicker,.eyebrow,.nav a,.menu-panel a,.lang-panel a,.promise-h,.ex,.role,.once,.call-lbl,.keep-h,.toc-h,.ref-head,.codes-head,.rt,.cr-fam,.cm-h,.verb,.cb-top{line-height:1.5}
+.btn,.pill{line-height:1.4}
+.eyebrow{font-size:1.05rem}.kicker{font-size:.95rem}.pill{font-size:.95rem}.pill b{font-size:.8rem}
+.lang-panel [lang="hi"]{font-size:1.05em}
+.toc-h,.ref-head,.codes-head,.door dt,.ref .rr-l,.st,.cr-fam,.cm-d,.rt,.never{font-size:.85rem!important}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">सीधे सामग्री पर जाएँ</a>
+
+<header class="top">
+  <div class="wrap bar">
+    <a class="brand" href="accueil-hi.html" aria-label="Address Validator, मुखपृष्ठ">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>
+      Address Validator
+    </a>
+    <nav class="nav" aria-label="मुख्य नेविगेशन">
+      <a href="tarifs-hi.html">कीमतें</a>
+      <a href="guide-hi.html" aria-current="page">गाइड</a>
+      <a href="test-hi.html">पता जाँचें</a>
+      <a href="compte-hi.html">ग्राहक पोर्टल</a>
+    </nav>
+    <details class="lang" name="entete">
+      <summary><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6.3"/><path d="M1.7 8h12.6M8 1.7c1.9 2 2.8 4.1 2.8 6.3S9.9 12.3 8 14.3C6.1 12.3 5.2 10.2 5.2 8S6.1 3.7 8 1.7z"/></svg><span class="sr">भाषा: </span>HI</summary>
+      <ul class="lang-panel">
+        <li><a href="guide-fr.html" hreflang="fr" lang="fr">Français</a></li>
+        <li><a href="guide-en.html" hreflang="en" lang="en">English</a></li>
+        <li><a href="guide-zh.html" hreflang="zh" lang="zh">中文</a></li>
+        <li><a href="guide-hi.html" hreflang="hi" lang="hi" aria-current="page">हिन्दी</a></li>
+        <li><a href="guide-es.html" hreflang="es" lang="es">Español</a></li>
+        <li><a href="guide-ar.html" hreflang="ar" lang="ar">العربية</a></li>
+      </ul>
+    </details>
+    <a class="btn btn-ink btn-sm" href="inscription-hi.html">खाता बनाएँ <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+    <details class="menu" name="entete">
+      <summary><i aria-hidden="true"></i><span class="menu-t">मेनू</span></summary>
+      <nav class="menu-panel" aria-label="मोबाइल नेविगेशन">
+        <a href="tarifs-hi.html">कीमतें</a>
+        <a href="guide-hi.html" aria-current="page">गाइड</a>
+        <a href="test-hi.html">पता जाँचें</a>
+        <a href="compte-hi.html">ग्राहक पोर्टल</a>
+        <a class="btn btn-ink" href="inscription-hi.html">खाता बनाएँ</a>
+      </nav>
+    </details>
+  </div>
+</header>
+
+<main id="contenu">
+
+<section class="phead" aria-labelledby="titre">
+  <div class="band" aria-hidden="true"><i class="b4"></i><i class="b2"></i><i class="b5"></i></div>
+  <div class="guides" aria-hidden="true"></div>
+  <div class="wrap phead-in">
+    <p class="pill in" style="--i:0"><b>डॉक्स</b>Address Validator API इंटीग्रेट करें</p>
+    <h1 id="titre" class="in" style="--i:1">इंटीग्रेशन गाइड</h1>
+    <p class="lead in" style="--i:2">API कुंजी से प्रोडक्शन तक: प्रमाणीकरण, अनुबंध, रिटर्न कोड, कैश और कोटा। फिर चार व्यावहारिक उदाहरण: सीधी कॉल, CSV इम्पोर्ट, Shopify और WooCommerce।</p>
+    <ul class="quick in" style="--i:3" aria-label="मुख्य बातें">
+      <li><span class="verb">POST</span>/validate</li>
+      <li>X-API-Key</li>
+      <li>X-PAYMENT · 0.02 USDC</li>
+      <li>application/json</li>
+    </ul>
+  </div>
+</section>
+
+<div class="wrap doc">
+
+  <nav class="toc" aria-label="इस पृष्ठ पर">
+    <p class="toc-h">इस पृष्ठ पर</p>
+    <ol>
+      <li><a href="#en-une-minute">एक मिनट में</a></li>
+      <li><a href="#authentification">प्रमाणीकरण</a></li>
+      <li><a href="#contrat">अनुबंध</a></li>
+      <li class="toc-sub"><a href="#requete">अनुरोध</a></li>
+      <li class="toc-sub"><a href="#reponse">उत्तर और फ़ील्ड</a></li>
+      <li class="toc-sub"><a href="#en-tetes">उत्तर के हेडर</a></li>
+      <li class="toc-li-codes"><a href="#codes">रिटर्न कोड</a>
+        <ul class="toc-codes" aria-label="किसी कोड पर जाएँ">
+          <li><a class="f-ok" href="#code-200">200</a></li>
+          <li><a class="f-fix" href="#code-401">401</a></li>
+          <li><a class="f-lim" href="#code-402">402</a></li>
+          <li><a class="f-fix" href="#code-403">403</a></li>
+          <li><a class="f-fix" href="#code-422">422</a></li>
+          <li><a class="f-lim" href="#code-429">429</a></li>
+          <li><a class="f-srv" href="#code-500">500</a></li>
+          <li><a class="f-srv" href="#code-503">503</a></li>
+        </ul>
+      </li>
+      <li><a href="#cache-et-quotas">कैश और कोटा</a></li>
+      <li><a href="#cas-pratiques">व्यावहारिक उदाहरण</a></li>
+      <li class="toc-sub"><a href="#appel-direct">सीधी कॉल</a></li>
+      <li class="toc-sub"><a href="#import-csv">CSV इम्पोर्ट</a></li>
+      <li class="toc-sub"><a href="#shopify">Shopify</a></li>
+      <li class="toc-sub"><a href="#woocommerce">WooCommerce</a></li>
+      <li><a href="#agents">प्रति कॉल भुगतान</a></li>
+      <li><a href="#limites">सीमाएँ</a></li>
+    </ol>
+  </nav>
+
+  <div class="content">
+
+    <!-- 1. En une minute -->
+    <section class="dsec" id="en-une-minute" aria-labelledby="h-minute">
+      <p class="eyebrow">शुरुआत</p>
+      <h2 id="h-minute">एक मिनट में</h2>
+      <ol class="steps">
+        <li><strong>कुंजी लें।</strong> <a href="inscription-hi.html">खाता बनाएँ</a>: 14 दिन और 100 वैलिडेशन निःशुल्क, क्रेडिट कार्ड की ज़रूरत नहीं। कुंजी (<code>sk_live_…</code>) <strong>सिर्फ़ एक बार</strong> दिखती है। उसके बाद उसे <a href="compte-hi.html">ग्राहक पोर्टल</a> से नई बनाया जा सकता है।</li>
+        <li><strong><code>POST /validate</code> को कॉल करें</strong>, कुंजी हेडर <code>X-API-Key</code> में रखकर।</li>
+        <li><strong>नतीजा पढ़ें</strong>: मानकीकृत पता, डिलीवरी योग्यता, निर्देशांक और <code>cache_key</code>।</li>
+      </ol>
+      <figure class="cb">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="verb">POST</span><span class="cb-path">/validate</span><span class="cb-lang">curl</span></figcaption>
+        <pre tabindex="0"><code><span class="v">curl</span> -sS BASE_URL/validate \
+  -H <span class="s">"X-API-Key: sk_live_VOTRE_CLE"</span> \
+  -H <span class="s">"content-type: application/json"</span> \
+  -d <span class="s">'{"address": {"street": "1 Rue de Paris", "city": "Saint-Denis", "state": "RE", "zip": "97400", "country": "RE"}}'</span></code></pre>
+      </figure>
+      <p class="cb-note">सभी उदाहरणों में <code>BASE_URL</code> की जगह API का सार्वजनिक पता और <code>sk_live_VOTRE_CLE</code> की जगह अपनी कुंजी रखें।</p>
+      <p>अभी खाता नहीं है? <a href="test-hi.html">पता निःशुल्क जाँचकर देखें</a>: पृष्ठ कुछ सहेजता नहीं और ठीक वही दिखाता है जो API लौटाती है।</p>
+    </section>
+
+    <!-- 2. S'authentifier -->
+    <section class="dsec" id="authentification" aria-labelledby="h-auth">
+      <p class="eyebrow">पहुँच</p>
+      <h2 id="h-auth">प्रमाणीकरण</h2>
+      <p>दो रास्ते, एक ही उत्तर। सिर्फ़ भेजा जाने वाला हेडर और भुगतान बदलते हैं।</p>
+      <div class="auth">
+        <article class="door">
+          <p class="kicker">सब्सक्रिप्शन</p>
+          <h3>एक स्टोर</h3>
+          <dl>
+            <div><dt>आप भेजते हैं</dt><dd><code>X-API-Key: sk_live_…</code>, यानी साइन-अप पर दिखाई गई कुंजी, या ग्राहक पोर्टल में नई बनाई गई।</dd></div>
+            <div><dt>आप भुगतान करते हैं</dt><dd>आपके प्लान का मासिक कोटा। कॉल के समय <strong>कुछ भी</strong> नहीं लिया जाता।</dd></div>
+          </dl>
+        </article>
+        <article class="door door-dev dark">
+          <p class="kicker">प्रति कॉल भुगतान · x402</p>
+          <h3>स्वायत्त एजेंट</h3>
+          <dl>
+            <div><dt>आप भेजते हैं</dt><dd><code>X-PAYMENT</code>: हस्ताक्षरित EIP-3009 प्राधिकरण, जो <code>402</code> उत्तर के बॉडी (फ़ील्ड <code>accepts</code>) से बनाया जाता है।</dd></div>
+            <div><dt>आप भुगतान करते हैं</dt><dd>हर वसूल किए गए वैलिडेशन पर <strong>0.02 USDC</strong>।</dd></div>
+          </dl>
+        </article>
+      </div>
+      <div class="note"><strong>कुंजी को प्राथमिकता मिलती है।</strong> अगर दोनों हेडर साथ जाएँ, तो सब्सक्रिप्शन ही तय करता है: खाते से कवर कॉल का USDC में भुगतान <strong>कभी</strong> नहीं लिया जाता। हर उत्तर <code>X-Payment-Mode</code> में बताता है कि भुगतान कैसे हुआ।</div>
+      <p>कुंजी को कभी git रिपॉज़िटरी, साझा फ़ाइल या URL में न रखें। वह किसी एनवायरनमेंट वेरिएबल या सीक्रेट मैनेजर में रहनी चाहिए और सिर्फ़ <code>https</code> पर चलनी चाहिए। लीक हुई कुंजी एक क्लिक में नई बन जाती है: पुरानी तुरंत काम करना बंद कर देती है।</p>
+    </section>
+
+    <!-- 3. Le contrat -->
+    <section class="dsec" id="contrat" aria-labelledby="h-contrat">
+      <p class="eyebrow">संदर्भ</p>
+      <h2 id="h-contrat">अनुबंध</h2>
+      <h3 class="sub" id="requete">अनुरोध</h3>
+      <p><code>POST BASE_URL/validate</code>, JSON बॉडी, हेडर <code>content-type: application/json</code>।</p>
+      <figure class="cb">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="cb-path">अनुरोध का बॉडी</span><span class="cb-lang">JSON</span></figcaption>
+        <pre tabindex="0"><code>{<span class="k">"address"</span>: {
+   <span class="k">"street"</span>: <span class="s">"1 Rue de Paris"</span>,   <span class="c">// अनिवार्य</span>
+   <span class="k">"city"</span>: <span class="s">"Saint-Denis"</span>,        <span class="c">// अनिवार्य</span>
+   <span class="k">"state"</span>: <span class="s">"RE"</span>,                <span class="c">// अनिवार्य (क्षेत्र या राज्य)</span>
+   <span class="k">"zip"</span>: <span class="s">"97400"</span>,               <span class="c">// अनिवार्य</span>
+   <span class="k">"country"</span>: <span class="s">"RE"</span>               <span class="c">// वैकल्पिक, डिफ़ॉल्ट "US" (ISO, 2 अक्षर)</span>
+}}</code></pre>
+      </figure>
+
+      <h3 class="sub" id="reponse"><code>200</code> उत्तर</h3>
+      <figure class="cb">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="cb-path">200 OK</span><span class="cb-lang">JSON</span></figcaption>
+        <pre tabindex="0"><code>{
+  <span class="k">"result"</span>: {
+    <span class="k">"validated"</span>: <span class="v">true</span>,
+    <span class="k">"standardized"</span>: {<span class="k">"line1"</span>: <span class="s">"1 RUE DE PARIS"</span>, <span class="k">"line2"</span>: <span class="s">""</span>, <span class="k">"city"</span>: <span class="s">"SAINT-DENIS"</span>,
+                     <span class="k">"state"</span>: <span class="s">"RE"</span>, <span class="k">"zip"</span>: <span class="s">"97400"</span>, <span class="k">"country"</span>: <span class="s">"RE"</span>},
+    <span class="k">"latitude"</span>: <span class="n">-20.8823</span>, <span class="k">"longitude"</span>: <span class="n">55.4504</span>,
+    <span class="k">"deliverability"</span>: <span class="s">"residential"</span>,
+    <span class="k">"confidence"</span>: <span class="n">0.99</span>,
+    <span class="k">"degraded"</span>: <span class="v">false</span>,
+    <span class="k">"cache_key"</span>: <span class="s">"9b7a..."</span>
+  },
+  <span class="k">"price_paid"</span>: <span class="n">0.0</span>,
+  <span class="k">"transaction_id"</span>: <span class="v">null</span>
+}</code></pre>
+      </figure>
+      <dl class="ref ref-2">
+        <div class="ref-head" aria-hidden="true"><span>फ़ील्ड</span><span>इसका अर्थ</span></div>
+        <div class="ref-row"><dt><code>validated</code></dt><dd>प्रदाता ने पता पहचान लिया। <strong><code>false</code> हमेशा अंतिम निर्णय नहीं होता</strong>: कोई निष्कर्ष निकालने से पहले <code>degraded</code> पढ़ें।</dd></div>
+        <div class="ref-row"><dt><code>deliverability</code></dt><dd><code>residential</code>, <code>commercial</code>, <code>unknown</code> ou <code>invalid</code> : प्रदाता का कोड, सरल शब्दों में।</dd></div>
+        <div class="ref-row"><dt><code>confidence</code></dt><dd>0 से 1 के बीच का स्कोर: <strong>एक संकेत है, गारंटी नहीं</strong>। अपनी सीमा उस वापसी दर के अनुसार चुनें जो आप स्वीकार कर सकते हैं।</dd></div>
+        <div class="ref-row"><dt><code>degraded</code></dt><dd><code>true</code>: प्रदाता ने उत्तर नहीं दिया (खराबी, समय सीमा पार, सर्किट ब्रेकर खुला)। उत्तर पते के बारे में <strong>कुछ नहीं</strong> कहता। इसे कभी «अमान्य पता» के रूप में दर्ज न करें।</dd></div>
+        <div class="ref-row"><dt><code>price_paid</code></dt><dd>सब्सक्रिप्शन से कवर कॉल के लिए <code>0.0</code>; भुगतान वाली कॉल के लिए USDC में कीमत।</dd></div>
+        <div class="ref-row"><dt><code>cache_key</code></dt><dd>पते का छद्म-नाम (SHA-256)। यह कैश और किसी भी हटाने के अनुरोध के काम आता है। इसे सँभालकर रखें: इसमें पता नहीं होता।</dd></div>
+      </dl>
+
+      <h3 class="sub" id="en-tetes">उत्तर के हेडर</h3>
+      <p>ये वही हेडर हैं जो रूट सचमुच लगाता है। किसी और का वादा नहीं है।</p>
+      <dl class="ref ref-2">
+        <div class="ref-head" aria-hidden="true"><span>हेडर</span><span>सामग्री</span></div>
+        <div class="ref-row"><dt><code>X-Payment-Mode</code></dt><dd><code>api_key</code> या <code>x402</code>: कॉल का भुगतान कैसे हुआ।</dd></div>
+        <div class="ref-row"><dt><code>X-Plan</code></dt><dd><code>trial</code>, <code>starter</code>, <code>pro</code> या <code>enterprise</code>। केवल कुंजी मोड में।</dd></div>
+        <div class="ref-row"><dt><code>X-Quota-Remaining</code></dt><dd><strong>इस माह</strong> शेष वैलिडेशन। न दिखे तो प्लान असीमित है: न होने का मतलब «कोई सीमा नहीं» है।</dd></div>
+      </dl>
+    </section>
+
+    <!-- 4. Codes de retour (détail fort) -->
+    <section class="dsec" id="codes" aria-labelledby="h-codes">
+      <p class="eyebrow">संदर्भ</p>
+      <h2 id="h-codes">रिटर्न कोड, और क्या करना है</h2>
+      <p><code>/validate</code> पर आठ कोड संभव हैं। कुंजी मोड की तीन अस्वीकृतियाँ (401, 402, 403) जान-बूझकर अलग हैं: हर एक को उसके अपने तरीके से सँभालें।</p>
+
+      <div class="codemap">
+        <div class="cm f-ok">
+          <p class="cm-h">सफल</p>
+          <p class="cm-codes"><a class="cmc" href="#code-200" aria-label="कोड 200">200</a></p>
+          <p class="cm-d">नतीजा पढ़ें।</p>
+        </div>
+        <div class="cm f-fix">
+          <p class="cm-h">आपकी ओर से सुधार</p>
+          <p class="cm-codes"><a class="cmc" href="#code-401" aria-label="कोड 401">401</a><a class="cmc" href="#code-403" aria-label="कोड 403">403</a><a class="cmc" href="#code-422" aria-label="कोड 422">422</a></p>
+          <p class="cm-d">कुछ बदले बिना दोबारा भेजने का कोई फ़ायदा नहीं।</p>
+        </div>
+        <div class="cm f-lim">
+          <p class="cm-h">सीमा या भुगतान</p>
+          <p class="cm-codes"><a class="cmc" href="#code-402" aria-label="कोड 402">402</a><a class="cmc" href="#code-429" aria-label="कोड 429">429</a></p>
+          <p class="cm-d">यह खराबी नहीं है: बॉडी या <code>Retry-After</code> बताता है कि क्या करना है।</p>
+        </div>
+        <div class="cm f-srv">
+          <p class="cm-h">सेवा की ओर की समस्या</p>
+          <p class="cm-codes"><a class="cmc" href="#code-500" aria-label="कोड 500">500</a><a class="cmc" href="#code-503" aria-label="कोड 503">503</a></p>
+          <p class="cm-d">फिर कोशिश करें। यह कभी भुगतान की माँग नहीं होती।</p>
+        </div>
+      </div>
+
+      <div class="codes-head" aria-hidden="true"><span>कोड और स्थिति</span><span>आप क्या करें</span><span>दोबारा भेजें?</span></div>
+      <ol class="codes">
+        <li class="code-row f-ok" id="code-200">
+          <div class="cr-id"><h3><span class="sc">200</span><span class="cr-t">वैलिडेशन पूरा हुआ</span></h3><p class="cr-fam">सफलता</p></div>
+          <div class="cr-do"><p><code>result</code> पढ़ें। <code>cache_key</code> सँभालकर रखें: यह इस पते का आपका छद्म-नाम है, हटाने का अनुरोध इसी से होता है।</p></div>
+          <p class="cr-retry"><span class="rt rt-none">दोबारा भेजने की ज़रूरत नहीं</span></p>
+        </li>
+        <li class="code-row f-fix" id="code-401">
+          <div class="cr-id"><h3><span class="sc">401</span><span class="cr-t">API कुंजी अज्ञात</span></h3><p class="cr-fam">आपकी ओर से सुधार</p></div>
+          <div class="cr-do"><p>कुंजी अधूरी है, रद्द हो चुकी है (नई बनाई गई) या किसी दूसरी सेवा की है। एनवायरनमेंट वेरिएबल ठीक करें। <strong>लूप में बार-बार कोशिश न करें।</strong></p></div>
+          <p class="cr-retry"><span class="rt rt-no">नहीं: कुंजी ठीक करें</span></p>
+        </li>
+        <li class="code-row f-lim" id="code-402">
+          <div class="cr-id"><h3><span class="sc">402</span><span class="cr-t">इस माह का कोटा खत्म, या कोई मान्य भुगतान नहीं</span></h3><p class="cr-fam">सीमा या भुगतान</p></div>
+          <div class="cr-do"><p>उत्तर का बॉडी पढ़ें: वह बताता है कि दोनों में से कौन-सा मामला है। कोटे वाला 402 खराबी नहीं है।</p></div>
+          <p class="cr-retry"><span class="rt">बॉडी के अनुसार</span></p>
+          <div class="split">
+            <div><code class="sb">{"reason": "quota_atteint"}</code>उपयोग की सीमा पूरी हुई। <strong>यह खराबी नहीं है।</strong> काउंटर माह की 1 तारीख़ (UTC) को फिर शुरू होता है।</div>
+            <div><code class="sb">{"x402Version": 1}</code>इस कॉल का भुगतान नहीं आया। कीमत फ़ील्ड <code>accepts</code> में है।</div>
+          </div>
+        </li>
+        <li class="code-row f-fix" id="code-403">
+          <div class="cr-id"><h3><span class="sc">403</span><span class="cr-t">खाता समाप्त</span></h3><p class="cr-fam">आपकी ओर से सुधार</p></div>
+          <div class="cr-do"><p>निःशुल्क ट्रायल खत्म हो गया है और खाता ट्रायल प्लान पर ही रह गया है। <a href="tarifs-hi.html">सशुल्क प्लान</a> पर जाएँ: कुछ भी अपने आप नहीं कटता।</p></div>
+          <p class="cr-retry"><span class="rt rt-no">नहीं: प्लान बदलें</span></p>
+        </li>
+        <li class="code-row f-fix" id="code-422">
+          <div class="cr-id"><h3><span class="sc">422</span><span class="cr-t">अनुरोध का रूप गलत</span></h3><p class="cr-fam">आपकी ओर से सुधार</p></div>
+          <div class="cr-do"><p>कोई फ़ील्ड गायब या खाली है। <code>street</code>, <code>city</code>, <code>state</code> और <code>zip</code> अनिवार्य हैं; <code>country</code> का डिफ़ॉल्ट <code>US</code> है।</p></div>
+          <p class="cr-retry"><span class="rt rt-no">सुधार के बाद</span></p>
+        </li>
+        <li class="code-row f-lim" id="code-429">
+          <div class="cr-id"><h3><span class="sc">429</span><span class="cr-t">निःशुल्क प्रयासों की सीमा पूरी हुई</span></h3><p class="cr-fam">सीमा</p></div>
+          <div class="cr-do"><p>यह <code>/validate-form</code> यानी बिना खाते के ट्रायल पर लागू होता है, सशुल्क API पर नहीं। <code>Retry-After</code> में बताई अवधि तक रुकें, या <a href="inscription-hi.html">खाता बनाएँ</a>।</p></div>
+          <p class="cr-retry"><span class="rt"><code>Retry-After</code> के बाद</span></p>
+        </li>
+        <li class="code-row f-srv" id="code-500">
+          <div class="cr-id"><h3><span class="sc">500</span><span class="cr-t">भुगतान लिया गया, पर रजिस्टर तक पहुँच नहीं</span></h3><p class="cr-fam">सेवा की ओर की समस्या</p></div>
+          <div class="cr-do"><p>सेवा ऐसा वैलिडेशन देने से <strong>इनकार</strong> करती है जिसे वह दर्ज नहीं कर सकती। फिर कोशिश करें। कॉल का भुगतान हुआ था तो <code>transaction_id</code> बताएँ: मिलान हाथ से किया जाता है।</p></div>
+          <p class="cr-retry"><span class="rt">हाँ, <code>transaction_id</code> सँभालकर रखें</span></p>
+        </li>
+        <li class="code-row f-srv" id="code-503">
+          <div class="cr-id"><h3><span class="sc">503</span><span class="cr-t">ग्राहक खाते या डेटाबेस तक पहुँच नहीं</span></h3><p class="cr-fam">सेवा की ओर की समस्या</p></div>
+          <div class="cr-do"><p>कुंजी की जाँच नहीं हो सकी (यह अस्वीकृति <strong>नहीं</strong> है), या डेटाबेस जवाब नहीं दे रहा। कुछ मिनट बाद फिर कोशिश करें: कुछ भी खर्च नहीं हुआ।</p><p class="never">503 कभी भुगतान की माँग नहीं होता।</p></div>
+          <p class="cr-retry"><span class="rt">हाँ, कुछ मिनट बाद</span></p>
+        </li>
+      </ol>
+    </section>
+
+    <!-- 5. Cache et quotas -->
+    <section class="dsec" id="cache-et-quotas" aria-labelledby="h-cache">
+      <p class="eyebrow">बिलिंग</p>
+      <h2 id="h-cache">जिसका दोबारा भुगतान नहीं होता, और जिसकी सीमा है</h2>
+      <dl class="ref ref-3">
+        <div class="ref-head" aria-hidden="true"><span>विषय</span><span>क्या होता है</span><span>आप क्या करें</span></div>
+        <div class="ref-row"><dt>कैश (निर्णय)</dt><dd>एक ही सामान्यीकृत पता <strong>30 दिन</strong> तक प्रदाता से दोबारा नहीं पूछा जाता। इसकी गारंटी <code>cache_key</code> देता है।</dd><dd><span class="rr-l">करें</span>एक ही सवाल का दो बार भुगतान होने की चिंता किए बिना कॉल करें। नई कॉल के लिए पता बदलें: API अंदाज़ा नहीं लगाती।</dd></div>
+        <div class="ref-row"><dt>कैश (डिग्रेडेड)</dt><dd><code>degraded</code> नतीजा <strong>5 मिनट</strong> रखा जाता है, 30 दिन नहीं: «प्रदाता ने उत्तर नहीं दिया» कोई निर्णय नहीं है।</dd><dd><span class="rr-l">करें</span><code>degraded: true</code> को «बाद में फिर कोशिश करें» मानें। इस छोटी अवधि के बाद वही कॉल असली उत्तर पाती है।</dd></div>
+        <div class="ref-row"><dt>कोटा</dt><dd><strong>मासिक</strong>, <strong>UTC</strong> कैलेंडर माह के अनुसार: वह माह की 1 तारीख़ को फिर शुरू होता है, आपकी पहली कॉल के 30 दिन बाद नहीं।</dd><dd><span class="rr-l">करें</span><code>X-Quota-Remaining</code> पर नज़र रखें। सीमा के बाद नहीं, उससे पहले हमें लिखें।</dd></div>
+        <div class="ref-row"><dt>प्रति कॉल कीमत</dt><dd>वसूल किए गए हर वैलिडेशन पर <strong>0.02 USDC</strong> (x402 मोड)। सब्सक्रिप्शन से कवर कॉल में <code>price_paid: 0.0</code> आता है।</dd><dd><span class="rr-l">करें</span>भुगतान करने वाला एजेंट <code>402</code> का बॉडी (<code>accepts</code>) पढ़ता है: कीमत वहीं रहती है, उसका अंदाज़ा कभी नहीं लगाना पड़ता।</dd></div>
+        <div class="ref-row"><dt>बिना खाते का ट्रायल</dt><dd><code>/validate-form</code> पर <strong>हर दिन, हर विज़िटर के लिए 10 वैलिडेशन</strong>।</dd><dd><span class="rr-l">करें</span>नियमित उपयोग के लिए खाता बनाएँ: 100 वैलिडेशन निःशुल्क, फिर मासिक प्लान।</dd></div>
+      </dl>
+    </section>
+
+    <!-- 6. Cas pratiques -->
+    <section class="dsec" id="cas-pratiques" aria-labelledby="h-cas">
+      <p class="eyebrow">उदाहरण</p>
+      <h2 id="h-cas">व्यावहारिक उदाहरण</h2>
+      <p>API जोड़ने के चार तरीके। हर उदाहरण कुंजी को एनवायरनमेंट वेरिएबल से पढ़ता है।</p>
+
+      <h3 class="sub" id="appel-direct">1. सीधी कॉल (PowerShell)</h3>
+      <figure class="cb">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="verb">POST</span><span class="cb-path">/validate</span><span class="cb-lang">PowerShell</span></figcaption>
+        <pre tabindex="0"><code>$cle = $env:ADDRESS_VALIDATOR_KEY
+$corps = <span class="s">'{"address":{"street":"1 Rue de Paris","city":"Saint-Denis","state":"RE","zip":"97400","country":"RE"}}'</span>
+$r = <span class="v">Invoke-WebRequest</span> -Uri BASE_URL/validate -Method POST `
+     -Headers @{ <span class="s">"X-API-Key"</span> = $cle } -ContentType <span class="s">"application/json"</span> -Body $corps
+$r.StatusCode
+$r.Headers[<span class="s">"X-Payment-Mode"</span>], $r.Headers[<span class="s">"X-Plan"</span>], $r.Headers[<span class="s">"X-Quota-Remaining"</span>]
+($r.Content | <span class="v">ConvertFrom-Json</span>).result</code></pre>
+      </figure>
+
+      <h3 class="sub" id="import-csv">2. CSV इम्पोर्ट (Python)</h3>
+      <figure class="cb">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="cb-path">verifier_colis.py</span><span class="cb-lang">Python</span></figcaption>
+        <pre tabindex="0"><code><span class="c">"""पतों की CSV जाँचती है और नतीजा बगल के कॉलम में लिखती है।
+
+प्रदाता से हर पते के लिए सिर्फ़ एक बार पूछा जाता है: उत्तर कैश में रखा जाता है
+(निर्णय के लिए 30 दिन), इसलिए उसी फ़ाइल पर दूसरी बार चलाने पर कोई अतिरिक्त
+खर्च नहीं होता।
+"""</span>
+<span class="v">import</span> csv
+<span class="v">import</span> os
+<span class="v">import</span> time
+
+<span class="v">import</span> requests
+
+CLE = os.environ[<span class="s">"ADDRESS_VALIDATOR_KEY"</span>]  <span class="c"># कभी कोड में नहीं, कभी git में नहीं</span>
+API = <span class="s">"BASE_URL/validate"</span>
+
+<span class="v">with</span> open(<span class="s">"colis.csv"</span>, newline=<span class="s">""</span>, encoding=<span class="s">"utf-8"</span>) <span class="v">as</span> source, open(
+    <span class="s">"colis-verifies.csv"</span>, <span class="s">"w"</span>, newline=<span class="s">""</span>, encoding=<span class="s">"utf-8"</span>
+) <span class="v">as</span> cible:
+    lecteur = csv.DictReader(source)
+    champs = list(lecteur.fieldnames) + [
+        <span class="s">"validated"</span>, <span class="s">"deliverability"</span>, <span class="s">"degraded"</span>, <span class="s">"note"</span>,
+    ]
+    sortie = csv.DictWriter(cible, fieldnames=champs)
+    sortie.writeheader()
+    <span class="v">for</span> ligne <span class="v">in</span> lecteur:
+        reponse = requests.post(
+            API,
+            headers={<span class="s">"X-API-Key"</span>: CLE},
+            timeout=<span class="n">30</span>,
+            json={
+                <span class="s">"address"</span>: {
+                    <span class="s">"street"</span>: ligne[<span class="s">"adresse"</span>],
+                    <span class="s">"city"</span>: ligne[<span class="s">"ville"</span>],
+                    <span class="s">"state"</span>: ligne[<span class="s">"region"</span>],
+                    <span class="s">"zip"</span>: ligne[<span class="s">"code_postal"</span>],
+                    <span class="s">"country"</span>: ligne.get(<span class="s">"pays"</span>) <span class="v">or</span> <span class="s">"US"</span>,
+                }
+            },
+        )
+        <span class="v">if</span> reponse.status_code <span class="v">in</span> (<span class="n">500</span>, <span class="n">503</span>):
+            time.sleep(<span class="n">5</span>)  <span class="c"># सेवा की ओर की खराबी: कुछ भी खर्च नहीं हुआ</span>
+            <span class="v">continue</span>
+        <span class="v">if</span> reponse.status_code == <span class="n">429</span>:
+            time.sleep(int(reponse.headers.get(<span class="s">"Retry-After"</span>, <span class="s">"60"</span>)))
+            <span class="v">continue</span>
+        <span class="v">if</span> reponse.status_code != <span class="n">200</span>:
+            sortie.writerow({**ligne, <span class="s">"note"</span>: <span class="s">f"refus {reponse.status_code}"</span>})
+            <span class="v">continue</span>
+        resultat = reponse.json()[<span class="s">"result"</span>]
+        sortie.writerow(
+            {
+                **ligne,
+                <span class="s">"validated"</span>: resultat[<span class="s">"validated"</span>],
+                <span class="s">"deliverability"</span>: resultat[<span class="s">"deliverability"</span>],
+                <span class="s">"degraded"</span>: resultat[<span class="s">"degraded"</span>],
+                <span class="s">"note"</span>: <span class="s">"a reverifier (fournisseur injoignable)"</span>
+                <span class="v">if</span> resultat[<span class="s">"degraded"</span>]
+                <span class="v">else</span> <span class="s">""</span>,
+            }
+        )</code></pre>
+      </figure>
+      <p>यह उदाहरण बस इतना दिखाता है: कुंजी एनवायरनमेंट वेरिएबल से आती है, <code>429</code> का सम्मान होता है (अवधि <em>पढ़ी</em> जाती है, अंदाज़े से नहीं ली जाती), और <code>degraded</code> नतीजे को अमान्य पता लिखने के बजाय «दोबारा जाँचें» चिह्नित किया जाता है।</p>
+
+      <div class="note note-warn"><strong>न कोई Shopify ऐप, न कोई WooCommerce एक्सटेंशन।</strong> आपके स्टोर में कुछ इंस्टॉल नहीं करना है: API ही अनुबंध है, और कॉल <strong>आपकी</strong> सेवा से जाती है। इसी से आप अपनी भरोसा सीमा खुद चुन पाते हैं।</div>
+
+      <h3 class="sub" id="shopify">3. Shopify</h3>
+      <dl class="ref ref-wide">
+        <div class="ref-head" aria-hidden="true"><span>चरण</span><span>आप क्या जोड़ते हैं</span></div>
+        <div class="ref-row"><dt>ट्रिगर</dt><dd><code>orders/create</code> वेबहुक (या पार्सल तैयार करने का आपका चरण) आपकी सेवा को कॉल करता है, जो ऑर्डर के डिलीवरी पते के साथ <code>/validate</code> से पूछती है।</dd></div>
+        <div class="ref-row"><dt>फ़ील्ड मिलान</dt><dd><ul class="map"><li><code>shipping_address.address1</code> → <code>street</code> (नतीजे में <code>address2</code> को <code>line2</code> में जोड़ें)</li><li><code>city</code> → <code>city</code></li><li><code>province_code</code> → <code>state</code></li><li><code>zip</code> → <code>zip</code></li><li><code>country_code</code> → <code>country</code></li></ul></dd></div>
+        <div class="ref-row"><dt>निर्णय</dt><dd><code>validated: false</code>: भेजने से <strong>पहले</strong> अपने बैक-ऑफ़िस में ऑर्डर पर निशान लगाएँ। <code>degraded: true</code>: कुछ न रोकें, जाँच दोबारा तय करें।</dd></div>
+        <div class="ref-row"><dt>जो हम नहीं देते</dt><dd>इंस्टॉल के लिए तैयार कोई Shopify ऐप नहीं: कॉल आपकी सेवा से आती है।</dd></div>
+      </dl>
+
+      <h3 class="sub" id="woocommerce">4. WooCommerce</h3>
+      <dl class="ref ref-wide">
+        <div class="ref-head" aria-hidden="true"><span>चरण</span><span>आप क्या जोड़ते हैं</span></div>
+        <div class="ref-row"><dt>ट्रिगर</dt><dd><code>woocommerce_checkout_order_processed</code> एक्शन (भुगतान हुआ ऑर्डर), या तैयारी में चल रहे ऑर्डर देखने वाला एक cron (<code>wc_get_orders( ['status' =&gt; 'processing'] )</code>)।</dd></div>
+        <div class="ref-row"><dt>फ़ील्ड मिलान</dt><dd><ul class="map"><li><code>$order-&gt;get_shipping_address_1()</code> → <code>street</code></li><li><code>$order-&gt;get_shipping_city()</code> → <code>city</code></li><li><code>$order-&gt;get_shipping_state()</code> → <code>state</code></li><li><code>$order-&gt;get_shipping_postcode()</code> → <code>zip</code></li><li><code>$order-&gt;get_shipping_country()</code> → <code>country</code></li></ul></dd></div>
+        <div class="ref-row"><dt>ट्रेसबिलिटी</dt><dd><code>cache_key</code> को ऑर्डर के साथ सहेजें: हटाने के अनुरोध के लिए पते का यही एकमात्र मान्य पहचानकर्ता है।</dd></div>
+        <div class="ref-row"><dt>जो हम नहीं देते</dt><dd>कोई WooCommerce एक्सटेंशन नहीं: कॉल आपकी सेवा से आती है।</dd></div>
+      </dl>
+      <p>हर स्थिति में: हर पते और हर ऑर्डर के लिए एक ही कॉल, कभी ऐसे लूप में नहीं जो रिटर्न कोड अनदेखा करे। <a href="#code-402">कोटे वाला 402</a> खराबी नहीं है: वह एक सीमा है, और उत्तर में ही पढ़ी जा सकती है।</p>
+    </section>
+
+    <!-- 7. Agents -->
+    <section class="dsec" id="agents" aria-labelledby="h-agents">
+      <p class="eyebrow">डेवलपर और AI एजेंट</p>
+      <h2 id="h-agents">खाते के बिना, प्रति कॉल भुगतान</h2>
+      <p>स्वायत्त एजेंट को न खाते की ज़रूरत है, न कुंजी की। हर वसूल किया गया वैलिडेशन <strong>0.02 USDC</strong> का है, जो Base नेटवर्क पर x402 से चुकाया जाता है।</p>
+      <ol class="flow">
+        <li><b>1</b><strong><code>POST /validate</code> को कॉल करें</strong>, सामान्य बॉडी के साथ। भुगतान के बिना उत्तर <code>402</code> होता है, जिसके बॉडी में <code>{"x402Version": 1}</code> और फ़ील्ड <code>accepts</code> होते हैं: कीमत वहीं है।</li>
+        <li><b>2</b><strong>प्राधिकरण पर हस्ताक्षर करें।</strong> <code>accepts</code> से EIP-3009 प्राधिकरण बनाएँ और अनुरोध हेडर <code>X-PAYMENT</code> के साथ दोबारा भेजें।</li>
+        <li><b>3</b><strong>उत्तर पढ़ें।</strong> <code>X-Payment-Mode</code> का मान <code>x402</code> है, <code>price_paid</code> USDC में कीमत देता है, और <code>transaction_id</code> वह संदर्भ है जिसे <a href="#code-500">500</a> की स्थिति में बताना है।</li>
+      </ol>
+      <p>आपके एजेंटों के लिए सब कुछ बिना भुगतान के खोजा जा सकता है:</p>
+      <ul class="res">
+        <li><a href="/mcp"><span class="rp">/mcp</span><span>MCP सर्वर, टूल <code>validate_address</code>, डिस्कवरी निःशुल्क</span></a></li>
+        <li><a href="/manifest"><span class="rp">/manifest</span><span>एजेंट के पढ़ने लायक x402 विवरण</span></a></li>
+        <li><a href="/llms.txt"><span class="rp">/llms.txt</span><span>सर्च इंजन और एजेंट के लिए संक्षिप्त सार</span></a></li>
+        <li><a href="/AGENTS.md"><span class="rp">/AGENTS.md</span><span>आपके एजेंटों के लिए निर्देश</span></a></li>
+        <li><a href="/docs"><span class="rp">/docs</span><span>इंटरैक्टिव दस्तावेज़ (OpenAPI, आज़माने योग्य)</span></a></li>
+      </ul>
+    </section>
+
+    <!-- 8. Limites -->
+    <section class="dsec" id="limites" aria-labelledby="h-limites">
+      <p class="eyebrow">इंटीग्रेट करने से पहले जानें</p>
+      <h2 id="h-limites">सीमाएँ</h2>
+      <dl class="ref ref-wide">
+        <div class="ref-row"><dt>अमेरिका <span class="st st-ok">अनुकूलित</span></dt><dd>प्रदाता अमेरिका के पतों के लिए अनुकूलित है: मानकीकृत पता, निर्देशांक, डिलीवरी योग्यता और भरोसा स्कोर।</dd></div>
+        <div class="ref-row"><dt>अमेरिका के बाहर <span class="st st-warn">आंशिक</span></dt><dd>अमेरिका के बाहर जाँच आंशिक रहती है। फ़्रांस या रेयूनियन के पते के लिए मिला उत्तर पूरी पुष्टि नहीं माना जाता।</dd></div>
+        <div class="ref-row"><dt><code>degraded: true</code> <span class="st st-info">दोबारा जाँचें</span></dt><dd>प्रदाता ने उत्तर नहीं दिया। यह उत्तर पते के बारे में कुछ नहीं कहता: यह अस्वीकृति नहीं है। बाद में फिर चलाएँ।</dd></div>
+        <div class="ref-row"><dt>इंटीग्रेशन</dt><dd>न कोई Shopify ऐप, न कोई WooCommerce एक्सटेंशन: कॉल आपकी अपनी सेवा से जाती है।</dd></div>
+      </dl>
+      <div class="note note-ok"><strong>हम क्या रखते हैं, और क्या नहीं।</strong> सशुल्क या सब्सक्रिप्शन वाली कॉल के लिए: पते का फ़िंगरप्रिंट (<code>cache_key</code>) और नतीजा, पता खुद कभी नहीं। बिना खाते के निःशुल्क ट्रायल के लिए: <strong>कुछ नहीं</strong>, सिर्फ़ एक गुमनाम काउंटर जो सीमा लागू रखता है। हटाने का अनुरोध <code>cache_key</code> से किया जाता है।</div>
+
+      <div class="next">
+        <h2>अब अमल में लाएँ</h2>
+        <p>कुंजी पाने के लिए खाता बनाएँ, या पहले बिना खाते के कोई पता जाँचकर देखें।</p>
+        <div class="cta">
+          <a class="btn btn-accent" href="inscription-hi.html">खाता बनाएँ <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+          <a class="btn btn-glass" href="tarifs-hi.html">कीमतें देखें</a>
+          <a class="btn btn-glass" href="test-hi.html">पता जाँचें</a>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="accueil-hi.html"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>Address Validator</a>
+        <p>Address Validator, Kder Daoud</p>
+        <a class="mail" href="mailto:address-validator@kder-ai.com">address-validator@kder-ai.com</a>
+      </div>
+      <div>
+        <p class="foot-h">स्टोर के लिए</p>
+        <ul>
+          <li><a href="tarifs-hi.html">कीमतें</a></li>
+          <li><a href="guide-hi.html">इंटीग्रेशन गाइड</a></li>
+          <li><a href="test-hi.html">पता जाँचें</a></li>
+          <li><a href="compte-hi.html">ग्राहक पोर्टल</a></li>
+          <li><a href="inscription-hi.html">खाता बनाएँ</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="foot-h">डेवलपर और एजेंट के लिए</p>
+        <ul>
+          <li><a href="/docs">दस्तावेज़</a></li>
+          <li><a href="/mcp">MCP सर्वर</a></li>
+          <li><a href="/manifest">मैनिफ़ेस्ट</a></li>
+          <li><a href="/llms.txt">llms.txt</a></li>
+          <li><a href="/AGENTS.md">AGENTS.md</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">कीमतें कर के बिना। सब्सक्रिप्शन के बिना सीधी कॉल: 0.02 USDC प्रति वैलिडेशन।</p>
+  </div>
+</footer>
+</body>
+</html>

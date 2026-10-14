@@ -1,0 +1,841 @@
+<!doctype html>
+<!--
+  v2-2 · Logique « Référence mondiale » : transférer à Address Validator le langage d'un site primé, sans rien en copier.
+  Référence : stripe.com (API pour développeurs et commerce). Décomposition retenue :
+  - Page claire et lumineuse ; derrière le héros, une bande de dégradé maillé animée, coupée en biais (environ 7 degrés), qui passe sous la navigation.
+  - Titre très grand en graisse légère (Söhne 300 à 400 chez Stripe), interlettrage négatif serré, encre marine profonde, un seul accent vif.
+  - Le produit montré, pas décrit : cartes d'interface et de code qui flottent et se superposent au bord de la bande.
+  - Ombres multicouches teintées de bleu, rayons modérés, boutons pilule avec flèche qui s'allonge au survol.
+  - Grille rendue visible par de fines lignes guides verticales en pointillés ; sections alternées blanc, gris bleuté, marine, bords en biais.
+  - Mouvement discret : dégradé qui dérive lentement, apparitions douces en cascade, survols qui soulèvent à peine.
+  Migration : palette propre (safran, corail, aqua, ciel, cobalt ; aucun violet-rose), accent cobalt, polices système, la carte API animée comme détail fort.
+  Hypothèses : exemple 100 Stewart Street en residential 1.0 avec GPS (cohérent avec scorer.py), coordonnées arrondies. À valider : accroche, ordre des sections, ton du bloc couverture.
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Address Validator · Vérifiez l'adresse avant l'expédition</title>
+<meta name="description" content="API de validation d'adresses postales : adresse standardisée, coordonnées GPS, livrabilité et indice de confiance. Optimisée pour les adresses des États-Unis.">
+<link rel="alternate" hreflang="fr" href="accueil-fr.html">
+<link rel="alternate" hreflang="en" href="accueil-en.html">
+<link rel="alternate" hreflang="zh" href="accueil-zh.html">
+<link rel="alternate" hreflang="hi" href="accueil-hi.html">
+<link rel="alternate" hreflang="es" href="accueil-es.html">
+<link rel="alternate" hreflang="ar" href="accueil-ar.html">
+<link rel="alternate" hreflang="x-default" href="accueil-en.html">
+<style>
+:root{
+  --ink:#0b1b34;--ink-soft:#14223d;--muted:#4b5974;--faint:#66738c;
+  --line:#e2e7f0;--bg:#fff;--soft:#f5f7fb;
+  --accent:#1f3bff;--accent-deep:#1429cc;--accent-wash:#e9edff;
+  --ok:#0a7350;--ok-bg:#dff5ea;--warn:#9a5b00;--warn-bg:#fff1d6;--bad:#b42318;
+  --navy:#0b1b34;--navy-2:#0d2242;
+  --saffron:#ffc15e;--tang:#ff9455;--coral:#ff6f61;--aqua:#2fd3c1;--sky:#4ab3ff;--cobalt:#3150ff;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --expo:cubic-bezier(.16,1,.3,1);
+  --sh-lg:0 50px 100px -20px rgba(20,40,110,.26),0 30px 60px -30px rgba(0,0,0,.3);
+  --sh-md:0 13px 27px -5px rgba(20,40,110,.16),0 8px 16px -8px rgba(0,0,0,.16);
+  --sh-sm:0 2px 5px -1px rgba(20,40,110,.12),0 1px 3px -1px rgba(0,0,0,.1);
+  --g:clamp(16px,4vw,40px);
+  --nav-h:84px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1.0625rem/1.6 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:inherit}
+h1,h2,h3,p,ul,ol,dl,dd,figure{margin:0}
+h1,h2,h3{text-wrap:balance}
+p,li,dd{text-wrap:pretty}
+code,.mono{font-family:var(--mono)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:8px}
+.dark :focus-visible{outline-color:#9db2ff}
+.wrap{width:min(100% - 2*var(--g),1180px);margin-inline:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.skip{position:absolute;left:16px;top:-80px;z-index:99;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none}
+.skip:focus{top:12px}
+
+/* ---------- Boutons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;min-height:48px;padding:0 1.35rem;border:0;border-radius:999px;font:600 .97rem/1 var(--sans);letter-spacing:-.005em;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background-color .2s ease,box-shadow .35s var(--expo)}
+.btn-accent{background:var(--accent);color:#fff;box-shadow:0 1px 1px rgba(11,27,52,.14),0 8px 18px -8px rgba(31,59,255,.6)}
+.btn-accent:hover{background:var(--accent-deep)}
+.btn-glass{background:rgba(255,255,255,.74);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.btn-glass:hover{background:#fff}
+.btn-ink{background:var(--ink);color:#fff}
+.btn-ink:hover{background:#1b2f52}
+.btn-light{background:#fff;color:var(--ink)}
+.btn-light:hover{background:#e9eef7}
+.btn-sm{min-height:44px;padding:0 1.1rem;font-size:.93rem}
+.arr{width:10px;height:10px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.arr .l{opacity:0;transition:opacity .2s ease}
+.arr .h{transition:transform .35s var(--expo)}
+a:hover .arr .l,button:hover .arr .l{opacity:1}
+a:hover .arr .h,button:hover .arr .h{transform:translateX(2px)}
+.link{display:inline-flex;align-items:center;gap:.45em;min-height:44px;font-weight:600;color:var(--accent);text-decoration:none}
+.link:hover{color:var(--accent-deep)}
+
+/* ---------- En-tête ---------- */
+.top{position:sticky;top:0;z-index:50;height:var(--nav-h);padding-top:12px;pointer-events:none}
+.bar{pointer-events:auto;display:flex;align-items:center;gap:20px;height:60px;padding:0 10px 0 16px;border-radius:16px;background:rgba(255,255,255,.72);box-shadow:inset 0 0 0 1px rgba(255,255,255,.7),0 10px 30px -18px rgba(20,40,110,.45);-webkit-backdrop-filter:saturate(1.6) blur(16px);backdrop-filter:saturate(1.6) blur(16px)}
+.brand{display:inline-flex;align-items:center;gap:10px;min-height:44px;text-decoration:none;font-weight:650;font-size:1.02rem;letter-spacing:-.015em;white-space:nowrap}
+.mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:conic-gradient(from 210deg,var(--cobalt),var(--aqua),var(--saffron),var(--coral),var(--cobalt));box-shadow:inset 0 0 0 1px rgba(11,27,52,.08)}
+.mark svg{width:17px;height:17px}
+.nav{display:flex;gap:2px;margin-left:auto}
+.nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;border-radius:10px;text-decoration:none;font-weight:500;font-size:.95rem;color:var(--ink-soft)}
+.nav a:hover{background:rgba(11,27,52,.06)}
+.menu{display:none;position:relative;margin-left:auto}
+.menu summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;background:var(--ink);color:#fff;font-weight:600;font-size:.93rem}
+.menu summary::-webkit-details-marker{display:none}
+.menu summary i{display:block;width:14px;height:8px;border-block:2px solid currentColor}
+.menu-panel{position:absolute;right:0;top:calc(100% + 10px);width:min(86vw,300px);display:grid;gap:2px;padding:8px;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.menu-panel a{display:flex;align-items:center;min-height:46px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.menu-panel a:hover{background:var(--soft)}
+.menu-panel .btn{margin-top:6px;color:#fff;justify-content:center}
+/* Sélecteur de langue */
+.lang{position:relative}
+.lang summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;padding:0 12px;border-radius:999px;font-weight:600;font-size:.9rem;color:var(--ink-soft);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12)}
+.lang summary::-webkit-details-marker{display:none}
+.lang summary:hover,.lang[open] summary{background:rgba(11,27,52,.06)}
+.lang summary svg{width:15px;height:15px;flex:none}
+.lang-panel{position:absolute;right:0;top:calc(100% + 10px);width:200px;display:grid;gap:2px;padding:8px;list-style:none;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.lang-panel a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.lang-panel a:hover{background:var(--soft)}
+.lang-panel [lang="ar"]{font-size:1.12em}
+.lang-panel [aria-current]{color:var(--accent);background:var(--accent-wash);font-weight:600}
+.lang-panel [aria-current]::after{content:"";width:9px;height:5px;margin-top:-3px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg)}
+
+/* ---------- Héros ---------- */
+.hero{position:relative;margin-top:calc(-1*var(--nav-h));padding:calc(var(--nav-h) + clamp(40px,6vw,84px)) 0 clamp(40px,4vw,64px);overflow-x:clip}
+.band{position:absolute;inset:0 0 auto 0;height:calc(100% - 70px);overflow:hidden;clip-path:polygon(0 0,100% 0,100% calc(100% - 12.5vw),0 100%);background:linear-gradient(102deg,#fff6ea 0%,#ffe8c6 17%,#ffd391 33%,#ffb469 47%,#ff9160 57%,#ff7766 66%,#3fd4c4 80%,#4cb2ff 91%,#3552ff 100%)}
+.band i{position:absolute;display:block;border-radius:50%}
+.b1{width:50vw;height:44vw;left:64%;top:-34%;background:radial-gradient(closest-side,rgba(49,80,255,.95),rgba(49,80,255,0))}
+.b2{width:40vw;height:32vw;left:54%;top:18%;background:radial-gradient(closest-side,rgba(47,211,193,.92),rgba(47,211,193,0))}
+.b3{width:36vw;height:28vw;left:32%;top:48%;background:radial-gradient(closest-side,rgba(255,111,97,.75),rgba(255,111,97,0))}
+.b4{width:46vw;height:34vw;left:-8%;top:26%;background:radial-gradient(closest-side,rgba(255,196,100,.85),rgba(255,196,100,0))}
+.b5{width:30vw;height:26vw;left:80%;top:30%;background:radial-gradient(closest-side,rgba(74,179,255,.9),rgba(74,179,255,0))}
+.guides{position:absolute;inset:0;width:min(100% - 2*var(--g),1180px);margin-inline:auto;pointer-events:none;background:linear-gradient(90deg,rgba(11,27,52,.075) 1px,transparent 1px) 0 0/25% 100%;box-shadow:inset -1px 0 rgba(11,27,52,.075);-webkit-mask-image:repeating-linear-gradient(180deg,#000 0 4px,transparent 4px 9px);mask-image:repeating-linear-gradient(180deg,#000 0 4px,transparent 4px 9px)}
+.hero-grid{position:relative;display:grid;grid-template-columns:minmax(0,1.18fr) minmax(0,1fr);gap:clamp(32px,4.5vw,72px);align-items:center}
+.pill{display:inline-flex;align-items:center;gap:10px;padding:5px 14px 5px 5px;border-radius:999px;background:rgba(255,255,255,.7);box-shadow:inset 0 0 0 1px rgba(11,27,52,.08);font-size:.875rem;font-weight:500;color:var(--ink-soft)}
+.pill b{font:700 .72rem/1 var(--sans);letter-spacing:.06em;color:#fff;background:var(--ink);padding:6px 9px;border-radius:999px}
+h1{margin-top:26px;font-size:clamp(2.55rem,1rem + 4.4vw,4.35rem);line-height:1.03;font-weight:400;letter-spacing:-.024em;color:var(--ink)}
+h1 .w{display:inline-block}
+.lead{margin-top:26px;max-width:34em;font-size:clamp(1.06rem,.98rem + .35vw,1.22rem);line-height:1.55;color:var(--ink-soft)}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:34px}
+.fine{margin-top:18px;font-size:.92rem;color:var(--ink-soft)}
+
+/* ---------- Carte API (le détail fort) ---------- */
+.stage{position:relative;padding-bottom:104px}
+.api{position:relative;z-index:1;width:88%;background:#fff;border-radius:14px;box-shadow:var(--sh-lg);overflow:hidden;transition:translate .7s var(--expo)}
+.mapcard{position:absolute;z-index:2;right:-5%;bottom:0;width:clamp(224px,47%,270px);background:#fff;border-radius:14px;box-shadow:var(--sh-lg),0 0 0 1px rgba(11,27,52,.04);overflow:hidden;transition:translate .8s var(--expo)}
+.stage:hover .api{translate:0 -4px}
+.stage:hover .mapcard{translate:0 -9px}
+.api-top{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #edf0f6}
+.dots{display:flex;gap:6px;margin-right:4px}
+.dots i{width:10px;height:10px;border-radius:50%;background:#e4e8ef}
+.verb{font:700 11px/1 var(--mono);color:var(--accent);background:var(--accent-wash);padding:5px 7px;border-radius:5px}
+.path{font:600 12.5px/1 var(--mono);color:var(--ink)}
+.status{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font:600 12px/1 var(--mono);color:var(--ok)}
+.status::before{content:"";width:7px;height:7px;border-radius:50%;background:#18b47c;box-shadow:0 0 0 3px rgba(24,180,124,.2)}
+.pane{padding:14px 20px 16px}
+.pane-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px;font:600 10.5px/1.2 var(--sans);letter-spacing:.09em;text-transform:uppercase}
+.req{background:var(--navy-2);color:#dbe4f3}
+.req .pane-row{color:#a3b3cf}
+.code{font:500 12.5px/1.75 var(--mono);font-variant-ligatures:none}
+.code .ln{display:block;white-space:pre;position:relative}
+.req .ln{width:max-content;max-width:100%}
+.req .k{color:#93c5ff}.req .s{color:#ffcf9a}.req .p{color:#8ea0bf}.req .h{color:#c8d4ea}
+.caret{display:inline-block;width:7px;height:1.15em;margin-left:2px;vertical-align:-.2em;background:#93c5ff;opacity:0}
+.wire{height:2px;background:linear-gradient(90deg,var(--saffron),var(--coral),var(--aqua),var(--cobalt));transform-origin:left}
+.res{background:#fbfcfe}
+.res .pane-row{color:var(--muted)}
+.legend{display:flex;gap:12px;text-transform:none;letter-spacing:0;font-weight:500;font-size:11px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend span::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.legend .lg-add::before{background:#18b47c}
+.res .k{color:var(--ink);font-weight:600}.res .s{color:#0a6b4f}.res .n{color:#b2450e}.res .b{color:var(--accent)}.res .p{color:var(--faint)}
+.fx,.ad{isolation:isolate}
+.fx::before,.ad::before{content:"";position:absolute;inset:0 -20px;z-index:-1;background:rgba(31,59,255,.05)}
+.ad::before{background:rgba(24,180,124,.07)}
+.fx::after,.ad::after{content:"";position:absolute;left:-13px;top:calc(50% - 3px);width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.ad::after{background:#18b47c}
+.m{display:inline-grid}
+.m>span{grid-area:1/1;white-space:pre}
+.raw{position:relative;opacity:0;color:var(--bad)}
+.raw::after{content:"";position:absolute;left:0;right:1ch;top:54%;height:1.5px;background:currentColor;transform-origin:left}
+.typed{display:inline-block}
+.chip{display:inline-block;padding:0 6px;margin:0 -1px;border-radius:5px;background:var(--ok-bg);color:var(--ok)!important;font-weight:600}
+.meter{display:inline-block;width:56px;height:6px;margin-left:10px;vertical-align:.12em;border-radius:3px;background:#e3e8f0;overflow:hidden}
+.meter i{display:block;height:100%;background:linear-gradient(90deg,var(--aqua),#18b47c);transform-origin:left}
+.api-foot{display:flex;align-items:center;gap:8px;padding:11px 20px;border-top:1px solid #edf0f6;font-size:12px;font-weight:500;color:var(--muted)}
+.api-foot::before{content:"";width:14px;height:1px;background:currentColor}
+.mapcard svg{display:block;width:100%;height:auto}
+.map-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;white-space:nowrap;border-top:1px solid #edf0f6;font:600 12px/1.2 var(--mono);color:var(--ink)}
+.tag{font:700 10px/1 var(--sans);letter-spacing:.07em;color:var(--accent);background:var(--accent-wash);padding:5px 7px;border-radius:5px}
+.pin,.pin-shadow,.ripple{transform-box:fill-box}
+.pin{transform-origin:50% 100%}
+.pin-shadow,.ripple{transform-origin:50% 50%}
+.ripple{opacity:0}
+
+/* ---------- Sections ---------- */
+.sec{position:relative;padding-block:clamp(84px,10vw,144px)}
+.sec-head{max-width:740px}
+.eyebrow{font-size:.95rem;font-weight:600;color:var(--accent);letter-spacing:-.005em}
+h2{margin-top:14px;font-size:clamp(2rem,1.15rem + 2.7vw,3.35rem);line-height:1.08;font-weight:500;letter-spacing:-.022em}
+.sec-lead{margin-top:20px;font-size:clamp(1.05rem,1rem + .25vw,1.18rem);line-height:1.6;color:var(--muted);max-width:36em}
+h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
+.inline{font-size:.86em;padding:.12em .4em;border-radius:6px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
+
+/* Comment ça marche */
+.how{padding-top:clamp(48px,6vw,88px)}
+.steps{list-style:none;padding:0;margin-top:64px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(24px,3vw,48px);position:relative}
+.steps::before{content:"";position:absolute;top:5px;left:0;right:0;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--saffron),var(--coral),var(--aqua),var(--cobalt));transform-origin:left}
+.step{position:relative;padding-top:40px}
+.step::before{content:"";position:absolute;top:0;left:0;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:inset 0 0 0 2.5px var(--ink)}
+.num{display:block;font:600 .8rem/1 var(--mono);color:var(--accent);margin-bottom:14px}
+.step p{margin-top:10px;color:var(--muted)}
+.mini{display:inline-block;margin-top:20px;max-width:100%;padding:9px 12px;border-radius:9px;background:var(--navy-2);color:#dbe4f3;font-size:.8rem;line-height:1.4;white-space:pre-wrap;box-shadow:var(--sh-sm)}
+.mini .k{color:#93c5ff}.mini .s{color:#ffcf9a}.mini .ok{color:#7ff0c4}
+
+/* Deux portes */
+.doors{background:var(--soft);clip-path:polygon(0 4vw,100% 0,100% 100%,0 100%);padding-top:calc(4vw + clamp(84px,9vw,128px))}
+.doors-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:56px}
+.door{--pad:clamp(28px,3.6vw,48px);position:relative;display:flex;flex-direction:column;padding:var(--pad);border-radius:20px;transition:translate .6s var(--expo),box-shadow .6s var(--expo)}
+.door-shop{background:#fff;box-shadow:var(--sh-md)}
+.door-dev{background:var(--navy);color:#e8eef8;box-shadow:var(--sh-lg)}
+.kicker{font:600 .8rem/1 var(--mono);letter-spacing:.02em;color:var(--accent)}
+.door .kicker{color:var(--accent)}
+.door-dev .kicker{color:#7ff0c4}
+.door h3{margin-top:14px;font-size:clamp(1.5rem,1.2rem + 1vw,2rem);font-weight:500;letter-spacing:-.03em}
+.door > p{margin-top:12px;color:var(--muted)}
+.door-dev > p{color:#b8c4d9}
+.facts{list-style:none;padding:0;margin:26px 0 0;display:grid;gap:12px}
+.facts li{position:relative;padding-left:28px;font-size:.98rem}
+.facts li::before{content:"";position:absolute;left:3px;top:.42em;width:10px;height:5px;border-left:2px solid var(--accent);border-bottom:2px solid var(--accent);transform:rotate(-45deg)}
+.door-dev .facts li{color:#dbe4f3}
+.door-dev .facts li::before{border-color:#7ff0c4}
+.door-dev .inline{background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);color:#fff}
+.codeblock{margin-top:26px;padding:16px 18px;border-radius:12px;background:#071429;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07);font-size:12.5px;line-height:1.75;color:#dbe4f3;overflow-x:auto}
+.codeblock code>span{display:block;white-space:pre}
+.codeblock .v{color:#7ff0c4}.codeblock .hk{color:#ffcf9a}.codeblock .c{color:#93a5c3}.codeblock .k{color:#93c5ff}
+.code-lite{background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink)}
+.code-lite .v{color:var(--accent)}.code-lite .hk{color:#b2450e}.code-lite .c{color:var(--muted)}.code-lite .k{color:var(--ink);font-weight:600}
+.door-links{display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;margin-top:auto;padding-top:32px}
+.door-dev .link{color:#b9c8ff}
+.door-dev .link:hover{color:#fff}
+.door-media{margin:calc(-1*var(--pad)) calc(-1*var(--pad)) 30px;border-radius:20px 20px 0 0;overflow:hidden;background:var(--soft)}
+.door-dev .door-media{background:var(--navy-2)}
+.door-media img{display:block;width:100%;height:auto;aspect-ratio:2/1;object-fit:cover;object-position:50% 24%}
+
+/* Sur le terrain */
+.terrain{padding-top:0}
+.shots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(20px,3vw,40px);align-items:start;margin-top:56px}
+.shot:nth-child(2){margin-top:clamp(0px,5vw,72px)}
+.shot-media{border-radius:20px;overflow:hidden;background:var(--soft);box-shadow:var(--sh-md)}
+.shot img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover}
+.shot figcaption{display:flex;align-items:center;gap:12px;margin-top:18px;font-weight:500;color:var(--ink-soft)}
+.shot figcaption::before{content:"";flex:none;width:22px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--saffron),var(--coral))}
+.shot:nth-child(2) figcaption::before{background:linear-gradient(90deg,var(--aqua),var(--cobalt))}
+
+/* Test en direct */
+.live{background:var(--navy);color:#e8eef8;clip-path:polygon(0 0,100% 5vw,100% 100%,0 calc(100% - 5vw));padding-block:calc(5vw + clamp(84px,9vw,128px));margin-block:-1px;scroll-margin-top:0}
+.live::before{content:"";position:absolute;inset:0;background:radial-gradient(60% 50% at 88% 20%,rgba(49,80,255,.38),transparent 70%),radial-gradient(45% 45% at 5% 95%,rgba(47,211,193,.18),transparent 70%);pointer-events:none}
+.live-grid{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:clamp(36px,6vw,96px);align-items:center}
+.live .eyebrow{color:#7ff0c4}
+.live h2{color:#fff}
+.live-copy p{margin-top:20px;color:#b8c4d9;font-size:1.08rem;max-width:30em}
+.live-copy .hint{display:inline-block;margin-top:26px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);color:#dbe4f3;font-size:.84rem}
+.hint b{color:#ffcf9a;font-weight:500}
+.form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 14px;padding:clamp(22px,3vw,36px);border-radius:20px;background:#fff;color:var(--ink);box-shadow:0 60px 120px -30px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.06)}
+.form-head{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line);font-weight:600}
+.form-head span{font:600 11px/1 var(--mono);color:var(--ok);background:var(--ok-bg);padding:6px 8px;border-radius:6px}
+.field{display:grid;gap:7px;min-width:0}
+.f-wide{grid-column:1/-1}
+.field label{font-size:.88rem;font-weight:600;color:var(--ink-soft)}
+.field input{width:100%;min-height:48px;padding:0 14px;border:1px solid #cfd7e4;border-radius:10px;background:#fff;color:var(--ink);font:500 1rem var(--sans);transition:border-color .2s ease,box-shadow .3s var(--expo)}
+.field input::placeholder{color:var(--faint);opacity:1}
+.field input:hover{border-color:#aeb9cc}
+.field input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px rgba(31,59,255,.16)}
+.field input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.form .btn{grid-column:1/-1;width:100%;min-height:52px;margin-top:4px}
+.form-note{grid-column:1/-1;font-size:.85rem;color:var(--muted);text-align:center}
+
+/* Offres */
+.plans-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:56px}
+.plan{display:flex;flex-direction:column;padding:32px;border-radius:18px;background:#fff;box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm);transition:translate .6s var(--expo),box-shadow .6s var(--expo)}
+.plan-trial{background:linear-gradient(160deg,#fff7ec 0%,#fff 46%,#eefbf8 100%)}
+.plan-name{font-weight:600;font-size:1rem;letter-spacing:-.01em}
+.price{display:flex;align-items:baseline;gap:6px;margin-top:18px;font-variant-numeric:tabular-nums}
+.price strong{font-size:clamp(3rem,2.4rem + 1.6vw,3.9rem);line-height:1;font-weight:300;letter-spacing:-.05em}
+.price span{font-size:.95rem;color:var(--muted)}
+.plan ul{list-style:none;padding:0;margin:24px 0 28px;display:grid;gap:10px;border-top:1px solid var(--line);padding-top:22px;color:var(--ink-soft);font-size:.97rem}
+.plan .btn,.plan .link{margin-top:auto;align-self:flex-start}
+.plans-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 28px;margin-top:32px;padding-top:24px;border-top:1px solid var(--line);color:var(--muted);font-size:.97rem}
+.plans-foot p{max-width:46em}
+
+/* Couverture */
+.cover{background:var(--soft)}
+.cover-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:clamp(36px,6vw,96px);align-items:start;margin-top:56px}
+.cover-list{display:grid;gap:0}
+.cover-item{display:grid;grid-template-columns:minmax(0,170px) minmax(0,1fr);gap:8px 24px;padding:22px 0;border-top:1px solid #dfe5ee}
+.cover-item:last-child{border-bottom:1px solid #dfe5ee}
+.cover-item dt{font-weight:600;letter-spacing:-.01em}
+.cover-item dd{color:var(--muted)}
+.st{display:inline-block;margin-top:6px;font:600 .72rem/1 var(--sans);letter-spacing:.04em;padding:5px 8px;border-radius:6px}
+.st-ok{color:var(--ok);background:var(--ok-bg)}
+.st-warn{color:var(--warn);background:var(--warn-bg)}
+.st-info{color:var(--accent);background:var(--accent-wash)}
+.scale{padding:clamp(24px,3vw,36px);border-radius:18px;background:#fff;box-shadow:var(--sh-md)}
+.scale h3{font-size:1.1rem}
+.scale > p{margin-top:8px;color:var(--muted);font-size:.95rem}
+.rows{list-style:none;padding:0;margin:24px 0 0;display:grid;gap:18px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:baseline}
+.row code{font-size:.9rem;font-weight:600}
+.row .val{font:600 .9rem/1 var(--mono);font-variant-numeric:tabular-nums}
+.row small{display:block;font-size:.8rem;color:var(--muted);font-family:var(--sans);font-weight:400;margin-top:4px}
+.track{grid-column:1/-1;height:8px;border-radius:4px;background:#eaeef5;overflow:hidden}
+.track i{display:block;height:100%;width:var(--v);border-radius:4px;background:var(--c);transform-origin:left}
+
+/* Appel final */
+.final{position:relative;padding-block:clamp(110px,13vw,190px);overflow-x:clip}
+.final .band{height:auto;inset:0;clip-path:polygon(0 12vw,100% 0,100% calc(100% - 12vw),0 100%);background:linear-gradient(100deg,#ffc15e 0%,#ff8f5a 17%,#ff7766 29%,#ffd6cb 44%,#f4fbff 50%,#c8f2ec 56%,#3fd4c4 71%,#4cb2ff 86%,#3552ff 100%)}
+.final .b4{left:-12%;top:18%}.final .b5{left:72%;top:26%}
+.final-card{position:relative;max-width:780px;margin-inline:auto;padding:clamp(32px,5vw,64px);border-radius:24px;background:#fff;box-shadow:var(--sh-lg);text-align:center}
+.final-card h2{margin-top:0}
+.final-card p{margin:18px auto 0;max-width:32em;color:var(--muted);font-size:1.08rem}
+.final-card .cta{justify-content:center}
+.final-card .btn-glass{background:var(--soft)}
+
+/* Pied de page */
+.foot{padding:56px 0 48px;border-top:1px solid var(--line)}
+.foot-grid{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(0,1fr));gap:36px}
+.foot-brand p{margin-top:14px;color:var(--muted);font-size:.95rem;max-width:30em}
+.foot-brand a.mail{display:inline-flex;align-items:center;min-height:44px;color:var(--accent);font-weight:600;text-decoration:none}
+.foot-brand a.mail:hover{text-decoration:underline}
+.foot-h{font-size:.85rem;font-weight:600;color:var(--ink)}
+.foot ul{list-style:none;padding:0;margin:8px 0 0}
+.foot li a{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);text-decoration:none;font-size:.95rem}
+.foot li a:hover{color:var(--ink)}
+.legal{margin-top:40px;padding-top:22px;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted)}
+
+/* ---------- Survol (soulèvement discret) ---------- */
+@media (hover:hover){
+  .btn:hover{translate:0 -1px}
+  .btn{transition:background-color .2s ease,box-shadow .35s var(--expo),translate .35s var(--expo)}
+  .door:hover,.plan:hover{translate:0 -4px}
+  .door-shop:hover,.plan:hover{box-shadow:inset 0 0 0 1px var(--line),var(--sh-md)}
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1300px){
+  .stage{padding-bottom:150px}
+}
+@media (max-width:1060px){
+  .nav a{padding:0 9px;font-size:.92rem}
+}
+@media (max-width:960px){
+  .nav{display:none}
+  .bar{gap:12px}
+  .menu{display:block;margin-left:0}
+  .lang{margin-left:auto}
+  .api{width:100%}
+  .mapcard{position:relative;right:auto;width:min(62%,280px);margin:-26px 14px 0 auto}
+  .stage{padding-bottom:0}
+  .api-foot{padding-bottom:34px}
+  .hero-grid{grid-template-columns:minmax(0,1fr)}
+  .stage{max-width:600px;margin-top:8px}
+  .band{height:calc(100% - 300px);clip-path:polygon(0 0,100% 0,100% calc(100% - 16vw),0 100%);background:linear-gradient(172deg,#fff6ea 0%,#ffe5bd 20%,#ffcd84 36%,#ffad66 50%,#ff8a62 60%,#ff7a66 66%,#43d3c4 80%,#4cb2ff 91%,#3552ff 100%)}
+  .b1{display:none}
+  .b2{width:90vw;height:60vw;left:30%;top:62%}
+  .b3{width:80vw;height:50vw;left:-20%;top:42%}
+  .b4{width:90vw;height:60vw;left:-30%;top:4%}
+  .b5{width:70vw;height:50vw;left:50%;top:78%}
+  .live-grid,.cover-grid{grid-template-columns:minmax(0,1fr)}
+  .doors-grid,.plans-grid{grid-template-columns:minmax(0,1fr)}
+  .foot-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .foot-brand{grid-column:1/-1}
+}
+@media (max-width:720px){
+  .steps{grid-template-columns:minmax(0,1fr);gap:40px;padding-left:28px}
+  .steps::before{top:0;bottom:0;left:5px;right:auto;width:2px;height:auto;background:linear-gradient(180deg,var(--saffron),var(--coral),var(--aqua),var(--cobalt));transform-origin:top}
+  .step{padding-top:0}
+  .step::before{left:-28px;top:4px}
+  .cover-item{grid-template-columns:minmax(0,1fr)}
+  .shots{grid-template-columns:minmax(0,1fr)}
+  .shot:nth-child(2){margin-top:0}
+}
+@media (max-width:640px){
+  .bar > .btn{display:none}
+}
+@media (max-width:480px){
+  .menu summary{width:44px;padding:0;justify-content:center}
+  .menu-t{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+}
+@media (max-width:370px){
+  .lang summary svg{display:none}
+}
+@media (max-width:560px){
+  .door-media img{aspect-ratio:16/10}
+  .mapcard{width:min(74%,270px);margin-right:10px}
+  .code{font-size:12px}
+  .pane{padding:13px 16px 15px}
+  .fx::after,.ad::after{left:-11px}
+  .fx::before,.ad::before{inset:0 -16px}
+  .legend{display:none}
+  .cta .btn{flex:1 1 100%}
+  .form{grid-template-columns:minmax(0,1fr)}
+  .plan{padding:26px}
+  .plans-foot .link{margin-left:-2px}
+  .final-card .cta .btn{flex:1 1 100%}
+}
+
+/* ---------- Mouvement (seulement si l'utilisateur l'accepte) ---------- */
+@keyframes rise{from{opacity:0;transform:translateY(24px)}}
+@keyframes word{from{opacity:0;transform:translateY(.42em)}}
+@keyframes card-in{from{opacity:0;transform:translateY(56px) scale(.96)}}
+@keyframes fade{from{opacity:0}}
+@keyframes type{from{clip-path:inset(0 100% 0 0)}}
+@keyframes caret{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes grow{from{transform:scaleX(0)}}
+@keyframes grow-y{from{transform:scaleY(0)}}
+@keyframes raw-out{0%,40%{opacity:1;transform:none;filter:none}100%{opacity:0;transform:translateY(-.5em);filter:blur(2px)}}
+@keyframes strike{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes flash{0%{opacity:0}35%{opacity:1;background:rgba(31,59,255,.16)}100%{opacity:1}}
+@keyframes flash-ok{0%{opacity:0}35%{opacity:1;background:rgba(24,180,124,.2)}100%{opacity:1}}
+@keyframes pop{0%{opacity:0;transform:scale(.55)}60%{opacity:1}}
+@keyframes drop{
+  0%{opacity:0;transform:translateY(-64px);animation-timing-function:cubic-bezier(.55,0,.85,.35)}
+  14%{opacity:1}
+  56%{transform:translateY(0) scale(1.1,.86);animation-timing-function:cubic-bezier(.16,1,.3,1)}
+  76%{transform:translateY(-7px) scale(.97,1.04)}
+  100%{opacity:1;transform:none}
+}
+@keyframes shade{0%{opacity:0;transform:scale(.25)}56%{opacity:.34;transform:scale(1.2)}100%{opacity:.26;transform:none}}
+@keyframes ripple{0%{opacity:.6;transform:scale(.5)}100%{opacity:0;transform:scale(3.2)}}
+@keyframes draw{from{stroke-dashoffset:1}}
+@keyframes settle{from{transform:scale(1.08)}}
+@keyframes d1{50%{transform:translate(-6vw,4vw) scale(1.12)}100%{transform:translate(3vw,7vw) scale(.94)}}
+@keyframes d2{50%{transform:translate(7vw,-3vw) scale(.9)}100%{transform:translate(-4vw,-6vw) scale(1.1)}}
+@keyframes d3{50%{transform:translate(-5vw,-4vw) scale(1.15)}100%{transform:translate(6vw,3vw)}}
+@keyframes d4{50%{transform:translate(8vw,3vw) scale(1.08)}100%{transform:translate(2vw,-4vw) scale(.92)}}
+
+@media (prefers-reduced-motion:no-preference){
+  html{scroll-behavior:smooth}
+  /* bande de dégradé : dérive lente et continue */
+  .b1{animation:d1 26s ease-in-out infinite alternate}
+  .b2{animation:d2 22s ease-in-out infinite alternate}
+  .b3{animation:d3 24s ease-in-out infinite alternate}
+  .b4{animation:d4 28s ease-in-out infinite alternate}
+  .b5{animation:d2 30s ease-in-out -8s infinite alternate}
+  /* entrée de page en cascade, sortie exponentielle */
+  .bar{animation:rise .9s var(--expo) both}
+  .in{animation:rise 1.1s var(--expo) both;animation-delay:calc(var(--i,0)*90ms + 60ms)}
+  h1 .w{animation:word 1.2s var(--expo) both;animation-delay:calc(var(--i)*55ms + 160ms)}
+  .api{animation:card-in 1.3s var(--expo) .22s both}
+  .mapcard{animation:card-in 1.4s var(--expo) .5s both}
+  /* requête tapée caractère par caractère */
+  .req .t{animation:type var(--du) steps(var(--n),end) var(--d) both}
+  .caret{animation:caret 1s steps(1,end) 1.14s infinite}
+  .wire{animation:grow .5s var(--expo) 1.02s both}
+  .status{animation:pop .6s var(--expo) 1.12s both}
+  .res .code{animation:fade .45s ease-out 1.08s both}
+  /* champs corrigés un à un */
+  .raw{animation:raw-out .55s ease-out var(--d) both}
+  .raw::after{animation:strike .28s var(--expo) var(--d) both}
+  .fix{animation:type .42s steps(var(--n),end) calc(var(--d) + .2s) both}
+  .fx::before{animation:flash .9s ease-out var(--d) both}
+  .ad::before{animation:flash-ok .9s ease-out var(--d) both}
+  .fx::after,.ad::after{animation:pop .5s var(--expo) var(--d) both}
+  .typed{animation:type .34s steps(var(--n),end) var(--d) both}
+  .chip{animation:pop .6s cubic-bezier(.34,1.56,.64,1) var(--d) both;transform-origin:0 50%}
+  .meter i{animation:grow .9s var(--expo) var(--d) both}
+  .late{animation:fade .5s ease-out var(--d) both}
+  /* carte : la route se trace, l'épingle tombe sur le point GPS */
+  .route{animation:draw .95s cubic-bezier(.65,0,.35,1) 1.12s both}
+  .pin{animation:drop .78s 1.4s both}
+  .pin-shadow{animation:shade .78s ease-out 1.4s both}
+  .ripple{animation:ripple 2.4s cubic-bezier(.2,.7,.3,1) 2.1s infinite}
+  .gps{animation:fade .5s ease-out 1.75s both}
+
+  /* animations au défilement, seulement si le navigateur les gère */
+  @supports (animation-timeline:view()){
+    .reveal{animation:rise both var(--expo);animation-timeline:view();animation-range:entry 5% cover 28%}
+    .step{animation:rise both var(--expo);animation-timeline:view();animation-range:entry calc(8% + var(--r)*12%) cover calc(26% + var(--r)*8%)}
+    .steps::before{animation:grow both var(--expo);animation-timeline:view();animation-range:entry 30% cover 50%}
+    .track i{animation:grow both var(--expo);animation-timeline:view();animation-range:entry 40% cover 45%}
+    .door-media img,.shot img{animation:settle both linear;animation-timeline:view();animation-range:entry 0% cover 55%}
+  }
+  @media (max-width:720px){
+    @supports (animation-timeline:view()){
+      .steps::before{animation-name:grow-y;animation-range:entry 10% cover 60%}
+    }
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">Aller au contenu</a>
+
+<header class="top">
+  <div class="wrap bar">
+    <a class="brand" href="/" aria-label="Address Validator, accueil">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>
+      Address Validator
+    </a>
+    <nav class="nav" aria-label="Navigation principale">
+      <a href="tarifs-fr.html">Tarifs</a>
+      <a href="guide-fr.html">Guide</a>
+      <a href="test-fr.html">Tester une adresse</a>
+      <a href="compte-fr.html">Espace client</a>
+    </nav>
+    <details class="lang" name="entete">
+      <summary><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6.3"/><path d="M1.7 8h12.6M8 1.7c1.9 2 2.8 4.1 2.8 6.3S9.9 12.3 8 14.3C6.1 12.3 5.2 10.2 5.2 8S6.1 3.7 8 1.7z"/></svg><span class="sr">Langue : </span>FR</summary>
+      <ul class="lang-panel">
+        <li><a href="accueil-fr.html" hreflang="fr" lang="fr" aria-current="page">Français</a></li>
+        <li><a href="accueil-en.html" hreflang="en" lang="en">English</a></li>
+        <li><a href="accueil-zh.html" hreflang="zh" lang="zh">中文</a></li>
+        <li><a href="accueil-hi.html" hreflang="hi" lang="hi">हिन्दी</a></li>
+        <li><a href="accueil-es.html" hreflang="es" lang="es">Español</a></li>
+        <li><a href="accueil-ar.html" hreflang="ar" lang="ar">العربية</a></li>
+      </ul>
+    </details>
+    <a class="btn btn-ink btn-sm" href="inscription-fr.html">Créer un compte <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+    <details class="menu" name="entete">
+      <summary><i aria-hidden="true"></i><span class="menu-t">Menu</span></summary>
+      <nav class="menu-panel" aria-label="Navigation mobile">
+        <a href="tarifs-fr.html">Tarifs</a>
+        <a href="guide-fr.html">Guide</a>
+        <a href="test-fr.html">Tester une adresse</a>
+        <a href="compte-fr.html">Espace client</a>
+        <a class="btn btn-ink" href="inscription-fr.html">Créer un compte</a>
+      </nav>
+    </details>
+  </div>
+</header>
+
+<main id="contenu">
+
+<section class="hero" aria-labelledby="titre">
+  <div class="band" aria-hidden="true"><i class="b4"></i><i class="b3"></i><i class="b2"></i><i class="b5"></i><i class="b1"></i></div>
+  <div class="guides" aria-hidden="true"></div>
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <p class="pill in" style="--i:0"><b>API</b>Adresses postales, optimisé pour les États-Unis</p>
+      <h1 id="titre"><span class="w" style="--i:1">Vérifiez</span> <span class="w" style="--i:2">l'adresse</span> <span class="w" style="--i:3">avant</span> <span class="w" style="--i:4">que</span> <span class="w" style="--i:5">le</span> <span class="w" style="--i:6">colis</span> <span class="w" style="--i:7">parte.</span></h1>
+      <p class="lead in" style="--i:5">Envoyez l'adresse telle que le client l'a tapée. L'API la renvoie standardisée, avec ses coordonnées GPS, sa livrabilité et un indice de confiance de 0 à 1.</p>
+      <div class="cta in" style="--i:6">
+        <a class="btn btn-accent" href="inscription-fr.html">Commencer l'essai gratuit <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        <a class="btn btn-glass" href="#tester">Tester une adresse</a>
+      </div>
+      <p class="fine in" style="--i:7">Essai 14 jours, 100 validations, sans carte bancaire. Ou 0,02 USDC par appel, sans compte.</p>
+    </div>
+
+    <figure class="stage">
+      <div class="api" aria-hidden="true">
+        <div class="api-top">
+          <span class="dots"><i></i><i></i><i></i></span>
+          <span class="verb">POST</span><span class="path">/validate</span>
+          <span class="status">200 OK</span>
+        </div>
+        <div class="pane req">
+          <p class="pane-row"><span>Requête</span><span>saisie du client</span></p>
+          <div class="code">
+            <span class="ln"><span class="h">X-API-Key: ••••••••••••</span></span>
+            <span class="ln t" style="--n:13;--du:.14s;--d:.36s"><span class="p">{</span><span class="k">"address"</span><span class="p">: {</span></span>
+            <span class="ln t" style="--n:29;--du:.2s;--d:.5s"><span class="p">  </span><span class="k">"street"</span><span class="p">: </span><span class="s">"100 stewart st"</span><span class="p">,</span></span>
+            <span class="ln t" style="--n:35;--du:.22s;--d:.7s"><span class="p">  </span><span class="k">"city"</span><span class="p">: </span><span class="s">"seattle"</span><span class="p">, </span><span class="k">"state"</span><span class="p">: </span><span class="s">"wa"</span><span class="p">,</span></span>
+            <span class="ln t" style="--n:36;--du:.22s;--d:.92s"><span class="p">  </span><span class="k">"zip"</span><span class="p">: </span><span class="s">"98101"</span><span class="p">, </span><span class="k">"country"</span><span class="p">: </span><span class="s">"us"</span><span class="p">}}</span><span class="caret"></span></span>
+          </div>
+        </div>
+        <div class="wire"></div>
+        <div class="pane res">
+          <p class="pane-row"><span>Réponse standardisée</span><span class="legend"><span>corrigé</span><span class="lg-add">ajouté</span></span></p>
+          <div class="code">
+            <span class="ln"><span class="p">{</span><span class="k">"result"</span><span class="p">: {</span></span>
+            <span class="ln"><span class="p">  </span><span class="k">"validated"</span><span class="p">: </span><span class="b">true</span><span class="p">,</span></span>
+            <span class="ln"><span class="p">  </span><span class="k">"standardized"</span><span class="p">: {</span></span>
+            <span class="ln fx" style="--d:1.2s"><span class="p">    </span><span class="k">"line1"</span><span class="p">: </span><span class="m" style="--d:1.2s;--n:21"><span class="raw s">"100 stewart st",</span><span class="fix s">"100 Stewart Street",</span></span></span>
+            <span class="ln fx" style="--d:1.32s"><span class="p">    </span><span class="k">"city"</span><span class="p">: </span><span class="m" style="--d:1.32s;--n:10"><span class="raw s">"seattle",</span><span class="fix s">"Seattle",</span></span> <span class="k">"state"</span><span class="p">: </span><span class="m" style="--d:1.44s;--n:5"><span class="raw s">"wa",</span><span class="fix s">"WA",</span></span></span>
+            <span class="ln fx" style="--d:1.62s"><span class="p">    </span><span class="k">"zip"</span><span class="p">: </span><span class="s">"98101"</span><span class="p">, </span><span class="k">"country"</span><span class="p">: </span><span class="m" style="--d:1.62s;--n:7"><span class="raw s">"us" },</span><span class="fix s">"US" },</span></span></span>
+            <span class="ln ad" style="--d:1.3s"><span class="p">  </span><span class="k">"latitude"</span><span class="p">: </span><span class="typed n" style="--n:8">47.6105,</span></span>
+            <span class="ln ad" style="--d:1.42s"><span class="p">  </span><span class="k">"longitude"</span><span class="p">: </span><span class="typed n" style="--n:9">-122.341,</span></span>
+            <span class="ln ad" style="--d:1.52s"><span class="p">  </span><span class="k">"deliverability"</span><span class="p">: </span><span class="chip s" style="--d:1.52s">"residential"</span><span class="p">,</span></span>
+            <span class="ln"><span class="p">  </span><span class="k">"confidence"</span><span class="p">: </span><span class="n late" style="--d:1.62s">1.0</span><span class="p">,</span><span class="meter"><i style="--d:1.66s"></i></span></span>
+            <span class="ln"><span class="p">  </span><span class="k">"degraded"</span><span class="p">: </span><span class="b late" style="--d:1.76s">false</span><span class="p"> } }</span></span>
+          </div>
+        </div>
+        <p class="api-foot">Exemple illustratif</p>
+      </div>
+
+      <div class="mapcard" aria-hidden="true">
+        <svg viewBox="0 0 240 170">
+          <rect width="240" height="170" fill="#eef2f7"/>
+          <g transform="rotate(-28 120 85)">
+            <g fill="#e2e8f1">
+              <rect x="25" y="20" width="30" height="25" rx="2"/><rect x="65" y="55" width="30" height="25" rx="2"/>
+              <rect x="105" y="20" width="30" height="25" rx="2"/><rect x="145" y="125" width="30" height="25" rx="2"/>
+              <rect x="185" y="55" width="30" height="25" rx="2"/><rect x="25" y="90" width="30" height="25" rx="2"/>
+              <rect x="105" y="125" width="30" height="25" rx="2"/><rect x="225" y="90" width="30" height="25" rx="2"/>
+            </g>
+            <rect x="185" y="20" width="30" height="25" rx="3" fill="#d3ead6"/>
+            <rect x="65" y="125" width="30" height="25" rx="3" fill="#d3ead6"/>
+            <g stroke="#dde4ee" stroke-width="9" fill="none">
+              <path d="M-160 15H420M-160 50H420M-160 85H420M-160 120H420M-160 155H420M-160 190H420M-160 -20H420"/>
+              <path d="M20-160V340M60-160V340M100-160V340M140-160V340M180-160V340M220-160V340M260-160V340M-20-160V340"/>
+            </g>
+            <g stroke="#fff" fill="none">
+              <path stroke-width="6.5" d="M-160 15H420M-160 50H420M-160 85H420M-160 120H420M-160 155H420M-160 190H420M-160 -20H420"/>
+              <path stroke-width="6.5" d="M20-160V340M60-160V340M100-160V340M140-160V340M180-160V340M220-160V340M260-160V340M-20-160V340"/>
+            </g>
+            <path d="M20 85H60V120H160" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+            <path class="route" d="M20 85H60V120H160" pathLength="1" stroke-dasharray="1" fill="none" stroke="#1f3bff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="20" cy="85" r="4.5" fill="#fff" stroke="#0b1b34" stroke-width="2.4"/>
+          </g>
+          <path d="M0 0H62C55 22 46 42 33 62C22 79 10 92 0 100Z" fill="#cfe2f4"/>
+          <path d="M10 18c6-3 12 3 18 0M8 40c6-3 12 3 18 0M6 62c5-3 10 3 15 0" stroke="#b7d1ea" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <g transform="translate(171.7 97.1)">
+            <ellipse class="pin-shadow" cx="0" cy="1" rx="7" ry="2.4" fill="#0b1b34" opacity=".26"/>
+            <circle class="ripple" cx="0" cy="0" r="7" fill="none" stroke="#1f3bff" stroke-width="2"/>
+            <g class="pin">
+              <path d="M0 0C-2.4-6.5-12-12-12-21.5a12 12 0 0 1 24 0C12-12 2.4-6.5 0 0Z" fill="#1f3bff"/>
+              <circle cx="0" cy="-21.5" r="4.6" fill="#fff"/>
+            </g>
+          </g>
+        </svg>
+        <p class="map-meta"><span class="gps">47.6105, -122.341</span><span class="tag">GPS</span></p>
+      </div>
+      <figcaption class="sr">Exemple illustratif : la requête 100 stewart st, seattle, wa, 98101, us revient standardisée en 100 Stewart Street, Seattle, WA 98101, US, avec les coordonnées 47.6105, -122.341, la livrabilité residential, une confiance de 1.0 et degraded à false.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="sec how" aria-labelledby="h-how">
+  <div class="guides" aria-hidden="true"></div>
+  <div class="wrap" style="position:relative">
+    <div class="sec-head reveal">
+      <p class="eyebrow">Comment ça marche</p>
+      <h2 id="h-how">Une requête, trois temps.</h2>
+      <p class="sec-lead">Pas de base d'adresses à maintenir, pas de règles maison à écrire. Vous appelez l'API au moment où l'adresse est saisie.</p>
+    </div>
+    <ol class="steps">
+      <li class="step" style="--r:0">
+        <span class="num">01</span>
+        <h3>Envoyer</h3>
+        <p>Votre boutique, votre script ou votre agent envoie la rue, la ville, l'état, le code postal et le pays, tels que le client les a saisis.</p>
+        <code class="mini"><span class="k">"street"</span>: <span class="s">"100 stewart st"</span></code>
+      </li>
+      <li class="step" style="--r:1">
+        <span class="num">02</span>
+        <h3>Recevoir</h3>
+        <p>L'API renvoie l'adresse standardisée, ses coordonnées GPS, une livrabilité et une confiance de 0 à 1.</p>
+        <code class="mini"><span class="k">"line1"</span>: <span class="s">"100 Stewart Street"</span></code>
+      </li>
+      <li class="step" style="--r:2">
+        <span class="num">03</span>
+        <h3>Expédier</h3>
+        <p>Adresse confirmée : le colis part. Sinon, vous la reprenez avec le client avant l'envoi. Une adresse déjà vérifiée sort du cache et n'est pas refacturée.</p>
+        <code class="mini"><span class="k">"deliverability"</span>: <span class="ok">"residential"</span></code>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="sec terrain" aria-labelledby="h-terrain">
+  <div class="guides" aria-hidden="true"></div>
+  <div class="wrap" style="position:relative">
+    <div class="sec-head reveal">
+      <p class="eyebrow">Sur le terrain</p>
+      <h2 id="h-terrain">Une adresse juste, du colis préparé au colis livré.</h2>
+    </div>
+    <div class="shots">
+      <figure class="shot reveal">
+        <div class="shot-media"><img src="images/entrepot.jpg" width="1600" height="1066" alt="Dans un entrepôt, une employée en gilet jaune scanne l'étiquette d'un colis devant des rayonnages de cartons." loading="lazy" decoding="async"></div>
+        <figcaption>Le colis part avec une adresse vérifiée.</figcaption>
+      </figure>
+      <figure class="shot reveal">
+        <div class="shot-media"><img src="images/livraison.jpg" width="1600" height="1066" alt="Un livreur remet un colis en carton à une femme sur le pas de sa porte." loading="lazy" decoding="async"></div>
+        <figcaption>Il arrive à la bonne porte.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section class="sec doors" aria-labelledby="h-doors">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <p class="eyebrow">Deux portes</p>
+      <h2 id="h-doors">Boutique ou agent, la même vérification.</h2>
+      <p class="sec-lead">La réponse est identique des deux côtés. Seuls l'accès et le paiement changent.</p>
+    </div>
+    <div class="doors-grid">
+      <article class="door door-shop reveal">
+        <div class="door-media"><img src="images/commercante-colis.jpg" width="1600" height="1066" alt="Une femme colle une étiquette d'expédition sur un carton, à son plan de travail, devant des étagères de colis." loading="lazy" decoding="async"></div>
+        <p class="kicker">Abonnement</p>
+        <h3>Boutiques en ligne</h3>
+        <p>Un compte, une clé d'API dans l'en-tête <code class="inline">X-API-Key</code>, et chaque adresse est vérifiée au moment de la commande.</p>
+        <ul class="facts">
+          <li>Compte créé sur <code class="inline">/signup</code>, clé disponible dans l'espace client</li>
+          <li>Essai gratuit de 14 jours, 100 validations, sans carte bancaire</li>
+          <li>Ensuite Starter ou Pro, sans engagement, sans prélèvement automatique</li>
+        </ul>
+        <pre class="codeblock code-lite mono"><code><span><span class="v">POST</span> /validate</span><span><span class="hk">X-API-Key</span>: &lt;votre clé&gt;</span><span class="c">// essai : 100 validations, 14 jours</span><span>{<span class="k">"address"</span>: {<span class="k">"street"</span>: …, <span class="k">"zip"</span>: …}}</span></code></pre>
+        <div class="door-links">
+          <a class="btn btn-accent" href="inscription-fr.html">Créer un compte <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+          <a class="link" href="guide-fr.html">Guide d'intégration <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        </div>
+      </article>
+      <article class="door door-dev dark reveal">
+        <div class="door-media"><img src="images/developpeur.jpg" width="1600" height="1066" alt="Un développeur écrit du code sur un ordinateur portable et un écran, devant une ville au crépuscule." loading="lazy" decoding="async"></div>
+        <p class="kicker">Paiement à l'appel</p>
+        <h3>Développeurs et agents IA</h3>
+        <p>Sans compte. Chaque appel se paie 0,02 USDC avec x402, sur le réseau Base.</p>
+        <pre class="codeblock mono"><code><span><span class="v">POST</span> /validate</span><span><span class="hk">X-PAYMENT</span>: &lt;preuve x402&gt;</span><span class="c">// 0,02 USDC par appel, réseau Base</span><span>{<span class="k">"address"</span>: {<span class="k">"street"</span>: …, <span class="k">"zip"</span>: …}}</span></code></pre>
+        <ul class="facts">
+          <li>Serveur MCP sur <code class="inline">/mcp</code>, outil <code class="inline">validate_address</code>, découverte gratuite</li>
+          <li><code class="inline">/manifest</code>, <code class="inline">/llms.txt</code> et <code class="inline">/AGENTS.md</code> pour vos agents</li>
+        </ul>
+        <div class="door-links">
+          <a class="btn btn-light" href="/docs">Lire la documentation <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+          <a class="link" href="/mcp">Serveur MCP <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="sec live dark" id="tester" aria-labelledby="h-live">
+  <div class="wrap live-grid">
+    <div class="live-copy reveal">
+      <p class="eyebrow">Le test en direct</p>
+      <h2 id="h-live">Essayez une adresse, sans compte.</h2>
+      <p>Quelques essais gratuits par jour et par adresse IP. Pour un résultat complet, prenez une adresse des États-Unis : ailleurs, la vérification reste partielle.</p>
+      <p class="hint mono">Exemple : <b>100 stewart st</b> · <b>seattle</b> · <b>wa</b> · <b>98101</b> · <b>US</b></p>
+    </div>
+    <form class="form reveal" method="post" action="/validate-form">
+      <p class="form-head">Votre adresse <span>POST /validate-form</span></p>
+      <div class="field f-wide"><label for="street">Numéro et rue</label><input id="street" name="street" type="text" placeholder="1 Rue de Paris" autocomplete="address-line1"></div>
+      <div class="field"><label for="city">Ville</label><input id="city" name="city" type="text" placeholder="Saint-Denis" autocomplete="address-level2"></div>
+      <div class="field"><label for="state">Région ou état</label><input id="state" name="state" type="text" placeholder="RE, CA…" autocomplete="address-level1"></div>
+      <div class="field"><label for="zip">Code postal</label><input id="zip" name="zip" type="text" placeholder="97400" autocomplete="postal-code"></div>
+      <div class="field"><label for="country">Pays (2 lettres)</label><input id="country" name="country" type="text" placeholder="US" maxlength="2" autocomplete="country"></div>
+      <button class="btn btn-accent" type="submit">Vérifier l'adresse <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></button>
+      <p class="form-note">Sans compte. Le résultat s'affiche sur la page suivante.</p>
+    </form>
+  </div>
+</section>
+
+<section class="sec plans" aria-labelledby="h-plans">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <p class="eyebrow">Offres</p>
+      <h2 id="h-plans">Trois paliers, sans engagement.</h2>
+      <p class="sec-lead">Prix hors taxes. Aucun prélèvement automatique.</p>
+    </div>
+    <div class="plans-grid">
+      <article class="plan plan-trial reveal">
+        <h3 class="plan-name">Essai</h3>
+        <p class="price"><strong>0 €</strong><span>pendant 14 jours</span></p>
+        <ul><li>100 validations</li><li>Sans carte bancaire</li><li>Clé d'API dès l'inscription</li></ul>
+        <a class="btn btn-accent" href="inscription-fr.html">Commencer l'essai <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+      </article>
+      <article class="plan reveal">
+        <h3 class="plan-name">Starter</h3>
+        <p class="price"><strong>29 €</strong><span>par mois, HT</span></p>
+        <ul><li>2 000 validations par mois</li><li>Sans engagement</li><li>Espace client sur /compte</li></ul>
+        <a class="link" href="tarifs-fr.html">Détail de l'offre <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+      </article>
+      <article class="plan reveal">
+        <h3 class="plan-name">Pro</h3>
+        <p class="price"><strong>79 €</strong><span>par mois, HT</span></p>
+        <ul><li>10 000 validations par mois</li><li>Sans engagement</li><li>Espace client sur /compte</li></ul>
+        <a class="link" href="tarifs-fr.html">Détail de l'offre <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+      </article>
+    </div>
+    <div class="plans-foot reveal">
+      <p>Plus de volume : offre Enterprise sur devis. Sans abonnement : 0,02 USDC par validation en appel direct.</p>
+      <a class="link" href="tarifs-fr.html">Voir tous les tarifs <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+    </div>
+  </div>
+</section>
+
+<section class="sec cover" aria-labelledby="h-cover">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <p class="eyebrow">Couverture</p>
+      <h2 id="h-cover">Ce qui est vérifié, et jusqu'où.</h2>
+      <p class="sec-lead">Le service est optimisé pour les adresses des États-Unis. Mieux vaut le savoir avant d'intégrer.</p>
+    </div>
+    <div class="cover-grid">
+      <dl class="cover-list reveal">
+        <div class="cover-item"><dt>États-Unis<br><span class="st st-ok">Optimisé</span></dt><dd>Adresse standardisée, coordonnées GPS, livrabilité et indice de confiance.</dd></div>
+        <div class="cover-item"><dt>Hors États-Unis<br><span class="st st-warn">Partiel</span></dt><dd>La vérification est partielle. Une réponse pour une adresse française ou réunionnaise ne vaut pas confirmation complète.</dd></div>
+        <div class="cover-item"><dt><code>degraded: true</code><br><span class="st st-info">À re-vérifier</span></dt><dd>Le fournisseur n'a pas répondu. La réponse ne dit rien de l'adresse : ce n'est pas un refus. Relancez la vérification plus tard.</dd></div>
+        <div class="cover-item"><dt>Cache</dt><dd>Une adresse déjà vérifiée est servie depuis le cache, donc pas refacturée.</dd></div>
+      </dl>
+      <div class="scale reveal">
+        <h3>Livrabilité et confiance</h3>
+        <p>Valeurs renvoyées pour une adresse géolocalisée.</p>
+        <ul class="rows">
+          <li class="row"><code>residential</code><span class="val">1.0</span><span class="track"><i style="--v:100%;--c:#18b47c"></i></span><small>0.99 sans point GPS</small></li>
+          <li class="row"><code>commercial</code><span class="val">1.0</span><span class="track"><i style="--v:100%;--c:#2fbfa9"></i></span></li>
+          <li class="row"><code>unknown</code><span class="val">0.55</span><span class="track"><i style="--v:55%;--c:#ffad3b"></i></span></li>
+          <li class="row"><code>invalid</code><span class="val">0.05</span><span class="track"><i style="--v:5%;--c:#e5484d"></i></span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="final" aria-labelledby="h-final">
+  <div class="band band-final" aria-hidden="true"><i class="b4"></i><i class="b5"></i></div>
+  <div class="wrap">
+    <div class="final-card reveal">
+      <h2 id="h-final">Vérifiez vos prochaines adresses avant l'envoi.</h2>
+      <p>Essai gratuit de 14 jours, 100 validations, sans carte bancaire. Ou un premier test tout de suite, sans compte.</p>
+      <div class="cta">
+        <a class="btn btn-accent" href="inscription-fr.html">Commencer l'essai gratuit <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        <a class="btn btn-glass" href="#tester">Tester une adresse</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="/"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>Address Validator</a>
+        <p>Address Validator, Kder Daoud</p>
+        <a class="mail" href="mailto:address-validator@kder-ai.com">address-validator@kder-ai.com</a>
+      </div>
+      <div>
+        <p class="foot-h">Boutiques</p>
+        <ul>
+          <li><a href="tarifs-fr.html">Tarifs</a></li>
+          <li><a href="guide-fr.html">Guide d'intégration</a></li>
+          <li><a href="test-fr.html">Tester une adresse</a></li>
+          <li><a href="compte-fr.html">Espace client</a></li>
+          <li><a href="inscription-fr.html">Créer un compte</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="foot-h">Développeurs et agents</p>
+        <ul>
+          <li><a href="/docs">Documentation</a></li>
+          <li><a href="/mcp">Serveur MCP</a></li>
+          <li><a href="/manifest">Manifeste</a></li>
+          <li><a href="/llms.txt">llms.txt</a></li>
+          <li><a href="/AGENTS.md">AGENTS.md</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">Prix hors taxes. Appel direct sans abonnement : 0,02 USDC par validation.</p>
+  </div>
+</footer>
+</body>
+</html>

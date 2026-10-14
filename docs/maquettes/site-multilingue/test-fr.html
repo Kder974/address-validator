@@ -1,0 +1,672 @@
+<!doctype html>
+<!--
+  test-fr · « Tester une adresse » (route réelle /validate-form), maquette en français.
+  Style : celui de accueil-fr.html, recopié tel quel (:root, reset, boutons, en-tête, sélecteur de langue, pied de page).
+  Bandeau d'en-tête de page en biais, plus pâle et plus court que le héros de l'accueil ; la carte formulaire flotte sur son bord.
+  Contenu : source-site/validate_form.py (CHAMPS, _verdict, _resultat_html, _trop_d_essais) et app/validation (scorer, verifier).
+  - Formulaire : method="post" action="/validate-form", champs street, city, state, zip, country dans l'ordre de CHAMPS,
+    mêmes libellés et exemples. required sur les quatre premiers, minlength/maxlength 2 sur le pays : les règles de _erreurs.
+  - Quatre écrans d'exemple, valeurs illustratives cohérentes avec scorer.py : residential + GPS = 1.00, invalid + GPS = 0.05.
+    La jauge rappelle aussi unknown = 0.55.
+  - Le détail fort : la carte « adresse vérifiée » (saisie puis adresse standardisée avec les corrections marquées, carte et point GPS,
+    livrabilité, jauge de confiance, essais restants).
+  Écarts assumés avec le code actuel, à valider :
+  - Pas de nombre d'essais écrit : la vraie page affiche validate_form_rate_limit_per_day (configuration, 10 par défaut).
+  - Tirets cadratins des messages remplacés par « : » ; « essai(s) gratuit(s) » écrit au pluriel réel (à corriger côté code).
+  - Écran dégradé : le code renvoie validated false, donc livrabilité « invalid » et 0.05 avec GPS. La maquette montre ces valeurs
+    grisées et marquées « sans portée » pour ne pas contredire le message ; à reporter dans _resultat_html si validé.
+  - Contact : address-validator@kder-ai.com (BRIEF-COMMUN), au lieu de l'adresse gmail du pied de page de l'accueil.
+  Hypothèses : 9999 Stewart St comme adresse inexistante ; coordonnées, nombre d'essais restants et Retry-After (2220 s, environ 37 minutes) inventés pour l'exemple.
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tester une adresse · Address Validator</title>
+<meta name="description" content="Vérifiez gratuitement une adresse de livraison : adresse standardisée, livrabilité et coordonnées, sans compte.">
+<link rel="alternate" hreflang="fr" href="test-fr.html">
+<link rel="alternate" hreflang="en" href="test-en.html">
+<link rel="alternate" hreflang="zh" href="test-zh.html">
+<link rel="alternate" hreflang="hi" href="test-hi.html">
+<link rel="alternate" hreflang="es" href="test-es.html">
+<link rel="alternate" hreflang="ar" href="test-ar.html">
+<link rel="alternate" hreflang="x-default" href="test-en.html">
+<style>
+:root{
+  --ink:#0b1b34;--ink-soft:#14223d;--muted:#4b5974;--faint:#66738c;
+  --line:#e2e7f0;--bg:#fff;--soft:#f5f7fb;
+  --accent:#1f3bff;--accent-deep:#1429cc;--accent-wash:#e9edff;
+  --ok:#0a7350;--ok-bg:#dff5ea;--warn:#9a5b00;--warn-bg:#fff1d6;--bad:#b42318;
+  --navy:#0b1b34;--navy-2:#0d2242;
+  --saffron:#ffc15e;--tang:#ff9455;--coral:#ff6f61;--aqua:#2fd3c1;--sky:#4ab3ff;--cobalt:#3150ff;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --expo:cubic-bezier(.16,1,.3,1);
+  --sh-lg:0 50px 100px -20px rgba(20,40,110,.26),0 30px 60px -30px rgba(0,0,0,.3);
+  --sh-md:0 13px 27px -5px rgba(20,40,110,.16),0 8px 16px -8px rgba(0,0,0,.16);
+  --sh-sm:0 2px 5px -1px rgba(20,40,110,.12),0 1px 3px -1px rgba(0,0,0,.1);
+  --g:clamp(16px,4vw,40px);
+  --nav-h:84px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1.0625rem/1.6 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:inherit}
+h1,h2,h3,p,ul,ol,dl,dd,figure{margin:0}
+h1,h2,h3{text-wrap:balance}
+p,li,dd{text-wrap:pretty}
+code,.mono{font-family:var(--mono)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:8px}
+.dark :focus-visible{outline-color:#9db2ff}
+.wrap{width:min(100% - 2*var(--g),1180px);margin-inline:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.skip{position:absolute;left:16px;top:-80px;z-index:99;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none}
+.skip:focus{top:12px}
+
+/* ---------- Boutons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;min-height:48px;padding:0 1.35rem;border:0;border-radius:999px;font:600 .97rem/1 var(--sans);letter-spacing:-.005em;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background-color .2s ease,box-shadow .35s var(--expo)}
+.btn-accent{background:var(--accent);color:#fff;box-shadow:0 1px 1px rgba(11,27,52,.14),0 8px 18px -8px rgba(31,59,255,.6)}
+.btn-accent:hover{background:var(--accent-deep)}
+.btn-glass{background:rgba(255,255,255,.74);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.btn-glass:hover{background:#fff}
+.btn-ink{background:var(--ink);color:#fff}
+.btn-ink:hover{background:#1b2f52}
+.btn-light{background:#fff;color:var(--ink)}
+.btn-light:hover{background:#e9eef7}
+.btn-sm{min-height:44px;padding:0 1.1rem;font-size:.93rem}
+.arr{width:10px;height:10px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.arr .l{opacity:0;transition:opacity .2s ease}
+.arr .h{transition:transform .35s var(--expo)}
+a:hover .arr .l,button:hover .arr .l{opacity:1}
+a:hover .arr .h,button:hover .arr .h{transform:translateX(2px)}
+.link{display:inline-flex;align-items:center;gap:.45em;min-height:44px;font-weight:600;color:var(--accent);text-decoration:none}
+.link:hover{color:var(--accent-deep)}
+
+/* ---------- En-tête ---------- */
+.top{position:sticky;top:0;z-index:50;height:var(--nav-h);padding-top:12px;pointer-events:none}
+.bar{pointer-events:auto;display:flex;align-items:center;gap:20px;height:60px;padding:0 10px 0 16px;border-radius:16px;background:rgba(255,255,255,.72);box-shadow:inset 0 0 0 1px rgba(255,255,255,.7),0 10px 30px -18px rgba(20,40,110,.45);-webkit-backdrop-filter:saturate(1.6) blur(16px);backdrop-filter:saturate(1.6) blur(16px)}
+.brand{display:inline-flex;align-items:center;gap:10px;min-height:44px;text-decoration:none;font-weight:650;font-size:1.02rem;letter-spacing:-.015em;white-space:nowrap}
+.mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:conic-gradient(from 210deg,var(--cobalt),var(--aqua),var(--saffron),var(--coral),var(--cobalt));box-shadow:inset 0 0 0 1px rgba(11,27,52,.08)}
+.mark svg{width:17px;height:17px}
+.nav{display:flex;gap:2px;margin-left:auto}
+.nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;border-radius:10px;text-decoration:none;font-weight:500;font-size:.95rem;color:var(--ink-soft)}
+.nav a:hover{background:rgba(11,27,52,.06)}
+.nav a[aria-current]{background:rgba(11,27,52,.06);font-weight:600}
+.menu{display:none;position:relative;margin-left:auto}
+.menu summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;background:var(--ink);color:#fff;font-weight:600;font-size:.93rem}
+.menu summary::-webkit-details-marker{display:none}
+.menu summary i{display:block;width:14px;height:8px;border-block:2px solid currentColor}
+.menu-panel{position:absolute;right:0;top:calc(100% + 10px);width:min(86vw,300px);display:grid;gap:2px;padding:8px;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.menu-panel a{display:flex;align-items:center;min-height:46px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.menu-panel a:hover{background:var(--soft)}
+.menu-panel a[aria-current]{background:var(--soft);font-weight:600}
+.menu-panel .btn{margin-top:6px;color:#fff;justify-content:center}
+/* Sélecteur de langue */
+.lang{position:relative}
+.lang summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;padding:0 12px;border-radius:999px;font-weight:600;font-size:.9rem;color:var(--ink-soft);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12)}
+.lang summary::-webkit-details-marker{display:none}
+.lang summary:hover,.lang[open] summary{background:rgba(11,27,52,.06)}
+.lang summary svg{width:15px;height:15px;flex:none}
+.lang-panel{position:absolute;right:0;top:calc(100% + 10px);width:200px;display:grid;gap:2px;padding:8px;list-style:none;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.lang-panel a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.lang-panel a:hover{background:var(--soft)}
+.lang-panel [lang="ar"]{font-size:1.12em}
+.lang-panel [aria-current]{color:var(--accent);background:var(--accent-wash);font-weight:600}
+.lang-panel [aria-current]::after{content:"";width:9px;height:5px;margin-top:-3px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg)}
+
+/* ---------- Bandeau d'en-tête de page ---------- */
+.phead{position:relative;margin-top:calc(-1*var(--nav-h));padding:calc(var(--nav-h) + clamp(44px,5.5vw,80px)) 0 clamp(150px,13vw,196px);overflow-x:clip}
+.band{position:absolute;inset:0;overflow:hidden;clip-path:polygon(0 0,100% 0,100% calc(100% - 7vw),0 100%);background:linear-gradient(102deg,#fff8ee 0%,#ffefd9 22%,#ffe2bd 40%,#ffd5bf 55%,#d3f4ef 76%,#cbe7ff 89%,#bccaff 100%)}
+.band i{position:absolute;display:block;border-radius:50%}
+.b2{width:34vw;height:26vw;left:62%;top:6%;background:radial-gradient(closest-side,rgba(47,211,193,.42),rgba(47,211,193,0))}
+.b4{width:40vw;height:30vw;left:-8%;top:22%;background:radial-gradient(closest-side,rgba(255,196,100,.5),rgba(255,196,100,0))}
+.b5{width:30vw;height:26vw;left:82%;top:-10%;background:radial-gradient(closest-side,rgba(74,179,255,.5),rgba(74,179,255,0))}
+.guides{position:absolute;inset:0;width:min(100% - 2*var(--g),1180px);margin-inline:auto;pointer-events:none;background:linear-gradient(90deg,rgba(11,27,52,.075) 1px,transparent 1px) 0 0/25% 100%;box-shadow:inset -1px 0 rgba(11,27,52,.075);-webkit-mask-image:repeating-linear-gradient(180deg,#000 0 4px,transparent 4px 9px);mask-image:repeating-linear-gradient(180deg,#000 0 4px,transparent 4px 9px)}
+.phead-copy{position:relative;max-width:760px}
+.pill{display:inline-flex;align-items:center;gap:10px;padding:5px 14px 5px 5px;border-radius:999px;background:rgba(255,255,255,.7);box-shadow:inset 0 0 0 1px rgba(11,27,52,.08);font-size:.875rem;font-weight:500;color:var(--ink-soft)}
+.pill b{font:700 .72rem/1 var(--sans);letter-spacing:.06em;color:#fff;background:var(--ink);padding:6px 9px;border-radius:999px}
+h1{margin-top:22px;font-size:clamp(2.4rem,1rem + 3.6vw,3.9rem);line-height:1.04;font-weight:400;letter-spacing:-.024em;color:var(--ink)}
+.lead{margin-top:22px;max-width:34em;font-size:clamp(1.06rem,.98rem + .35vw,1.22rem);line-height:1.55;color:var(--ink-soft)}
+
+/* ---------- Essai : formulaire + note ---------- */
+.trial{position:relative;padding-bottom:clamp(40px,4vw,56px)}
+.trial-grid{position:relative;display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:clamp(28px,4.5vw,72px);align-items:start;margin-top:calc(-1*clamp(112px,10vw,148px))}
+.form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 14px;padding:clamp(22px,3vw,36px);border-radius:20px;background:#fff;color:var(--ink);box-shadow:var(--sh-lg),0 0 0 1px rgba(11,27,52,.04)}
+.form-head{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.form-head h2{margin:0;font-size:1.05rem;line-height:1.3;font-weight:600;letter-spacing:-.01em}
+.form-head span{font:600 11px/1 var(--mono);color:var(--ok);background:var(--ok-bg);padding:6px 8px;border-radius:6px;white-space:nowrap}
+.form-hint{grid-column:1/-1;font-size:.9rem;color:var(--muted)}
+.field{display:grid;gap:7px;min-width:0;align-content:start}
+.f-wide{grid-column:1/-1}
+.field label{font-size:.88rem;font-weight:600;color:var(--ink-soft)}
+.field input{width:100%;min-height:48px;padding:0 14px;border:1px solid #cfd7e4;border-radius:10px;background:#fff;color:var(--ink);font:500 1rem var(--sans);transition:border-color .2s ease,box-shadow .3s var(--expo)}
+.field input::placeholder{color:var(--faint);opacity:1}
+.field input:hover{border-color:#aeb9cc}
+.field input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px rgba(31,59,255,.16)}
+.field input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.field small{font-size:.82rem;color:var(--muted)}
+.form .btn{grid-column:1/-1;width:100%;min-height:52px;margin-top:4px}
+.form-note{grid-column:1/-1;font-size:.85rem;color:var(--muted);text-align:center}
+.aside{padding-top:clamp(0px,9vw,136px)}
+.aside h2{margin:0;font-size:1.15rem;line-height:1.3;font-weight:600;letter-spacing:-.015em}
+.keep{list-style:none;padding:0;margin:18px 0 0;display:grid;gap:14px}
+.keep li{position:relative;padding-left:28px;font-size:.96rem;color:var(--ink-soft)}
+.keep li::before{content:"";position:absolute;left:3px;top:.42em;width:10px;height:5px;border-left:2px solid var(--accent);border-bottom:2px solid var(--accent);transform:rotate(-45deg)}
+.aside-links{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:18px;padding-top:12px;border-top:1px solid var(--line)}
+
+/* ---------- Exemples de résultat ---------- */
+.examples{position:relative;background:var(--soft);clip-path:polygon(0 3.5vw,100% 0,100% 100%,0 100%);padding:calc(3.5vw + clamp(48px,5vw,72px)) 0 clamp(84px,10vw,140px)}
+.divider{display:flex;align-items:center;gap:18px}
+.divider::before,.divider::after{content:"";flex:1;height:2px;background:repeating-linear-gradient(90deg,#b8c3d6 0 6px,transparent 6px 12px)}
+.divider h2{flex:none;max-width:calc(100% - 60px);margin:0;padding:10px 18px;border-radius:999px;background:#fff;box-shadow:inset 0 0 0 1px #cfd7e4;font-size:.95rem;line-height:1.3;font-weight:600;letter-spacing:-.005em;text-align:center;color:var(--ink-soft)}
+.ex-lead{max-width:40em;margin:18px auto 0;text-align:center;color:var(--muted);font-size:1rem}
+.ex{margin-top:clamp(44px,5vw,64px)}
+.ex-cap{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:16px}
+.ex-cap .num{font:600 .8rem/1 var(--mono);color:var(--accent)}
+.ex-cap h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
+.ex-cap p{font-size:.9rem;color:var(--muted)}
+.ex-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(28px,3vw,40px)}
+.ex-pair .ex{display:flex;flex-direction:column}
+.ex-pair .screen{flex:1}
+
+/* écran (carte de résultat) */
+.screen{position:relative;display:flex;flex-direction:column;background:#fff;border-radius:18px;box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm);overflow:hidden}
+.s-top{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #edf0f6;min-width:0}
+.dots{display:flex;gap:6px;margin-right:4px}
+.dots i{width:10px;height:10px;border-radius:50%;background:#e4e8ef}
+.verb{font:700 11px/1 var(--mono);color:var(--accent);background:var(--accent-wash);padding:5px 7px;border-radius:5px}
+.path{font:600 12.5px/1 var(--mono);color:var(--ink);white-space:nowrap}
+.status{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font:600 12px/1 var(--mono);color:var(--ok);white-space:nowrap}
+.status::before{content:"";width:7px;height:7px;border-radius:50%;background:#18b47c;box-shadow:0 0 0 3px rgba(24,180,124,.2)}
+.status.st-429{color:var(--warn)}
+.status.st-429::before{background:#e0951b;box-shadow:0 0 0 3px rgba(224,149,27,.22)}
+.s-body{padding:clamp(20px,2.6vw,30px);display:grid;gap:18px;flex:1;align-content:start}
+.s-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 20px;padding:12px clamp(20px,2.6vw,30px);border-top:1px solid #edf0f6;font-size:.9rem;color:var(--muted)}
+.s-foot a{color:var(--accent);font-weight:600}
+.illus{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap}
+.illus::before{content:"";width:14px;height:1px;background:currentColor}
+.badge{display:inline-flex;align-items:center;gap:8px;justify-self:start;padding:7px 12px 7px 9px;border-radius:999px;font:600 .88rem/1 var(--sans)}
+.badge svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.b-ok{color:var(--ok);background:var(--ok-bg)}
+.b-ko{color:var(--bad);background:#fdecea}
+.b-info{color:var(--accent);background:var(--accent-wash)}
+.b-warn{color:var(--warn);background:var(--warn-bg)}
+.verdict{font-size:1.02rem;color:var(--ink-soft)}
+.verdict strong{color:var(--ink)}
+.flags{display:flex;flex-wrap:wrap;gap:6px}
+.flags code{font-size:.78rem;font-weight:600;padding:4px 8px;border-radius:6px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink-soft)}
+.k{font:600 10.5px/1.2 var(--sans);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.std{margin-top:8px;font:500 .95rem/1.65 var(--mono);color:var(--ink)}
+.facts2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 20px;padding-top:18px;border-top:1px solid var(--line)}
+.facts2 > div{min-width:0}
+.big{margin-top:6px;font:500 1.35rem/1.15 var(--mono);letter-spacing:-.02em;color:var(--ink)}
+.big.ko{color:var(--bad)}
+.track{display:block;height:8px;margin-top:10px;border-radius:4px;background:#eaeef5;overflow:hidden}
+.track i{display:block;height:100%;width:var(--v);border-radius:4px;background:var(--c);transform-origin:left}
+.small{font-size:.85rem;color:var(--muted)}
+.callout{padding:14px 16px;border-radius:12px;background:var(--accent-wash);font-size:.93rem;color:var(--ink-soft)}
+.callout strong{color:var(--ink)}
+.muted-box{position:relative;padding:14px 16px;border-radius:12px;background:repeating-linear-gradient(135deg,#fff 0 8px,#f6f8fb 8px 16px);box-shadow:inset 0 0 0 1px #dfe5ee}
+.muted-box .facts2{padding-top:12px;margin-top:10px;border-top:1px dashed #cfd7e4}
+.muted-box .big{color:var(--muted);font-size:1.1rem;text-decoration:line-through;text-decoration-thickness:1.5px;text-decoration-color:#9aa6ba}
+
+/* le détail fort : l'écran « adresse vérifiée » */
+.screen-ok{box-shadow:var(--sh-lg),0 0 0 1px rgba(11,27,52,.04)}
+.screen-ok::before{content:"";position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,var(--saffron),var(--coral),var(--aqua),var(--cobalt))}
+.ok-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px 24px;align-items:center}
+.ok-head .verdict-t{grid-column:1/2;font-size:clamp(1.35rem,1.1rem + 1vw,1.9rem);line-height:1.15;font-weight:500;letter-spacing:-.025em;color:var(--ink)}
+.ok-head .badge{grid-column:1/2}
+.ok-head .flags{grid-column:2/3;grid-row:1/3;justify-content:flex-end;align-self:end}
+.ok-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr) minmax(0,.95fr);border-radius:14px;border:1px solid var(--line);overflow:hidden}
+.ok-cell{min-width:0;padding:20px 22px}
+.ok-cell + .ok-cell{border-left:1px solid var(--line)}
+.saisie{margin-top:12px;font:500 .82rem/1.5 var(--mono);color:var(--muted)}
+.saisie span{display:block;font:600 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+.down{display:block;width:12px;height:16px;margin:8px 0 2px 2px;fill:none;stroke:var(--accent);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.std mark{color:var(--accent-deep);background:rgba(31,59,255,.08);border-radius:4px;padding:1px 3px;margin:0 -3px}
+.fixnote{display:flex;align-items:center;gap:7px;margin-top:12px;font-size:.8rem;color:var(--muted)}
+.fixnote::before{content:"";width:14px;height:10px;border-radius:3px;background:rgba(31,59,255,.14)}
+.ok-map{padding:0;display:flex;flex-direction:column;background:#eef2f7}
+.ok-map svg{display:block;width:100%;height:auto;flex:1;min-height:0}
+.map-meta{display:grid;gap:4px;padding:12px 16px;background:#fff;border-top:1px solid var(--line)}
+.map-meta p:first-child{display:flex;align-items:center;justify-content:space-between;gap:8px;font:600 .9rem/1.2 var(--mono);color:var(--ink);white-space:nowrap}
+.tag{font:700 10px/1 var(--sans);letter-spacing:.07em;color:var(--accent);background:var(--accent-wash);padding:5px 7px;border-radius:5px}
+.pin{transform-box:fill-box;transform-origin:50% 100%}
+.chip{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:6px 10px;border-radius:8px;background:var(--ok-bg);color:var(--ok);font:600 .95rem/1 var(--mono)}
+.chip::before{content:"";width:7px;height:7px;border-radius:50%;background:#18b47c}
+.gauge-wrap{position:relative;width:min(100%,210px);margin:16px 0 0}
+.gauge{display:block;width:100%;height:auto;overflow:visible}
+.g-num{position:absolute;left:0;right:0;bottom:2px;text-align:center;font:300 2.3rem/1 var(--sans);letter-spacing:-.04em;font-variant-numeric:tabular-nums;color:var(--ink)}
+.g-cap{width:min(100%,210px);margin-top:6px;text-align:center;font-size:.82rem;color:var(--muted)}
+.scale{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:4px;font:500 .78rem/1.4 var(--mono);color:var(--muted)}
+.scale li{display:flex;align-items:center;gap:8px}
+.scale li::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--c)}
+.scale b{min-width:2.6em;color:var(--ink);font-weight:600}
+.scale .cur{color:var(--ink)}
+.ok-foot{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:14px 18px;border-radius:12px;background:var(--soft)}
+.tries{display:inline-flex;align-items:center;gap:10px;font-weight:600;color:var(--ink)}
+.tries i{display:inline-flex;gap:3px}
+.tries i b{width:6px;height:14px;border-radius:2px;background:var(--accent)}
+.tries i b.u{background:#cfd7e4}
+.ok-foot p{flex:1 1 320px;font-size:.92rem;color:var(--muted)}
+.ok-foot a{color:var(--accent);font-weight:600}
+
+/* écran 429 */
+.screen-429 .s-body{grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:clamp(24px,4vw,56px);align-items:center}
+.wait{display:grid;justify-items:center;gap:6px;padding:28px 20px;border-radius:16px;background:linear-gradient(160deg,#fff7ec 0%,#fff 50%,#eef3ff 100%);box-shadow:inset 0 0 0 1px var(--line);text-align:center}
+.wait svg{width:72px;height:72px;fill:none;stroke-linecap:round}
+.wait strong{font:300 2.6rem/1 var(--sans);letter-spacing:-.04em;color:var(--ink)}
+.wait span{font-size:.88rem;color:var(--muted)}
+.wait code{margin-top:6px;font-size:.78rem;font-weight:600;padding:4px 8px;border-radius:6px;background:#fff;box-shadow:inset 0 0 0 1px var(--line);color:var(--ink-soft)}
+.p429{display:grid;gap:14px}
+.p429 h4{margin:0;font-size:clamp(1.3rem,1.1rem + .8vw,1.7rem);line-height:1.2;font-weight:500;letter-spacing:-.025em}
+.p429 > p{color:var(--ink-soft);font-size:.98rem}
+.p429 .cta{display:flex;flex-wrap:wrap;gap:12px}
+.p429 .fine{font-size:.88rem;color:var(--muted)}
+.p429 .fine a{color:var(--accent);font-weight:600}
+
+/* Pied de page */
+.foot{padding:56px 0 48px;border-top:1px solid var(--line)}
+.foot-grid{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(0,1fr));gap:36px}
+.foot-brand p{margin-top:14px;color:var(--muted);font-size:.95rem;max-width:30em}
+.foot-brand a.mail{display:inline-flex;align-items:center;min-height:44px;color:var(--accent);font-weight:600;text-decoration:none}
+.foot-brand a.mail:hover{text-decoration:underline}
+.foot-h{font-size:.85rem;font-weight:600;color:var(--ink)}
+.foot ul{list-style:none;padding:0;margin:8px 0 0}
+.foot li a{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);text-decoration:none;font-size:.95rem}
+.foot li a:hover{color:var(--ink)}
+.legal{margin-top:40px;padding-top:22px;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted)}
+
+/* ---------- Survol (soulèvement discret) ---------- */
+@media (hover:hover){
+  .btn:hover{translate:0 -1px}
+  .btn{transition:background-color .2s ease,box-shadow .35s var(--expo),translate .35s var(--expo)}
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1060px){
+  .nav a{padding:0 9px;font-size:.92rem}
+  .ok-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ok-cell + .ok-cell{border-left:0}
+  .ok-addr{border-right:1px solid var(--line)}
+  .ok-deliv{grid-column:1/-1;border-top:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 28px;align-items:start}
+  .ok-deliv .scale{margin-top:40px}
+}
+@media (max-width:960px){
+  .nav{display:none}
+  .bar{gap:12px}
+  .menu{display:block;margin-left:0}
+  .lang{margin-left:auto}
+  .band{clip-path:polygon(0 0,100% 0,100% calc(100% - 12vw),0 100%)}
+  .trial-grid{grid-template-columns:minmax(0,1fr)}
+  .aside{padding-top:0;max-width:640px}
+  .ex-pair{grid-template-columns:minmax(0,1fr)}
+  .screen-429 .s-body{grid-template-columns:minmax(0,1fr)}
+  .wait{justify-self:stretch}
+  .foot-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .foot-brand{grid-column:1/-1}
+}
+@media (max-width:720px){
+  .ok-head{grid-template-columns:minmax(0,1fr)}
+  .ok-head .flags{grid-column:1;grid-row:auto;justify-content:flex-start}
+  .ok-grid,.ok-deliv{grid-template-columns:minmax(0,1fr)}
+  .ok-addr{border-right:0}
+  .ok-cell + .ok-cell{border-top:1px solid var(--line)}
+  .ok-deliv .scale{margin-top:14px}
+}
+@media (max-width:640px){
+  .bar > .btn{display:none}
+}
+@media (max-width:480px){
+  .menu summary{width:44px;padding:0;justify-content:center}
+  .menu-t{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+}
+@media (max-width:370px){
+  .lang summary svg{display:none}
+}
+@media (max-width:560px){
+  .form{grid-template-columns:minmax(0,1fr)}
+  .facts2{grid-template-columns:minmax(0,1fr)}
+  .s-top .dots{display:none}
+  .divider{position:relative;justify-content:center}
+  .divider::after{display:none}
+  .divider::before{position:absolute;left:0;right:0;top:50%;margin-top:-1px}
+  .divider h2{position:relative;max-width:100%}
+  .p429 .cta .btn{flex:1 1 100%}
+}
+
+/* ---------- Mouvement (seulement si l'utilisateur l'accepte) ---------- */
+@keyframes rise{from{opacity:0;transform:translateY(24px)}}
+@keyframes card-in{from{opacity:0;transform:translateY(56px) scale(.97)}}
+@keyframes grow{from{transform:scaleX(0)}}
+@keyframes draw{from{stroke-dashoffset:1}}
+@keyframes pop{0%{opacity:0;transform:scale(.55)}60%{opacity:1}}
+@keyframes drop{
+  0%{opacity:0;transform:translateY(-48px);animation-timing-function:cubic-bezier(.55,0,.85,.35)}
+  14%{opacity:1}
+  56%{transform:translateY(0) scale(1.1,.86);animation-timing-function:cubic-bezier(.16,1,.3,1)}
+  76%{transform:translateY(-6px) scale(.97,1.04)}
+  100%{opacity:1;transform:none}
+}
+@keyframes d2{50%{transform:translate(7vw,-3vw) scale(.9)}100%{transform:translate(-4vw,-6vw) scale(1.1)}}
+@keyframes d4{50%{transform:translate(8vw,3vw) scale(1.08)}100%{transform:translate(2vw,-4vw) scale(.92)}}
+
+@media (prefers-reduced-motion:no-preference){
+  html{scroll-behavior:smooth}
+  .b2{animation:d2 22s ease-in-out infinite alternate}
+  .b4{animation:d4 28s ease-in-out infinite alternate}
+  .b5{animation:d2 30s ease-in-out -8s infinite alternate}
+  .bar{animation:rise .9s var(--expo) both}
+  .in{animation:rise 1.1s var(--expo) both;animation-delay:calc(var(--i,0)*90ms + 60ms)}
+  .form{animation:card-in 1.3s var(--expo) .28s both}
+  .aside{animation:rise 1.1s var(--expo) .5s both}
+
+  /* animations au défilement, seulement si le navigateur les gère */
+  @supports (animation-timeline:view()){
+    .reveal{animation:rise both var(--expo);animation-timeline:view();animation-range:entry 5% cover 28%}
+    .g-val{animation:draw both var(--expo);animation-timeline:view();animation-range:entry 30% cover 45%}
+    .g-end{animation:pop both var(--expo);animation-timeline:view();animation-range:entry 40% cover 48%}
+    .pin{animation:drop both;animation-timeline:view();animation-range:entry 25% cover 42%}
+    .track i,.tries i{animation:grow both var(--expo);animation-timeline:view();animation-range:entry 30% cover 45%}
+    .tries i{transform-origin:left}
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">Aller au contenu</a>
+
+<header class="top">
+  <div class="wrap bar">
+    <a class="brand" href="accueil-fr.html" aria-label="Address Validator, accueil">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>
+      Address Validator
+    </a>
+    <nav class="nav" aria-label="Navigation principale">
+      <a href="tarifs-fr.html">Tarifs</a>
+      <a href="guide-fr.html">Guide</a>
+      <a href="test-fr.html" aria-current="page">Tester une adresse</a>
+      <a href="compte-fr.html">Espace client</a>
+    </nav>
+    <details class="lang" name="entete">
+      <summary><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6.3"/><path d="M1.7 8h12.6M8 1.7c1.9 2 2.8 4.1 2.8 6.3S9.9 12.3 8 14.3C6.1 12.3 5.2 10.2 5.2 8S6.1 3.7 8 1.7z"/></svg><span class="sr">Langue : </span>FR</summary>
+      <ul class="lang-panel">
+        <li><a href="test-fr.html" hreflang="fr" lang="fr" aria-current="page">Français</a></li>
+        <li><a href="test-en.html" hreflang="en" lang="en">English</a></li>
+        <li><a href="test-zh.html" hreflang="zh" lang="zh">中文</a></li>
+        <li><a href="test-hi.html" hreflang="hi" lang="hi">हिन्दी</a></li>
+        <li><a href="test-es.html" hreflang="es" lang="es">Español</a></li>
+        <li><a href="test-ar.html" hreflang="ar" lang="ar">العربية</a></li>
+      </ul>
+    </details>
+    <a class="btn btn-ink btn-sm" href="inscription-fr.html">Créer un compte <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+    <details class="menu" name="entete">
+      <summary><i aria-hidden="true"></i><span class="menu-t">Menu</span></summary>
+      <nav class="menu-panel" aria-label="Navigation mobile">
+        <a href="tarifs-fr.html">Tarifs</a>
+        <a href="guide-fr.html">Guide</a>
+        <a href="test-fr.html" aria-current="page">Tester une adresse</a>
+        <a href="compte-fr.html">Espace client</a>
+        <a class="btn btn-ink" href="inscription-fr.html">Créer un compte</a>
+      </nav>
+    </details>
+  </div>
+</header>
+
+<main id="contenu">
+
+<section class="phead" aria-labelledby="titre">
+  <div class="band" aria-hidden="true"><i class="b4"></i><i class="b2"></i><i class="b5"></i></div>
+  <div class="guides" aria-hidden="true"></div>
+  <div class="wrap"><div class="phead-copy">
+    <p class="pill in" style="--i:0"><b>ESSAI</b>Gratuit, sans compte</p>
+    <h1 id="titre" class="in" style="--i:1">Tester une adresse, gratuitement.</h1>
+    <p class="lead in" style="--i:2">Vérifiez une adresse de livraison sans créer de compte, dans la limite de quelques essais par jour et par adresse IP.</p>
+  </div></div>
+</section>
+
+<section class="trial" aria-label="Essai gratuit">
+  <div class="wrap trial-grid">
+    <form class="form" method="post" action="/validate-form">
+      <div class="form-head"><h2>Votre adresse</h2><span>POST /validate-form</span></div>
+      <p class="form-hint">Pour un résultat complet, prenez une adresse des États-Unis : ailleurs, la vérification reste partielle.</p>
+      <div class="field f-wide"><label for="street">Numéro et rue</label><input id="street" name="street" type="text" placeholder="1 Rue de Paris" autocomplete="address-line1" required></div>
+      <div class="field"><label for="city">Ville</label><input id="city" name="city" type="text" placeholder="Saint-Denis" autocomplete="address-level2" required></div>
+      <div class="field"><label for="state">Région ou état</label><input id="state" name="state" type="text" placeholder="RE (La Réunion), CA, Île-de-France…" autocomplete="address-level1" required></div>
+      <div class="field"><label for="zip">Code postal</label><input id="zip" name="zip" type="text" placeholder="97400" autocomplete="postal-code" required></div>
+      <div class="field"><label for="country">Pays (2 lettres)</label><input id="country" name="country" type="text" placeholder="US" minlength="2" maxlength="2" autocomplete="country" aria-describedby="country-aide"><small id="country-aide">Laissé vide : US.</small></div>
+      <button class="btn btn-accent" type="submit">Vérifier l'adresse <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></button>
+      <p class="form-note">Sans compte, sans carte bancaire. Le résultat s'affiche sous le formulaire.</p>
+    </form>
+
+    <aside class="aside" aria-labelledby="h-keep">
+      <h2 id="h-keep">Ce que devient votre adresse</h2>
+      <ul class="keep">
+        <li>Rien n'est enregistré en base : ni votre adresse, ni le résultat.</li>
+        <li>L'essai gratuit n'écrit ni compte, ni ligne au registre des paiements. Seul un compteur anonyme avance, pour faire respecter le plafond.</li>
+        <li>La page de résultat n'est ni gardée en cache, ni indexée.</li>
+      </ul>
+      <div class="aside-links">
+        <a class="link" href="guide-fr.html">Lire le guide <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        <a class="link" href="inscription-fr.html">Créer un compte <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section class="examples" aria-labelledby="h-ex">
+  <div class="wrap">
+    <div class="divider reveal"><h2 id="h-ex">Exemples d'écrans de résultat (maquette)</h2></div>
+    <p class="ex-lead reveal">Après l'envoi, la page affiche l'un de ces quatre écrans selon la réponse. Toutes les valeurs sont un exemple illustratif.</p>
+
+    <!-- (a) Adresse vérifiée : le détail fort -->
+    <article class="ex reveal" aria-labelledby="ex-a">
+      <div class="ex-cap"><span class="num">A</span><h3 id="ex-a">Adresse vérifiée</h3><p>HTTP 200, résultat affiché sous le formulaire.</p></div>
+      <div class="screen screen-ok">
+        <div class="s-top" aria-hidden="true"><span class="dots"><i></i><i></i><i></i></span><span class="verb">POST</span><span class="path">/validate-form</span><span class="status">200 OK</span></div>
+        <div class="s-body">
+          <div class="ok-head">
+            <p class="badge b-ok"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="m5.2 8.2 1.9 1.9 3.8-3.9"/></svg>Adresse reconnue</p>
+            <p class="verdict-t">Le transporteur devrait livrer à cette adresse.</p>
+            <p class="flags"><code>validated: true</code><code>degraded: false</code></p>
+          </div>
+
+          <div class="ok-grid">
+            <div class="ok-cell ok-addr">
+              <p class="k">Adresse standardisée</p>
+              <p class="saisie"><span>Votre saisie</span>100 stewart st, seattle, wa, 98101, us</p>
+              <svg class="down" viewBox="0 0 12 16" aria-hidden="true"><path d="M6 1v13M1.5 9.5 6 14l4.5-4.5"/></svg>
+              <p class="std"><mark>100 Stewart Street</mark><br>98101 <mark>Seattle</mark><br><mark>WA</mark><br><mark>US</mark></p>
+              <p class="fixnote">corrigé par la standardisation</p>
+            </div>
+
+            <div class="ok-cell ok-map">
+              <svg viewBox="0 0 240 150" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
+                <rect width="240" height="150" fill="#eef2f7"/>
+                <g transform="rotate(-28 120 75)">
+                  <g fill="#e2e8f1">
+                    <rect x="25" y="20" width="30" height="25" rx="2"/><rect x="65" y="55" width="30" height="25" rx="2"/>
+                    <rect x="105" y="20" width="30" height="25" rx="2"/><rect x="145" y="125" width="30" height="25" rx="2"/>
+                    <rect x="185" y="55" width="30" height="25" rx="2"/><rect x="25" y="90" width="30" height="25" rx="2"/>
+                    <rect x="105" y="125" width="30" height="25" rx="2"/><rect x="225" y="90" width="30" height="25" rx="2"/>
+                  </g>
+                  <rect x="185" y="20" width="30" height="25" rx="3" fill="#d3ead6"/>
+                  <rect x="65" y="125" width="30" height="25" rx="3" fill="#d3ead6"/>
+                  <g stroke="#dde4ee" stroke-width="9" fill="none">
+                    <path d="M-160 15H420M-160 50H420M-160 85H420M-160 120H420M-160 155H420M-160 190H420M-160 -20H420"/>
+                    <path d="M20-160V340M60-160V340M100-160V340M140-160V340M180-160V340M220-160V340M260-160V340M-20-160V340"/>
+                  </g>
+                  <g stroke="#fff" fill="none">
+                    <path stroke-width="6.5" d="M-160 15H420M-160 50H420M-160 85H420M-160 120H420M-160 155H420M-160 190H420M-160 -20H420"/>
+                    <path stroke-width="6.5" d="M20-160V340M60-160V340M100-160V340M140-160V340M180-160V340M220-160V340M260-160V340M-20-160V340"/>
+                  </g>
+                </g>
+                <path d="M0 0H62C55 22 46 42 33 62C22 79 10 92 0 100Z" fill="#cfe2f4"/>
+                <path d="M10 18c6-3 12 3 18 0M8 40c6-3 12 3 18 0M6 62c5-3 10 3 15 0" stroke="#b7d1ea" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                <g transform="translate(150 92)">
+                  <ellipse cx="0" cy="1" rx="7" ry="2.4" fill="#0b1b34" opacity=".26"/>
+                  <circle cx="0" cy="0" r="11" fill="none" stroke="#1f3bff" stroke-width="1.5" opacity=".3"/>
+                  <g class="pin">
+                    <path d="M0 0C-2.4-6.5-12-12-12-21.5a12 12 0 0 1 24 0C12-12 2.4-6.5 0 0Z" fill="#1f3bff"/>
+                    <circle cx="0" cy="-21.5" r="4.6" fill="#fff"/>
+                  </g>
+                </g>
+              </svg>
+              <div class="map-meta">
+                <p><span><span class="sr">Coordonnées : </span>47.61050, -122.34100</span><span class="tag">GPS</span></p>
+                <p class="small">Obtenues par géocodage, à titre indicatif.</p>
+              </div>
+            </div>
+
+            <div class="ok-cell ok-deliv">
+              <div>
+                <p class="k">Livrabilité</p>
+                <p class="chip">residential</p>
+                <div class="gauge-wrap">
+                  <svg class="gauge" viewBox="0 0 140 80" aria-hidden="true">
+                    <defs><linearGradient id="g-conf" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#e5484d"/><stop offset=".5" stop-color="#ffad3b"/><stop offset="1" stop-color="#18b47c"/></linearGradient></defs>
+                    <path d="M18 72A52 52 0 0 1 122 72" fill="none" stroke="#eaeef5" stroke-width="10" stroke-linecap="round"/>
+                    <path class="g-val" d="M18 72A52 52 0 0 1 122 72" pathLength="1" stroke-dasharray="1" stroke-dashoffset="0" fill="none" stroke="url(#g-conf)" stroke-width="10" stroke-linecap="round"/>
+                    <path d="M77.04 27.55 79.23 13.73" stroke="#fff" stroke-width="2"/>
+                    <circle class="g-end" cx="122" cy="72" r="7.5" fill="#fff" stroke="#0a7350" stroke-width="2.5"/>
+                  </svg>
+                  <p class="g-num">1.00</p>
+                </div>
+                <p class="g-cap">indice de confiance, de 0 à 1</p>
+              </div>
+              <ul class="scale" aria-label="Repères de l'indice de confiance">
+                <li style="--c:#e5484d"><b>0.05</b>invalid</li>
+                <li style="--c:#ffad3b"><b>0.55</b>unknown</li>
+                <li class="cur" style="--c:#18b47c"><b>1.00</b>residential, cette adresse</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="ok-foot">
+            <p class="tries"><i aria-hidden="true"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b class="u"></b><b class="u"></b><b class="u"></b></i>Il vous reste 7 essais gratuits aujourd'hui.</p>
+            <p>Pour un usage régulier : <a href="inscription-fr.html">créez un compte</a> (14 jours et 100 validations offertes), ou appelez l'API payante (0,02 USDC la validation).</p>
+          </div>
+        </div>
+        <div class="s-foot"><span>Résultat de l'essai gratuit, non enregistré.</span><span class="illus">Exemple illustratif</span></div>
+      </div>
+    </article>
+
+    <div class="ex-pair">
+      <!-- (b) Adresse non reconnue -->
+      <article class="ex reveal" aria-labelledby="ex-b">
+        <div class="ex-cap"><span class="num">B</span><h3 id="ex-b">Adresse non reconnue</h3><p>HTTP 200, le fournisseur a répondu.</p></div>
+        <div class="screen">
+          <div class="s-top" aria-hidden="true"><span class="dots"><i></i><i></i><i></i></span><span class="verb">POST</span><span class="path">/validate-form</span><span class="status">200 OK</span></div>
+          <div class="s-body">
+            <p class="badge b-ko"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="m5.8 5.8 4.4 4.4m0-4.4-4.4 4.4"/></svg>Adresse non reconnue</p>
+            <p class="verdict">Vérifiez le numéro, la voie et le code postal avant d'expédier à cette adresse.</p>
+            <p class="flags"><code>validated: false</code><code>degraded: false</code></p>
+            <div>
+              <p class="k">Adresse standardisée</p>
+              <p class="std">9999 Stewart Street<br>98101 Seattle<br>WA<br>US</p>
+            </div>
+            <div class="facts2">
+              <div><p class="k">Livrabilité</p><p class="big ko">invalid</p></div>
+              <div><p class="k">Indice de confiance</p><p class="big">0.05</p><span class="track"><i style="--v:5%;--c:#e5484d"></i></span></div>
+              <div class="f-wide" style="grid-column:1/-1"><p class="k">Coordonnées</p><p class="small mono">47.61330, -122.33860, obtenues par géocodage, à titre indicatif.</p></div>
+            </div>
+          </div>
+          <div class="s-foot"><span>Il vous reste 7 essais gratuits aujourd'hui.</span><span class="illus">Exemple illustratif</span></div>
+        </div>
+      </article>
+
+      <!-- (c) Fournisseur injoignable -->
+      <article class="ex reveal" aria-labelledby="ex-c">
+        <div class="ex-cap"><span class="num">C</span><h3 id="ex-c">Fournisseur injoignable</h3><p>HTTP 200, <code>degraded: true</code>.</p></div>
+        <div class="screen">
+          <div class="s-top" aria-hidden="true"><span class="dots"><i></i><i></i><i></i></span><span class="verb">POST</span><span class="path">/validate-form</span><span class="status">200 OK</span></div>
+          <div class="s-body">
+            <p class="badge b-info"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.6v4M8 11.2v.2"/></svg>Vérification impossible pour l'instant</p>
+            <p class="verdict">Le fournisseur d'adresses n'a pas répondu. La réponse ci-dessous n'est <strong>pas</strong> un jugement sur votre adresse.</p>
+            <div class="callout"><strong>Résultat dégradé :</strong> le fournisseur d'adresses n'a pas pu être interrogé (panne, délai dépassé ou disjoncteur ouvert). Cette réponse ne dit rien de l'adresse : elle n'est pas une preuve d'inexistence. Réessayez plus tard.</div>
+            <div class="muted-box">
+              <p class="flags"><code>validated: false</code><code>degraded: true</code></p>
+              <div class="facts2">
+                <div><p class="k">Livrabilité</p><p class="big">invalid</p></div>
+                <div><p class="k">Indice de confiance</p><p class="big">0.05</p></div>
+              </div>
+              <p class="small" style="margin-top:10px">Valeurs sans portée : le fournisseur n'a pas vérifié l'adresse 100 Stewart Street, 98101 Seattle, WA, US.</p>
+            </div>
+          </div>
+          <div class="s-foot"><span>Il vous reste 7 essais gratuits aujourd'hui.</span><span class="illus">Exemple illustratif</span></div>
+        </div>
+      </article>
+    </div>
+
+    <!-- (d) Limite du jour atteinte -->
+    <article class="ex reveal" aria-labelledby="ex-d">
+      <div class="ex-cap"><span class="num">D</span><h3 id="ex-d">Limite du jour atteinte</h3><p>HTTP 429, page dédiée à la place du formulaire.</p></div>
+      <div class="screen screen-429">
+        <div class="s-top" aria-hidden="true"><span class="dots"><i></i><i></i><i></i></span><span class="verb">POST</span><span class="path">/validate-form</span><span class="status st-429">429</span></div>
+        <div class="s-body">
+          <div class="wait">
+            <svg viewBox="0 0 72 72" aria-hidden="true">
+              <circle cx="36" cy="36" r="30" stroke="#eaeef5" stroke-width="6"/>
+              <path d="M36 6a30 30 0 0 1 17.6 5.7" stroke="#e0951b" stroke-width="6"/>
+              <path d="M36 22v14l8 6" stroke="#0b1b34" stroke-width="3" stroke-linejoin="round"/>
+            </svg>
+            <strong>37 min</strong>
+            <span>avant la fin de votre fenêtre de 24 h</span>
+            <code>Retry-After: 2220</code>
+          </div>
+          <div class="p429">
+            <h4>Plafond d'essais gratuits atteint</h4>
+            <p>Les essais gratuits sont plafonnés par jour et par visiteur : c'est le garde-fou qui permet d'offrir l'essai sans ouvrir le fournisseur payant à tout Internet.</p>
+            <div class="callout"><strong>Votre fenêtre de 24 h se referme dans environ 37 minutes.</strong> Elle démarre au premier essai et ne se prolonge pas à chaque tentative. Vous pouvez aussi continuer tout de suite avec un compte : 100 validations offertes, 14 jours, sans carte bancaire.</div>
+            <div class="cta">
+              <a class="btn btn-accent" href="inscription-fr.html">Créer un compte <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+              <a class="btn btn-glass" href="tarifs-fr.html">Voir les tarifs</a>
+            </div>
+            <p class="fine">Un cas légitime bloqué (adresses de test, volume ponctuel) ? <a href="mailto:address-validator@kder-ai.com">Écrivez-nous</a> : le compteur se lève à la main.</p>
+          </div>
+        </div>
+        <div class="s-foot"><span>Page servie sans cache, non indexée.</span><span class="illus">Exemple illustratif</span></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="accueil-fr.html"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>Address Validator</a>
+        <p>Address Validator, Kder Daoud</p>
+        <a class="mail" href="mailto:address-validator@kder-ai.com">address-validator@kder-ai.com</a>
+      </div>
+      <div>
+        <p class="foot-h">Boutiques</p>
+        <ul>
+          <li><a href="tarifs-fr.html">Tarifs</a></li>
+          <li><a href="guide-fr.html">Guide d'intégration</a></li>
+          <li><a href="test-fr.html">Tester une adresse</a></li>
+          <li><a href="compte-fr.html">Espace client</a></li>
+          <li><a href="inscription-fr.html">Créer un compte</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="foot-h">Développeurs et agents</p>
+        <ul>
+          <li><a href="/docs">Documentation</a></li>
+          <li><a href="/mcp">Serveur MCP</a></li>
+          <li><a href="/manifest">Manifeste</a></li>
+          <li><a href="/llms.txt">llms.txt</a></li>
+          <li><a href="/AGENTS.md">AGENTS.md</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">Prix hors taxes. Appel direct sans abonnement : 0,02 USDC par validation.</p>
+  </div>
+</footer>
+</body>
+</html>
