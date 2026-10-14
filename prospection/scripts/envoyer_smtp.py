@@ -232,6 +232,20 @@ def ouvrir_connexion(identifiants: dict):
     return serveur
 
 
+def texte_serveur_refus(erreur: smtplib.SMTPAuthenticationError) -> str:
+    """Texte joint par le serveur au refus, tel quel (`5.7.1 Unauthorized IP address`).
+
+    `smtplib` le conserve dans `smtp_error`, et c'est lui qui tranche : sans ce
+    texte, un refus d'adresse IP chez Brevo (`525 5.7.1 Unauthorized IP address`)
+    ressemble à une clé fausse (`535 5.7.8 Authentication failed`), et la campagne
+    corrige la mauvaise chose (docs/commercial/GUIDE-BREVO.md, section 7, piège 10).
+    """
+    brut = erreur.smtp_error
+    if isinstance(brut, (bytes, bytearray)):
+        brut = brut.decode("utf-8", "replace")
+    return str(brut).strip()
+
+
 def envoyer(
     base,
     a_envoyer: list[dict],
@@ -268,10 +282,14 @@ def envoyer(
                     serveur = ouvrir_connexion(identifiants)
                 serveur.send_message(message)
             except smtplib.SMTPAuthenticationError as erreur:
+                detail = texte_serveur_refus(erreur)
                 rapport["echecs"].append(
                     {
                         "email": fiche["email"],
-                        "motif": f"authentification refusée ({erreur.smtp_code})",
+                        "motif": (
+                            f"authentification refusée ({erreur.smtp_code}"
+                            f"{' — ' + detail if detail else ''})"
+                        ),
                     }
                 )
                 raise
@@ -434,6 +452,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     for echec in rapport["echecs"][:10]:
         c.alerte(f"{echec['email']} : {echec['motif']}")
+    if any("unauthorized ip" in str(echec["motif"]).lower() for echec in rapport["echecs"]):
+        c.alerte(
+            "cause : adresse IP de cette machine non autorisée côté Brevo"
+            " (app.brevo.com -> Settings -> Security -> Authorized IP addresses)."
+            " Les identifiants, eux, sont valides (GUIDE-BREVO.md, section 7, piège 10)."
+        )
     if rapport["envoyes"]:
         c.journaliser(
             None,

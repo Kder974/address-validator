@@ -708,10 +708,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         envoyer_message(identifiants, message)
     except smtplib.SMTPAuthenticationError as erreur:
+        detail = erreur.smtp_error
+        if isinstance(detail, (bytes, bytearray)):
+            detail = detail.decode("utf-8", "replace")
+        detail = str(detail).strip()
         print(
             f"ENVOI FAIL authentification refusee par {identifiants['hote']} "
-            f"(code {erreur.smtp_code})"
+            f"(code {erreur.smtp_code}{' — ' + detail if detail else ''})"
         )
+        if "unauthorized ip" in detail.lower():
+            print(
+                "  cause : adresse IP non autorisee cote Brevo (app.brevo.com -> Settings"
+            )
+            print(
+                "          -> Security -> Authorized IP addresses), pas la cle SMTP"
+                " (GUIDE-BREVO.md, section 7-10)."
+            )
         return 1
     except (smtplib.SMTPException, OSError, ssl.SSLError) as erreur:
         print(f"ENVOI FAIL {type(erreur).__name__}: {erreur}")

@@ -211,6 +211,7 @@ Codes de retour : `0` message parti (ou simulation réussie), `1` envoi impossib
 | `expediteur grand public refuse (gmail.com)` | `SMTP_FROM`/`SMTP_USER` sur une boîte personnelle | mettre `contact@kder-ai.com` (§ 1.3) |
 | `authentification refusee par <hote> (code 5xx)` | mot de passe faux ; mot de passe d'application absent (2FA) ; ou **plan gratuit sans accès IMAP/SMTP** | vérifier l'accès IMAP/SMTP du plan (§ 1.1) ; sinon Zoho Lite ou relais Brevo/Resend (§ 7) |
 | `SMTPAuthenticationError` avec Brevo | **clé API** utilisée à la place de la **clé SMTP** | app.brevo.com → SMTP & API → onglet SMTP |
+| `authentification refusée … (code 525 — 5.7.1 Unauthorized IP address)` | **adresse IP de la machine non autorisée**, la clé est valide | `app.brevo.com` → **Settings** → **Security** → *Authorized IP addresses* : ajouter l'IP publique (`https://api.ipify.org`) ou retirer la restriction (GUIDE-BREVO § 7-10) |
 | `Connection unexpectedly closed` / délai dépassé | port `587` filtré par le réseau | essayer `SMTP_PORT=465` (TLS implicite) ou un autre réseau |
 | `page … : 404 au lieu de 200` | déploiement absent ou incomplet | ne pas envoyer (§ 3.1) |
 | `AVERTISSEMENT corps different de EMAIL_BIENVENUE.md` | écart **D52 connu** : la checklist § 2 a été recorrigée, l'exemplaire de référence § 2 ne l'a pas encore été (mesuré le 13/10/2026 : une seule phrase) | normal, tant que l'écart ne porte que sur D52 — le texte qui part est celui de la checklist ; lever l'écart en réalignant `EMAIL_BIENVENUE.md` § 2 |

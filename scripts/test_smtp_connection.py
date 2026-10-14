@@ -22,7 +22,10 @@ FAIT QUOI EXACTEMENT : affiche une ligne de contexte (fichier, serveur, chiffrem
 
         ou
 
-        ❌ Erreur : <ce qui bloque, en clair>
+        ❌ Erreur : <ce qui bloque, en clair>, suivi du texte du serveur tel quel :
+        le code 5xx seul ne suffit pas a diagnostiquer (un `525 5.7.1 Unauthorized
+        IP address` designe l'adresse IP de la machine, pas la cle SMTP : voir le
+        rappel affiche dans ce cas).
 
 Codes de retour : 0 configuration valide et serveur joignable, 1 echec (fichier
 absent, variable a remplacer, serveur ou authentification refuses), 2 usage invalide.
@@ -103,6 +106,20 @@ def port_depuis(valeur: str) -> int:
         raise ValueError(f"SMTP_PORT illisible : {valeur!r}") from erreur
 
 
+def texte_serveur(erreur: smtplib.SMTPAuthenticationError) -> str:
+    """Texte joint par le serveur au refus, tel quel (`5.7.1 Unauthorized IP address`).
+
+    `smtplib` le conserve dans `smtp_error` : l'afficher est le seul moyen de
+    distinguer une cle ou un login refuses (`535 5.7.8 Authentication failed`)
+    d'une **adresse IP non autorisee** (`525 5.7.1 Unauthorized IP address`). Ces
+    deux refus arrivent avec un code 5xx et un conseil different.
+    """
+    brut = erreur.smtp_error
+    if isinstance(brut, (bytes, bytearray)):
+        brut = brut.decode("utf-8", "replace")
+    return str(brut).strip()
+
+
 def parseur() -> argparse.ArgumentParser:
     """Ligne de commande : quel fichier d'identifiants, quel delai."""
     analyseur = argparse.ArgumentParser(
@@ -176,13 +193,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         tester_connexion(identifiants, args.delai)
     except smtplib.SMTPAuthenticationError as erreur:
+        detail = texte_serveur(erreur)
         print(
             f"❌ Erreur : authentification refusee par {identifiants['hote']} "
-            f"(code {erreur.smtp_code})"
+            f"(code {erreur.smtp_code}{' — ' + detail if detail else ''})"
         )
-        print("   verifier la cle SMTP : onglet SMTP de Brevo, cle xsmtpsib-... —")
-        print("   la cle API xkeysib-... ne fonctionne pas en SMTP. Le login est")
-        print(f"   {identifiants['utilisateur']} (...@smtp-brevo.com), pas l'adresse du domaine.")
+        if "unauthorized ip" in detail.lower():
+            print("   Brevo reconnait la cle mais refuse l'adresse IP de cette machine :")
+            print("   app.brevo.com -> Settings -> Security -> Authorized IP addresses.")
+            print("   y ajouter l'IP publique de la machine (https://api.ipify.org), ou")
+            print("   retirer la restriction si l'acces part d'une IP dynamique.")
+        else:
+            print("   verifier la cle SMTP : onglet SMTP de Brevo, cle xsmtpsib-... —")
+            print("   la cle API xkeysib-... ne fonctionne pas en SMTP. Le login est")
+            print(
+                f"   {identifiants['utilisateur']} (...@smtp-brevo.com), "
+                "pas l'adresse du domaine."
+            )
         return 1
     except (smtplib.SMTPException, OSError, ssl.SSLError) as erreur:
         print(f"❌ Erreur : {type(erreur).__name__} : {erreur}")

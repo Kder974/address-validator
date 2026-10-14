@@ -194,6 +194,15 @@ avant la campagne Tiitoune Art.
 9. **Expéditeur sur un domaine public** (Gmail, Outlook) : le script refuse
    d'envoyer sans `--accepter-domaine-public`, et il a raison — la délivrabilité
    s'écroule, pour un gain nul.
+10. **IP non autorisée** : `525 5.7.1 Unauthorized IP address` ne vient **pas** de
+    la clé — Brevo reconnaît la clé et refuse l'adresse IP de la machine. Dans
+    `app.brevo.com` → **Settings** → **Security** → *Authorized IP addresses* :
+    soit y ajouter l'IP publique de la machine (`https://api.ipify.org`), soit
+    retirer la restriction (nécessaire si l'accès part d'une IP dynamique, cas
+    d'une ligne résidentielle). À distinguer de `535 5.7.8 Authentication failed`,
+    qui désigne bien la clé ou le login. Mesuré le 13/10/2026 : deux clés valides
+    (`xsmtpsib-…`, 90 caractères) étaient refusées en 525, une clé bidon en 535 —
+    seule la lecture du texte du serveur permettait de trancher.
 
 ---
 
