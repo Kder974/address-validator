@@ -40,8 +40,7 @@ from __future__ import annotations
 
 import html
 import re
-from datetime import datetime, timedelta, timezone
-from functools import partial
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Request
@@ -617,17 +616,6 @@ def _refus(message: str) -> Response:
     )
 
 
-def _jours_essai(infos: dict, statut: dict) -> tuple[int, int]:
-    """(durée de l'essai en jours, jours restants), lus sur le compte."""
-    fin, debut = statut["trial_ends_at"], infos["cree_le"]
-    if debut is None:
-        total = get_settings().trial_days
-    else:
-        debut = debut if debut.tzinfo else debut.replace(tzinfo=timezone.utc)
-        total = max(1, round((fin - debut).total_seconds() / 86400))
-    return total, min(statut["trial_jours_restants"], total)
-
-
 def _page_cle(lang: str, *, infos: dict, cle: str, statut: dict, regeneration: bool, maintenant: datetime) -> HTMLResponse:
     """La **seule** page qui montre la clé en clair : `no-store`, non indexée."""
     textes = TEXTES[lang]
@@ -674,118 +662,17 @@ def _etat(lang: str, nom: str, champs: dict) -> str:
     )
 
 
-def _compte_page(lang: str, *, infos: dict, statut: dict, maintenant: datetime, erreur_cle: str = "") -> HTMLResponse:
-    """L'espace client : consommation réelle, clé, offre, facturation.
+def _compte_page(lang: str, *, infos: dict, statut: dict, maintenant: datetime, jours: list, erreur_cle: str = "") -> HTMLResponse:
+    """L'espace client : le tableau de bord du compte (D64, `app/routes/tableau.py`).
 
-    Chaque chiffre a une source : `customer_validations` pour la consommation,
-    `i18n.prix(lang, "colis_rate")` pour l'estimation (dont la formule est
-    affichée). Un total d'économies sans formule serait un argument, pas un calcul.
+    Chaque chiffre a une source : `customer_validations` pour la consommation (à vie,
+    du mois, et jour par jour), `i18n.prix(lang, "colis_rate")` pour l'estimation,
+    dont la formule est affichée.
     """
-    textes = TEXTES[lang]
-    nombre = partial(i18n.nombre, lang)
-    quota, mois_n, fin = statut["quota"], statut["validations_mois"], statut["trial_ends_at"]
-    essai_plan = statut["plan"] == accounts.PLAN_PAR_DEFAUT
-    plan = textes["plans"].get(statut["plan"], statut["plan"])
+    # `tableau` réutilise les outils de ce module (dates, montants, bandeaux) : importé à l'appel.
+    from app.routes import tableau
 
-    date_fin = _date(lang, fin, "longue") if fin else ""
-    essai_fini = textes["essai_fini"].format(date=date_fin)
-    if fin is None:
-        essai = textes["essai_aucun"]
-    elif statut["trial_expire"]:
-        essai = essai_fini
-    else:
-        essai = textes["essai_en_cours"].format(n=nombre(statut["trial_jours_restants"]), date=date_fin)
-
-    jours, total, ecoules = "", 1, 0
-    if essai_plan and fin is not None:
-        total, restants = _jours_essai(infos, statut)
-        ecoules = total - restants
-        # ponytail: au-delà d'un mois, les cases deviendraient illisibles ; la phrase d'essai reste.
-        if total <= 31:
-            cases = "".join(f'<i style="--d:{rang}"></i>' for rang in range(total))
-            passe = _pluriel(lang, ecoules, textes["jours_ecoules"]).format(n=nombre(ecoules))
-            reste = _pluriel(lang, restants, textes["jours_restants"]).format(n=nombre(restants), total=nombre(total))
-            jours = (
-                f'\n          <span class="days" aria-hidden="true">{cases}</span>\n'
-                f'          <span class="days-l"><span>{html.escape(passe)}</span><span>{html.escape(reste)}</span></span>\n        '
-            )
-
-    suivant = (accounts.month_start(maintenant) + timedelta(days=32)).replace(day=1)
-    devise = i18n.DEVISE[lang]
-    cout = i18n.prix(lang, "colis_rate")
-    economies = _montant(lang, statut["invalides"] * i18n.MONTANTS[devise]["colis_rate"])
-    annee_taux, mois_taux = (int(partie) for partie in i18n.DATE_TAUX.split("-"))
-    pct = 0.0 if not quota else min(100.0, mois_n * 100 / quota)
-    periode = _date(lang, maintenant, "mois")
-
-    valeurs = {
-        **_communs(lang, "compte"),
-        "plan": plan,
-        "boutique": infos["shop_name"],
-        "email": infos["email"],
-        "essai": essai,
-        "jours_total": total,
-        "jours_ecoules": ecoules,
-        "periode": periode[:1].upper() + periode[1:],
-        "restant_grand": "∞" if quota is None else nombre(statut["restant"]),
-        "mois_n": nombre(mois_n),
-        "utilisees": _pluriel(lang, mois_n, textes["utilisees"]),
-        "quota": _quota(lang, quota),
-        "quota_moitie": nombre(quota // 2) if quota else "",
-        "jauge_aria": textes["jauge"].format(n=nombre(mois_n), quota=_quota(lang, quota), r=nombre(statut["restant"] or 0)),
-        # CSS : un pourcentage écrit avec un point, jamais à la manière de la langue.
-        "jauge_pct": f"{pct:g}",
-        # ponytail: l'étiquette reste dans la carte aux extrémités de la jauge (6 % à 94 %).
-        "at_pct": f"{min(max(pct, 6.0), 94.0):g}",
-        # 100 cases : une case vaut une validation à 100, vingt à 2 000 (sans jauge si illimité).
-        "par_case": textes["case"][1].format(n=nombre(quota / 100)) if quota and quota != 100 else textes["case"][0],
-        "aujourdhui_court": _date(lang, maintenant, "courte"),
-        "mois_courant": MOIS[lang][maintenant.month - 1],
-        "mois_courant_num": maintenant.month,
-        "fin_essai_courte": _date(lang, fin, "courte") if fin else "",
-        "ordre_fin": 1 if fin and fin >= suivant else 0,
-        "mois_suivant_court": MOIS_COURTS[lang][suivant.month - 1],
-        "mois_suivant_num": suivant.month,
-        "validations": nombre(statut["validations"]),
-        "invalides": nombre(statut["invalides"]),
-        "cout": cout,
-        "cout_max": _montant(lang, i18n.MONTANTS[devise]["colis_rate_max"]),
-        "colis_min": nombre(i18n.MONTANTS[devise]["colis_rate"]),
-        "usd_min": nombre(i18n.MONTANTS["USD"]["colis_rate"]),
-        "usd_max": nombre(i18n.MONTANTS["USD"]["colis_rate_max"]),
-        "date_taux": _date(lang, datetime(annee_taux, mois_taux, 1), "mois"),
-        "economies": economies,
-        "calcul_aria": _pluriel(lang, statut["invalides"], textes["calcul"]).format(
-            n=nombre(statut["invalides"]), cout=cout, total=economies
-        ),
-        "prefixe": infos["prefixe"],
-        "caches": accounts.API_KEY_CHARS - (len(infos["prefixe"]) - len(accounts.API_KEY_PREFIX)),
-        "fin_essai": date_fin,
-        "url_deconnexion": i18n.chemin(lang, "compte") + "/deconnexion",
-        "session_heures": nombre(get_settings().session_hours),
-    }
-
-    blocs = {"fact_essai" if essai_plan else "fact_payant"}
-    if quota is not None:
-        blocs.add("jauge")
-    if essai_plan and fin is not None:
-        blocs.add("essai")
-        if not statut["trial_expire"]:
-            blocs.add("fin_essai")
-
-    etat = ""
-    nom_etat = "expire" if statut["expire"] else "quota" if statut["quota_atteint"] else "payant" if fin is None else ""
-    if nom_etat:
-        etat = _etat(lang, nom_etat, {
-            "essai_fini": essai_fini, "essai_aucun": textes["essai_aucun"], "plan": plan,
-            "prix_starter": valeurs["prix_starter"], "prix_pro": valeurs["prix_pro"],
-            "quota_starter": valeurs["quota_starter"], "quota_pro": valeurs["quota_pro"],
-            "quota": valeurs["quota"], "motif": accounts.REFUS_QUOTA_ATTEINT, "sans_plafond": textes["sans_plafond"],
-        })
-
-    erreur = f'<p class="regen-err" role="alert">{html.escape(erreur_cle)}</p>' if erreur_cle else ""
-    page = _page("compte", lang, valeurs, blocs, fragments={"etat": etat, "jours": jours, "erreur_cle": erreur})
-    return HTMLResponse(page, status_code=200, headers=SECRET_HEADERS)
+    return tableau.page(lang, infos=infos, statut=statut, maintenant=maintenant, jours=jours, erreur_cle=erreur_cle)
 
 
 async def _inscrire(request: Request, lang: str) -> Response:
@@ -885,12 +772,13 @@ def _espace_basic(request: Request, lang: str, *, regeneration: bool) -> Respons
             cle = accounts.regenerate_api_key(session, client) if regeneration else None
             infos = _infos(client)
             statut = accounts.plan_status(session, client, maintenant)
+            jours = accounts.daily_usage(session, client, maintenant)
     except SQLAlchemyError as exc:
         return _indisponible(lang, exc)
 
     if cle:
         return _page_cle(lang, infos=infos, cle=cle, statut=statut, regeneration=True, maintenant=maintenant)
-    return _compte_page(lang, infos=infos, statut=statut, maintenant=maintenant)
+    return _compte_page(lang, infos=infos, statut=statut, maintenant=maintenant, jours=jours)
 
 
 async def _espace_client(request: Request, lang: str, *, regeneration: bool) -> Response:
@@ -926,12 +814,13 @@ async def _espace_client(request: Request, lang: str, *, regeneration: bool) -> 
                     erreur_cle = connexion.TEXTES[lang]["mdp_cle"]
             infos = _infos(client)
             statut = accounts.plan_status(session, client, maintenant)
+            jours = accounts.daily_usage(session, client, maintenant)
     except SQLAlchemyError as exc:
         return _indisponible(lang, exc)
 
     if cle:
         return _page_cle(lang, infos=infos, cle=cle, statut=statut, regeneration=True, maintenant=maintenant)
-    reponse = _compte_page(lang, infos=infos, statut=statut, maintenant=maintenant, erreur_cle=erreur_cle)
+    reponse = _compte_page(lang, infos=infos, statut=statut, maintenant=maintenant, jours=jours, erreur_cle=erreur_cle)
     if erreur_cle:
         reponse.status_code = 400
     return reponse

@@ -32,7 +32,7 @@ from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 
 import bcrypt
-from sqlalchemy import func
+from sqlalchemy import case, func
 
 from app.models import Customer, CustomerSession, CustomerValidation, PasswordReset
 
@@ -444,6 +444,26 @@ def plan_status(session, client: Customer, maintenant: datetime | None = None) -
         "quota_atteint": quota is not None and conso_mois["validations"] >= quota,
         "cout_par_echec_usd": COUT_ECHEC_USD,
     }
+
+
+def daily_usage(session, client: Customer, maintenant: datetime | None = None) -> list[tuple[int, int]]:
+    """(validations, invalides) de chaque jour du mois en cours (UTC), du 1er à aujourd'hui.
+
+    Source des courbes du tableau de bord (D64) : la même table que les compteurs
+    (`customer_validations`), regroupée par jour, donc la somme des jours vaut le
+    compteur du mois.
+    """
+    moment = _conscient(maintenant or now_utc())
+    debut = month_start(moment)
+    jour = func.date(CustomerValidation.created_at)
+    lignes = (
+        session.query(jour, func.count(), func.sum(case((CustomerValidation.validated.is_(False), 1), else_=0)))
+        .filter(CustomerValidation.customer_id == client.id, CustomerValidation.created_at >= _naif_utc(debut))
+        .group_by(jour)
+        .all()
+    )
+    par_jour = {str(date)[:10]: (int(n), int(invalides or 0)) for date, n, invalides in lignes}
+    return [par_jour.get(f"{debut:%Y-%m}-{numero:02d}", (0, 0)) for numero in range(1, moment.day + 1)]
 
 
 def record_validation(

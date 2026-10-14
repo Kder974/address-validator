@@ -363,3 +363,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D63: the forgotten-password flow works in six languages: the request page answers byte for byte the same whether or not the address has an account, the emailed link is built from PUBLIC_BASE_URL whatever the Host header, only the SHA-256 hash of its token is stored, it lasts PASSWORD_RESET_MINUTES and works once, the new password closes every session and the old password stops working, a form from another site is refused, and the link duration shown on the page and in the email is the configured one
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D63
   EXPECT: DECISION OK D63
+- [ ] D64: the client space is a simplified dashboard in six languages: the month's figures come from customer_validations and the daily usage sums to the month counter, the greeting states the month's fact, the next step follows the account's real state in the documented order (trial ended, quota reached, paid plan, first call, trial running) and announces the exhaustion date only when it falls before the trial or month end, the savings formula, the key prefix only and the regeneration form stay, and nothing in the page is hard-coded
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D64
+  EXPECT: DECISION OK D64

@@ -214,15 +214,19 @@ def test_statistiques_reelles_dans_l_espace_client(base):
             accounts.record_validation(session, compte.id, "cle-de-cache", issue)
 
     page = client.get("/compte", headers=_auth(FORME["email"], MOT_DE_PASSE)).text
-    assert "<b>5</b> utilisées sur <b>100</b> incluses" in page
-    assert '<strong class="num">95</strong><span>validations restantes' in page
-    # D45 : le quota publie est mensuel, et la page le dit.
-    assert "Ce mois-ci (UTC)" in page and "mois calendaire en heure UTC" in page
+    lu = unescape(page)
+    # D64 : le tableau de bord. Le mois en tête : 5 validations, 3 invalides, reste 95 sur 100.
+    assert "<span>Validations ce mois-ci</span><b>5 " in page
+    assert "\u206695 / 100\u2069" in page
+    assert "3 adresses fausses arrêtées ce mois-ci." in lu
+    # D45 : le quota publie est mensuel, et la page dit que le mois est compte en UTC.
+    assert "(UTC) · votre clé API" in page
     # D57 : l'estimation est dans la monnaie de la page (fr : 15 € le colis rate,
-    # borne basse de la fourchette), et la formule est montree, pas seulement le total.
-    assert "3 adresses invalides multipliées par 15 €" in page
-    assert '<strong class="num">45 €</strong>' in page  # 3 x 15 €
-    assert '× <span class="s">15 €</span>' in page and "borne basse" in page
+    # bas de la fourchette), et la formule est montree, pas seulement le total.
+    assert "Calcul : 3 adresses invalides multipliées par 15 € égalent 45 € d'économies estimées." in lu
+    assert "<strong>45 €</strong>" in page and "× <span>15 €</span>" in page
+    assert "le bas de la fourchette du secteur" in lu
+    assert "Depuis la création du compte : 5 validations au total, dont 3 invalides." in lu
 
 
 def test_regenerer_la_cle_invalide_l_ancienne(base):

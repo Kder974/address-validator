@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D63, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D64, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 63
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 64
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -5614,7 +5614,91 @@ def d63() -> None:
     guard("D63" in read("DECISIONS.md"), "la decision D63 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 64)}
+def d64() -> None:
+    """Le tableau de bord dit le mois reel et la prochaine etape que l'etat du compte impose, dans les six langues."""
+    import base64
+    import tempfile
+    from datetime import datetime, timedelta, timezone
+    from html import unescape
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import accounts, i18n, ratelimit
+    from app.main import app
+    from app.models import Customer, CustomerSession, CustomerValidation
+    from app.routes import signup as signup_route
+    from app.routes import tableau
+
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp(prefix='porte-d64-')) / 'clients.sqlite'}")
+    for modele in (Customer, CustomerValidation, CustomerSession):
+        modele.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+    avant = signup_route.SessionLocal
+    signup_route.SessionLocal = fabrique
+    try:
+        for lang in i18n.LANGUES:
+            ratelimit.reset()
+            t = tableau.TEXTES[lang]
+            client = TestClient(app, base_url="https://testserver")
+            email, secret = f"porte-d64-{lang}@example.re", "porte-d64-mot-de-passe"
+            client.post(i18n.chemin(lang, "signup"), data={"email": email, "password": secret, "shop_name": "Porte", "platform": "shopify"})
+            entete = {"Authorization": "Basic " + base64.b64encode(f"{email}:{secret}".encode()).decode()}
+            compte = i18n.chemin(lang, "compte")
+
+            # 1. Compte neuf : la prochaine etape est le premier appel.
+            neuf = unescape(client.get(compte, headers=entete).text)
+            guard(t["titre_vide"] in neuf and t["premier"] in neuf, f"{compte} : un compte neuf ne commence pas par le premier appel")
+
+            # 2. Des validations : les chiffres du mois sont ceux de la base, jour par jour.
+            with fabrique() as session:
+                client_db = accounts.find_by_email(session, email)
+                for issue in (True, True, False):
+                    accounts.record_validation(session, client_db.id, "cle", issue)
+                jours = accounts.daily_usage(session, client_db)
+                statut = accounts.plan_status(session, client_db)
+            guard(sum(n for n, _ in jours) == statut["validations_mois"] == 3, f"{lang} : les jours ne somment pas au compteur du mois")
+            reponse = client.get(compte, headers=entete)
+            texte, lu = reponse.text, unescape(reponse.text)
+            guard(reponse.status_code == 200 and reponse.headers.get("cache-control") == "no-store", f"{compte} : {reponse.status_code}")
+            for interdit in ("{{", "<!--@", "<script"):
+                guard(interdit not in texte, f"{compte} contient {interdit!r}")
+            nombre = lambda valeur: i18n.nombre(lang, valeur)  # noqa: E731
+            guard(signup_route._pluriel(lang, 1, t["titre_inv"]).format(n=nombre(1)) in lu, f"{compte} : le fait du mois n'est pas dit")
+            guard(f"⁦{nombre(97)} / {nombre(100)}⁩" in texte, f"{compte} : les validations restantes ne sont pas celles du compte")
+            calcul = signup_route._pluriel(lang, 1, signup_route.TEXTES[lang]["calcul"]).format(
+                n=nombre(1), cout=i18n.prix(lang, "colis_rate"), total=signup_route._montant(lang, i18n.MONTANTS[i18n.DEVISE[lang]]["colis_rate"]))
+            guard(calcul in lu, f"{compte} : la formule des economies a disparu")
+            guard(client_db.api_key_prefix in texte and f'action="{compte}/cle"' in texte, f"{compte} : prefixe ou regeneration absents")
+            guard(texte.count("<polyline") == 5, f"{compte} : les courbes du mois manquent")
+
+        # 3. La prevision n'apparait que si l'epuisement tombe avant la fin de l'essai.
+        maintenant, fin = datetime(2026, 10, 14, 12, tzinfo=timezone.utc), datetime(2026, 10, 28, 12, tzinfo=timezone.utc)
+        base = {"plan": "trial", "quota": 100, "validations": 69, "invalides": 0, "validations_mois": 69, "restant": 31,
+                "trial_ends_at": fin, "trial_expire": False, "expire": False, "trial_jours_restants": 13, "quota_atteint": False}
+        infos = {"shop_name": "P", "email": "p@example.re", "prefixe": "sk_live_ab12", "cree_le": None}
+        rapide = unescape(tableau.page("fr", infos=infos, statut=base, maintenant=maintenant, jours=[(5, 0)] * 13 + [(4, 0)]).body.decode())
+        date_epuise = signup_route._date("fr", maintenant + timedelta(days=7), "longue")
+        guard(f"elles seront épuisées vers le {date_epuise}" in rapide, "le rythme qui epuise l'essai n'est pas annonce")
+        lent = unescape(tableau.page("fr", infos=infos, statut={**base, "validations": 14, "validations_mois": 14, "restant": 86},
+                                     maintenant=maintenant, jours=[(1, 0)] * 14).body.decode())
+        guard("épuisées" not in lent, "une prevision est annoncee alors que le rythme ne l'impose pas")
+        # 4. Les etats du code passent avant tout : essai termine, quota atteint.
+        expire = tableau.page("fr", infos=infos, statut={**base, "trial_expire": True, "expire": True}, maintenant=maintenant, jours=[(5, 0)] * 14).body.decode()
+        guard('class="state s-expired"' in expire, "l'essai termine n'est pas la prochaine etape")
+        # 5. Rien d'ecrit en dur : un quota inconnu s'affiche tel quel.
+        autre = tableau.page("fr", infos=infos, statut={**base, "quota": 7777, "restant": 7708}, maintenant=maintenant, jours=[(5, 0)] * 14).body.decode()
+        guard("⁦7 708 / 7 777⁩" in autre, "le quota affiche n'est pas celui du plan")
+    finally:
+        signup_route.SessionLocal = avant
+        ratelimit.reset()
+        moteur.dispose()
+    guard("D64" in read("DECISIONS.md"), "la decision D64 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 65)}
 
 
 def catalog() -> list[tuple[str, str]]:
