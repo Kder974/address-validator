@@ -149,6 +149,17 @@ class Settings(BaseSettings):
     session_hours: int = 12
     login_max_failures: int = 5
     login_lock_minutes: int = 15
+    # Mot de passe oublié (D63) : le lien envoyé par mail vaut `password_reset_minutes`
+    # et ne sert qu'une fois ; `password_reset_per_hour` demandes par IP et par heure
+    # (trois par compte et par heure, en plus). Le mail part par le SMTP ci-dessous ;
+    # `smtp_host` vide = aucun mail envoyé (la page répond pareil, le journal le dit).
+    password_reset_minutes: int = 30
+    password_reset_per_hour: int = 5
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
 
     # Environnement
     environment: str = "development"

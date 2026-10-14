@@ -360,6 +360,7 @@ h1,h2{text-wrap:wrap}
         <div class="field">
           <label for="password">密码</label>
           <input id="password" name="password" type="password" dir="ltr" required autocomplete="current-password">
+          <a class="forgot-in" href="{{url_oubli}}">忘记密码？</a>
         </div>
         <button class="btn btn-accent" type="submit">登录 <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></button>
         <p class="form-note">您最多保持登录 {{session_heures}} 小时。点击“退出登录”会立即结束会话。</p>

@@ -349,6 +349,7 @@ h1{margin-top:24px;font-size:clamp(2.4rem,1rem + 3.6vw,3.9rem);line-height:1.04;
         <div class="field">
           <label for="password">Mot de passe</label>
           <input id="password" name="password" type="password" dir="ltr" required autocomplete="current-password">
+          <a class="forgot-in" href="{{url_oubli}}">Mot de passe oublié ?</a>
         </div>
         <button class="btn btn-accent" type="submit">Se connecter <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></button>
         <p class="form-note">Vous restez connecté {{session_heures}} heures au plus. « Se déconnecter » ferme la session tout de suite.</p>

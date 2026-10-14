@@ -84,6 +84,23 @@ class CustomerSession(Base):
     expires_at = Column(DateTime, nullable=False)
 
 
+class PasswordReset(Base):
+    """Un lien « mot de passe oublié » envoyé par mail (D63).
+
+    Comme pour les sessions, la base garde l'**empreinte** du jeton du lien, jamais
+    le jeton. `used_at` rempli = lien consommé : il ne sert qu'une fois.
+    """
+
+    __tablename__ = "password_resets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, server_default=func.current_timestamp())
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime)
+
+
 class CustomerValidation(Base):
     """Une validation servie à un compte (D44) : source des statistiques.
 

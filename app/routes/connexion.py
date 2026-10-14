@@ -166,6 +166,7 @@ def page(lang: str, *, email: str = "", erreur: str = "", statut: int = 200, ent
     valeurs = {
         **i18n.liens(lang, "compte"),
         "url_connexion": chemin_connexion(lang),
+        "url_oubli": i18n.chemin(lang, "compte") + "/mot-de-passe-oublie",
         "email": email,
         "contact": reglages.contact_email,
         "prix_x402": nombre(reglages.x402_price),

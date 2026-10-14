@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D62, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D63, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 62
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 63
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -5532,7 +5532,89 @@ def d62() -> None:
     guard("D62" in read("DECISIONS.md"), "la decision D62 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 63)}
+def d63() -> None:
+    """Mot de passe oublie : meme reponse compte connu ou non, lien sur l'adresse officielle, empreinte seule, une seule fois, sessions fermees."""
+    import tempfile
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import accounts, i18n, ratelimit
+    from app.config import get_settings
+    from app.main import app
+    from app.models import Customer, CustomerSession, CustomerValidation, PasswordReset
+    from app.routes import connexion as connexion_route
+    from app.routes import mot_de_passe as route
+    from app.routes import signup as signup_route
+
+    reglages = get_settings()
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp(prefix='porte-d63-')) / 'clients.sqlite'}")
+    for modele in (Customer, CustomerValidation, CustomerSession, PasswordReset):
+        modele.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+    mails: list = []
+    modules = (signup_route, connexion_route, route)
+    avant = [module.SessionLocal for module in modules], route.envoyer_mail, route.get_settings
+    for module in modules:
+        module.SessionLocal = fabrique
+    route.envoyer_mail = lambda *mail: mails.append(mail)
+    try:
+        for lang in i18n.LANGUES:
+            ratelimit.reset()
+            mails.clear()
+            client = TestClient(app, base_url="https://testserver")
+            email, ancien, nouveau = f"porte-d63-{lang}@example.re", "porte-d63-ancien-mot", "porte-d63-nouveau-mot"
+            client.post(i18n.chemin(lang, "signup"), data={"email": email, "password": ancien, "shop_name": "Porte", "platform": "shopify"})
+
+            # 1. Meme reponse, mot pour mot, que le compte existe ou non ; un seul mail.
+            connu = client.post(route.chemin_oubli(lang), data={"email": email}, headers={"Host": "pirate.example"})
+            inconnu = client.post(route.chemin_oubli(lang), data={"email": f"inconnu-{lang}@example.re"})
+            guard(connu.status_code == inconnu.status_code == 200 and connu.text == inconnu.text,
+                  f"{route.chemin_oubli(lang)} : la reponse dit si le compte existe")
+            guard(len(mails) == 1 and mails[0][0] == email, f"{route.chemin_oubli(lang)} : mails envoyes {[m[0] for m in mails]}")
+
+            # 2. Le lien : adresse officielle (jamais Host), empreinte seule en base.
+            prefixe = reglages.public_base_url.rstrip("/") + route.chemin_nouveau(lang) + "?jeton="
+            trouve = re.search(re.escape(prefixe) + r"([\w-]+)", mails[0][2])
+            guard(trouve is not None and "pirate.example" not in mails[0][2], f"lien {lang} : pas sur public_base_url")
+            jeton = trouve.group(1)
+            with fabrique() as session:
+                empreintes = [ligne.token_hash for ligne in session.query(PasswordReset).all()]
+            guard(accounts._empreinte_jeton(jeton) in empreintes and jeton not in empreintes,
+                  f"lien {lang} : la base ne garde pas que l'empreinte")
+
+            # 3. Nouveau mot de passe : connecte, ancien mot refuse, lien use.
+            page = client.get(f"{route.chemin_nouveau(lang)}?jeton={jeton}")
+            guard(page.status_code == 200 and page.headers.get("cache-control") == "no-store", f"lien {lang} : {page.status_code}")
+            fait = client.post(route.chemin_nouveau(lang), data={"jeton": jeton, "password": nouveau, "password2": nouveau}, follow_redirects=False)
+            guard(fait.status_code == 303 and connexion_route.COOKIE in fait.headers.get("set-cookie", ""), f"nouveau mot de passe {lang} : {fait.status_code}")
+            refuse = client.post(connexion_route.chemin_connexion(lang), data={"email": email, "password": ancien}, follow_redirects=False)
+            guard(refuse.status_code == 400, f"{lang} : l'ancien mot de passe ouvre encore le compte")
+            reutilise = client.post(route.chemin_nouveau(lang), data={"jeton": jeton, "password": nouveau, "password2": nouveau}, follow_redirects=False)
+            guard(reutilise.status_code == 400, f"{lang} : un lien deja servi marche encore")
+
+            # 4. Formulaire d'un autre site : refuse, aucun mail.
+            mails.clear()
+            etranger = client.post(route.chemin_oubli(lang), data={"email": email}, headers={"Origin": "https://pirate.example"})
+            guard(etranger.status_code == 403 and not mails, f"{route.chemin_oubli(lang)} accepte un formulaire d'un autre site")
+
+        # 5. Ce qui est montre est ce qui est applique (D48) : la duree du lien vient de la configuration.
+        autre = reglages.model_copy(update={"password_reset_minutes": 47})
+        route.get_settings = lambda: autre
+        for lang in i18n.LANGUES:
+            guard(i18n.nombre(lang, 47) in route._oubli_page(lang).body.decode(), f"oubli {lang} : la duree du lien n'est pas celle de la configuration")
+    finally:
+        for module, session_local in zip(modules, avant[0]):
+            module.SessionLocal = session_local
+        route.envoyer_mail, route.get_settings = avant[1], avant[2]
+        ratelimit.reset()
+        moteur.dispose()
+    guard("D63" in read("DECISIONS.md"), "la decision D63 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 64)}
 
 
 def catalog() -> list[tuple[str, str]]:

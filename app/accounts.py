@@ -34,7 +34,7 @@ from functools import lru_cache
 import bcrypt
 from sqlalchemy import func
 
-from app.models import Customer, CustomerSession, CustomerValidation
+from app.models import Customer, CustomerSession, CustomerValidation, PasswordReset
 
 #: Format public d'une clé : `sk_live_` + 32 caractères (exigence de la spec).
 API_KEY_PREFIX = "sk_live_"
@@ -303,6 +303,56 @@ def close_session(session, jeton: str) -> None:
         return
     empreinte = hashlib.sha256(jeton.encode("utf-8", "replace")).hexdigest()
     session.query(CustomerSession).filter(CustomerSession.token_hash == empreinte).delete()
+    session.commit()
+
+
+def close_all_sessions(session, client: Customer) -> None:
+    """Ferme toutes les sessions d'un compte (nouveau mot de passe : partout déconnecté)."""
+    session.query(CustomerSession).filter(CustomerSession.customer_id == client.id).delete()
+    session.commit()
+
+
+def _empreinte_jeton(jeton: str) -> str:
+    return hashlib.sha256(jeton.encode("utf-8", "replace")).hexdigest()
+
+
+def create_password_reset(session, client: Customer, maintenant: datetime, minutes: int) -> str:
+    """Crée un lien de mot de passe oublié : renvoie le jeton (seule l'empreinte est gardée).
+
+    Les liens échus, de tous les comptes, sont effacés au passage (PRIVACY.md §3).
+    """
+    session.query(PasswordReset).filter(PasswordReset.expires_at <= _sans_fuseau(maintenant)).delete()
+    jeton = secrets.token_urlsafe(32)
+    session.add(
+        PasswordReset(
+            customer_id=client.id,
+            token_hash=_empreinte_jeton(jeton),
+            expires_at=_sans_fuseau(maintenant + timedelta(minutes=minutes)),
+        )
+    )
+    session.commit()
+    return jeton
+
+
+def password_reset_customer(session, jeton: str, maintenant: datetime) -> tuple[PasswordReset, Customer] | None:
+    """(lien, compte) si le lien existe, n'a pas servi et n'est pas échu ; sinon `None`."""
+    if not jeton or len(jeton) > 128:
+        return None
+    ligne = session.query(PasswordReset).filter(PasswordReset.token_hash == _empreinte_jeton(jeton)).one_or_none()
+    if ligne is None or ligne.used_at is not None or ligne.expires_at <= _sans_fuseau(maintenant):
+        return None
+    client = session.get(Customer, ligne.customer_id)
+    return (ligne, client) if client is not None else None
+
+
+def finish_password_reset(session, ligne: PasswordReset, client: Customer, mot_de_passe: str, maintenant: datetime) -> None:
+    """Nouveau mot de passe : le lien est consommé, les autres liens et toutes les sessions tombent."""
+    client.password_hash = hash_password(mot_de_passe)
+    ligne.used_at = _sans_fuseau(maintenant)
+    session.query(PasswordReset).filter(
+        PasswordReset.customer_id == client.id, PasswordReset.id != ligne.id
+    ).delete()
+    session.query(CustomerSession).filter(CustomerSession.customer_id == client.id).delete()
     session.commit()
 
 

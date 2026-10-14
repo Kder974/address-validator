@@ -103,6 +103,18 @@ CREATE TABLE IF NOT EXISTS customer_sessions (
     expires_at TIMESTAMP NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_customer_sessions_customer ON customer_sessions(customer_id);
+-- D63 : liens « mot de passe oublie ». Empreinte SHA-256 du jeton envoye par
+-- mail, jamais le jeton ; 30 minutes (PASSWORD_RESET_MINUTES), une seule fois
+-- (`used_at`). Les lignes echues sont purgees a la demande suivante.
+CREATE TABLE IF NOT EXISTS password_resets (
+    id SERIAL PRIMARY KEY,
+    customer_id INTEGER NOT NULL REFERENCES customers(id),
+    token_hash VARCHAR(64) UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_password_resets_customer ON password_resets(customer_id);
 CREATE TABLE IF NOT EXISTS customer_validations (
     id SERIAL PRIMARY KEY,
     customer_id INTEGER NOT NULL REFERENCES customers(id),

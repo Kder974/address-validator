@@ -18,6 +18,7 @@ reste à la charge de l'exploitant.
 | Compte client (depuis D44) : e-mail, nom de boutique, plateforme, **empreinte bcrypt** du mot de passe, **empreinte SHA-256** de la clé API et son préfixe affichable | fournie à l'inscription | `app/accounts.py`, `app/routes/signup.py` |
 | Compteurs d'usage du compte : une ligne par validation servie (clé de cache + issue) | produite par l'API en mode clé (D45) | `app/models.py`, `app/accounts.py` |
 | Session de l'espace client (D62) : **empreinte** SHA-256 d'un jeton aléatoire, compte, création, échéance. Le jeton lui-même ne vit que dans le cookie du navigateur | produite à la connexion | `app/accounts.py`, `app/routes/connexion.py` |
+| Lien « mot de passe oublié » (D63) : **empreinte** SHA-256 du jeton envoyé par mail, compte, création, échéance, date d'usage. Le jeton ne vit que dans le mail du client | produit à la demande du client | `app/accounts.py`, `app/routes/mot_de_passe.py` |
 | Compteurs d'échecs de connexion (D62) : par IP et par **empreinte** de l'email visé, jamais l'email en clair | produits par un mot de passe faux | `app/routes/connexion.py`, `app/ratelimit.py` |
 | Essai gratuit public (D46) : l'adresse validée n'est **pas** conservée et la réponse est `no-store` ; seule une fenêtre de plafond anonyme par IP est tenue (Redis, ou la mémoire du processus) | produite par l'API | `app/routes/validate_form.py`, `app/ratelimit.py` |
 
@@ -54,6 +55,8 @@ aucune revente, aucune publicité, aucune donnée transmise à des régies.
 | `/metrics` | compteurs agrégés en mémoire (aucune adresse) | durée du processus, perdu au redémarrage | `app/routes/metrics.py` |
 | Plafond de l'essai gratuit (`/validate-form`, D46) | compteur anonyme par IP (clé `rl:validate-form:<ip>`) : ni adresse, ni résultat | fenêtre fixe de 24 h (TTL Redis, ou mémoire du processus) | `app/ratelimit.py`, `app/routes/validate_form.py` |
 | PostgreSQL `customer_sessions` (D62) | empreinte SHA-256 du jeton de session, compte, création, échéance | **12 heures** au plus (`SESSION_HOURS`) ; la ligne est effacée à la déconnexion, et une ligne échue est purgée à la connexion suivante | `app/accounts.py` (`open_session`, `close_session`) |
+| PostgreSQL `password_resets` (D63) | empreinte du jeton du lien, compte, création, échéance, usage | **30 minutes** de validité (`PASSWORD_RESET_MINUTES`), une seule fois ; une ligne échue est purgée à la demande suivante, les autres liens du compte sont effacés quand le mot de passe change | `app/accounts.py` (`create_password_reset`, `finish_password_reset`) |
+| Demandes de mot de passe oublié (D63) | compteur par IP (`rl:reset:ip:<ip>`) et par empreinte d'email (`rl:reset:compte:<sha256>`) | **1 heure** (TTL Redis ou mémoire du processus) | `app/routes/mot_de_passe.py`, `app/ratelimit.py` |
 | Échecs de connexion (D62) | compteur par IP (`rl:login:ip:<ip>`) et par empreinte d'email (`rl:login:compte:<sha256>`) : ni email, ni mot de passe | **15 minutes** (`LOGIN_LOCK_MINUTES`, TTL Redis ou mémoire du processus) | `app/routes/connexion.py`, `app/ratelimit.py` |
 | Essai gratuit (D46), base de données | **rien** : aucune ligne en base, ni adresse, ni résultat | — | `app/routes/validate_form.py` |
 | Journal de découverte (JSONL) | métadonnées des requêtes refusées en `402` : horodatage, endpoint, prix, `User-Agent`, `Referer`, IP **pseudonymisée** (sha256 + sel) | **30 jours** — purge appliquée par `scripts/daily_report.sh`, pas seulement annoncée | `app/observability.py:142-158`, `app/config.py:47-65` |
@@ -85,6 +88,7 @@ Points de vigilance assumés :
 | SmartyStreets | adresse complète (`street`, `city`, `state`, `zipcode`) + identifiants API | États-Unis → **transfert hors UE à encadrer** (clauses contractuelles types, accord de sous-traitance) | `app/validation/verifier.py:37,99-110` |
 | Nominatim / OpenStreetMap | adresse recomposée | infrastructure de la Fondation OSM, soumise à sa politique d'usage | `app/validation/geocoder.py:16-35` |
 | Coinbase CDP / Base (JSON-RPC) | clés d'API et adresse du portefeuille — **aucune adresse postale** ; quand la vérification on-chain est active (D27), seul le **hash de transaction** est transmis à un nœud Base public | États-Unis | `app/payment.py:57-71`, `app/onchain.py:74-84` |
+| Prestataire d'envoi de mail (`SMTP_HOST`, par exemple Brevo ou Zoho, D63) | l'adresse email du compte et le lien « mot de passe oublié », **seulement** quand le client le demande ; rien d'autre | selon le prestataire retenu (contrat de sous-traitance à signer) | `app/routes/mot_de_passe.py` (`envoyer_mail`) |
 | Reverse proxy / hébergeur | adresse IP source (journaux Nginx), hors application | selon l'hébergeur retenu | `nginx.conf`, `deploy.sh:32` |
 
 - Le code envoie l'adresse au fournisseur **même lorsque les identifiants sont
