@@ -339,3 +339,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D55: the published contact is the domain address address-validator@kder-ai.com, identical in .well-known/security.txt and in the configuration default, and PRIVACY.md no longer cites the old Gmail address
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D55
   EXPECT: DECISION OK D55
+- [ ] D56: client_ip reads the last X-Forwarded-For entry (the one Nginx adds), a spoofed IP placed in front of the real one no longer opens new free-trial attempts, and nginx.conf replaces the incoming header with $remote_addr
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D56
+  EXPECT: DECISION OK D56

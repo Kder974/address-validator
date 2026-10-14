@@ -11,11 +11,13 @@ Deux principes non négociables :
    uniquement des métadonnées de requête. L'IP est pseudonymisée par défaut
    (SHA-256 + sel) ; `DISCOVERY_LOG_RAW_IP=true` la met en clair, ce qui doit
    rester une mesure d'enquête datée, pas un réglage de confort.
-2. **Foi dans `X-Forwarded-For` seulement derrière le proxy.** L'application
-   écoute sur `127.0.0.1` (D21) et Nginx pose lui-même `X-Forwarded-For` : la
-   valeur est donc fiable ici. Si le service était exposé directement, cet
-   en-tête serait falsifiable par le client et la pseudonymisation porterait
-   sur une valeur choisie par l'attaquant.
+2. **Foi dans `X-Forwarded-For` seulement derrière le proxy, et seulement dans
+   ce que le proxy y écrit (D56).** L'application écoute sur `127.0.0.1` (D21).
+   Nginx **ajoute** l'adresse réelle à la **fin** de l'en-tête reçu
+   (`$proxy_add_x_forwarded_for`) : tout ce qui la précède a été écrit par le
+   client. On lit donc la **dernière** entrée, jamais la première — lire la
+   première laissait un visiteur choisir son IP, donc contourner les plafonds
+   par IP de l'essai gratuit (D46) et de l'inscription (D44).
 
 Le journal est un fichier **JSONL** (une ligne = un objet JSON) : il se lit
 avec `grep`/`jq`, se compte par jour, et se purge sans réécriture partielle.
@@ -49,12 +51,13 @@ def _salt() -> bytes:
 
 
 def client_ip(request: Request) -> str:
-    """IP du client : première entrée de `X-Forwarded-For`, sinon la socket."""
+    """IP du client : **dernière** entrée de `X-Forwarded-For` (celle que Nginx
+    ajoute), sinon la socket. Les entrées précédentes viennent du client (D56)."""
     forwarded = request.headers.get("X-Forwarded-For", "")
     if forwarded:
-        first = forwarded.split(",")[0].strip()
-        if first:
-            return first
+        last = forwarded.split(",")[-1].strip()
+        if last:
+            return last
     return request.client.host if request.client else "unknown"
 
 

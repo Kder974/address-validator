@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D55, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D56, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 55
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 56
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -4930,7 +4930,60 @@ def d55() -> None:
     guard("D55" in read("DECISIONS.md"), "la decision D55 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 56)}
+def d56() -> None:
+    """L'IP d'un client est celle que Nginx voit : une fausse IP glissee devant ne contourne aucun plafond."""
+    from types import SimpleNamespace
+    from unittest import mock
+
+    from fastapi.testclient import TestClient
+
+    from app import observability, ratelimit
+    from app.config import get_settings
+    from app.main import app
+    from app.routes import validate_form as form_route
+
+    def requete(entete):
+        return SimpleNamespace(headers={"X-Forwarded-For": entete}, client=SimpleNamespace(host="127.0.0.1"))
+
+    guard(
+        observability.client_ip(requete("6.6.6.6, 203.0.113.9")) == "203.0.113.9",
+        "client_ip lit encore l'entree choisie par le client au lieu de celle ajoutee par Nginx",
+    )
+    guard(observability.client_ip(requete("203.0.113.9")) == "203.0.113.9", "client_ip perd une entree unique")
+
+    resultat = {
+        "validated": True,
+        "standardized": {"line1": "1 Rue Oracle", "line2": "", "city": "Seattle", "state": "WA", "zip": "98101", "country": "US"},
+        "latitude": None, "longitude": None, "deliverability": "residential", "confidence": 0.99, "degraded": False,
+    }
+    plafond = get_settings().validate_form_rate_limit_per_day
+    adresse = {"street": "1 Rue Oracle", "city": "Seattle", "state": "WA", "zip": "98101", "country": "US"}
+    ratelimit.reset()
+    try:
+        with mock.patch.object(form_route, "perform_validation", return_value=(resultat, "cle")):
+            client = TestClient(app)
+            codes = [
+                client.post(
+                    "/validate-form", data=adresse,
+                    headers={"X-Forwarded-For": "198.51.100.%d, 203.0.113.9" % (index % 250)},
+                ).status_code
+                for index in range(plafond + 2)
+            ]
+    finally:
+        ratelimit.reset()
+    guard(
+        codes[:plafond] == [200] * plafond and codes[plafond:] == [429, 429],
+        f"une IP falsifiee devant l'IP reelle ouvre encore de nouveaux essais : {codes}",
+    )
+
+    guard(
+        "proxy_set_header X-Forwarded-For $remote_addr;" in read("nginx.conf"),
+        "nginx.conf ajoute encore l'IP reelle a l'en-tete du client au lieu de le remplacer",
+    )
+    guard("D56" in read("DECISIONS.md"), "la decision D56 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 57)}
 
 
 def catalog() -> list[tuple[str, str]]:
