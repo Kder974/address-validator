@@ -354,3 +354,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D60: the pricing page speaks six languages: /pricing (French) and /en/pricing to /ar/pricing are literal public routes, prices come from i18n.prix with the billed-in-euros notice, unit prices are the price divided by the accounts.PLANS quota with the division shown, trial length, x402 price and contact follow the configuration, the Enterprise button opens mailto: to the configured contact, Starter and Pro lead to the sign-up of the same language without a plan, and no testimonial is ever published
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D60
   EXPECT: DECISION OK D60
+- [ ] D61: sign-up, the one-time key page and the client space speak six languages: /signup, /compte and /compte/cle (French) and their prefixed literal routes answer in the language of their path, the form never carries a plan field (D54), the key page shows the real key once with no-store and noindex while the database keeps only its hash, /compte stays behind HTTP Basic with no-store and shows only the key prefix, and the savings estimate uses the currency of the language
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D61
+  EXPECT: DECISION OK D61
