@@ -393,6 +393,13 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
   *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
 .phero-copy .state{margin-top:22px}
+.out{display:inline-flex}
+.menu-panel form .btn{width:100%}
+.pw{display:block;margin:4px 0 6px;font-size:.88rem;font-weight:600;color:var(--ink-soft)}
+.pw-in{width:100%;min-height:46px;margin-bottom:12px;padding:0 14px;border:1px solid #cfd7e4;border-radius:10px;background:#fff;color:var(--ink);font:500 1rem var(--sans)}
+.pw-in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px rgba(31,59,255,.16)}
+.regen-err{margin:0 0 12px;padding:10px 12px;border-radius:10px;border-inline-start:3px solid var(--bad);background:#fff4f2;color:var(--bad);font-size:.92rem;font-weight:500}
+@media (max-width:640px){.bar > .out{display:none}}
 </style>
 </head>
 <body>
@@ -421,7 +428,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
         <li><a href="{{lien_ar}}" hreflang="ar" lang="ar">العربية</a></li>
       </ul>
     </details>
-    <a class="btn btn-ink btn-sm" href="{{url_signup}}">Create an account <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+    <form class="out" method="post" action="{{url_deconnexion}}"><button class="btn btn-ink btn-sm" type="submit">Sign out</button></form>
     <details class="menu" name="entete">
       <summary><i aria-hidden="true"></i><span class="menu-t">Menu</span></summary>
       <nav class="menu-panel" aria-label="Mobile navigation">
@@ -429,7 +436,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
         <a href="{{url_guide}}">Guide</a>
         <a href="{{url_validate_form}}">Test an address</a>
         <a href="{{url_compte}}" aria-current="page">Dashboard</a>
-        <a class="btn btn-ink" href="{{url_signup}}">Create an account</a>
+        <form method="post" action="{{url_deconnexion}}"><button class="btn btn-ink" type="submit">Sign out</button></form>
       </nav>
     </details>
   </div>
@@ -445,7 +452,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
       <p class="pill in" style="--i:0"><b>{{plan}}</b>{{boutique}}</p>
       <h1 id="titre" class="in" style="--i:1">Dashboard</h1>
       <p class="lead in" style="--i:2">Your usage this month, your estimated savings, your API key and your plan. Every figure comes from the validations served with your key.</p>
-      <p class="fine in" style="--i:3">This page opens with the account email and password, requested by the browser. The API key does not give access to it.</p>
+      <p class="fine in" style="--i:3">You stay signed in for {{session_heures}} hours at most. The API key does not give access to this space.</p>
       <!--@etat-->
     </div>
 
@@ -557,6 +564,9 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
         <p class="warn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.8 18 16.6H2z"/><path d="M10 8v4"/><path d="M10 14.4v.1"/></svg><span>The old key stops working immediately. Update your store or your script right afterward.</span></p>
         <p>Do this if the key was shared in clear text, or if you lost it.</p>
         <form method="post" action="{{url_compte_cle}}">
+          <!--@erreur_cle-->
+          <label class="pw" for="pw-cle">Account password</label>
+          <input class="pw-in" id="pw-cle" name="password" type="password" dir="ltr" required autocomplete="current-password">
           <button class="btn btn-ink" type="submit">Regenerate my key <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></button>
         </form>
         <p class="small">The new key is shown only once, on the next page, which is not cached. Copy it right away into your secrets manager.</p>

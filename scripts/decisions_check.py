@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D61, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D62, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 61
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 62
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -3187,7 +3187,12 @@ def d44() -> None:
         guard("existe déjà" in doublon.text, "le doublon n'est pas explique")
 
         # 5. /compte ferme par defaut, et n'affiche jamais la cle complete.
-        guard(client.get("/compte").status_code == 401, "l'espace client s'ouvre sans identifiants")
+        # D62 : sans session, renvoi vers la page de connexion, jamais l'espace lui-meme.
+        anonyme = client.get("/compte", follow_redirects=False)
+        guard(
+            anonyme.status_code == 303 and anonyme.headers.get("location") == "/compte/connexion",
+            "l'espace client s'ouvre sans identifiants",
+        )
         guard(
             client.get("/compte", headers=auth(forme["email"], "mauvais")).status_code == 401,
             "un mauvais mot de passe ouvre l'espace client",
@@ -5411,9 +5416,10 @@ def d61() -> None:
 
             # 3. L'espace client : ferme par defaut, prive, sans la cle, regeneration dans sa langue,
             #    estimation dans la monnaie de la langue.
-            anonyme = client.get(compte)
-            guard(anonyme.status_code == 401 and anonyme.headers.get("www-authenticate", "").lower().startswith("basic"),
-                  f"{compte} s'ouvre sans identifiants : {anonyme.status_code}")
+            anonyme = client.get(compte, follow_redirects=False)
+            guard(anonyme.status_code == 303 and anonyme.headers.get("location") == compte + "/connexion"
+                  and "www-authenticate" not in anonyme.headers,
+                  f"{compte} s'ouvre sans identifiants : {anonyme.status_code} (D62 : page de connexion)")
             jeton = base64.b64encode(f"{email}:{secret}".encode()).decode()
             espace = client.get(compte, headers={"Authorization": f"Basic {jeton}"})
             guard(espace.status_code == 200 and espace.headers.get("cache-control") == "no-store", f"{compte} : {espace.status_code}")
@@ -5427,7 +5433,106 @@ def d61() -> None:
     guard("D61" in read("DECISIONS.md"), "la decision D61 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 62)}
+def d62() -> None:
+    """L'espace client a une page de connexion et une session : jamais le defi Basic pour un navigateur, cookie sur, echecs bloques, autre site refuse."""
+    import hashlib
+    import tempfile
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import i18n, ratelimit
+    from app.config import get_settings
+    from app.main import app
+    from app.models import Customer, CustomerSession, CustomerValidation
+    from app.routes import connexion as connexion_route
+    from app.routes import signup as signup_route
+
+    reglages = get_settings()
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp(prefix='porte-d62-')) / 'clients.sqlite'}")
+    for modele in (Customer, CustomerValidation, CustomerSession):
+        modele.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+    avant = signup_route.SessionLocal, connexion_route.SessionLocal, connexion_route.get_settings
+    signup_route.SessionLocal = connexion_route.SessionLocal = fabrique
+    try:
+        for lang in i18n.LANGUES:
+            ratelimit.reset()
+            client = TestClient(app, base_url="https://testserver")
+            compte = i18n.chemin(lang, "compte")
+            connexion = compte + "/connexion"
+            email, secret = f"porte-d62-{lang}@example.re", "porte-d62-mot-de-passe"
+            cree = client.post(i18n.chemin(lang, "signup"), data={"email": email, "password": secret, "shop_name": "Porte", "platform": "shopify"})
+            guard(cree.status_code == 200, f"inscription {lang} : {cree.status_code}")
+
+            # 1. Sans session : la page de connexion de la langue, jamais le defi Basic.
+            anonyme = client.get(compte, follow_redirects=False)
+            guard(
+                anonyme.status_code == 303 and anonyme.headers.get("location") == connexion and "www-authenticate" not in anonyme.headers,
+                f"{compte} sans session : {anonyme.status_code} {anonyme.headers.get('www-authenticate')}",
+            )
+            page = client.get(connexion)
+            guard(
+                page.status_code == 200 and page.headers.get("cache-control") == "no-store" and 'content="noindex, nofollow"' in page.text,
+                f"{connexion} n'est pas une page privee",
+            )
+            for interdit in ("<script", "{{", "<!--@"):
+                guard(interdit not in page.text, f"{connexion} contient {interdit!r}")
+            guard(f'method="post" action="{connexion}"' in page.text, f"{connexion} ne poste pas dans sa langue")
+
+            # 2. Echecs : N mots de passe faux bloquent, meme le bon ensuite.
+            for _ in range(reglages.login_max_failures):
+                faux = client.post(connexion, data={"email": email, "password": "faux"}, follow_redirects=False)
+                guard(faux.status_code == 400 and "set-cookie" not in faux.headers, f"{connexion} : un mot de passe faux obtient {faux.status_code}")
+            bloque = client.post(connexion, data={"email": email, "password": secret}, follow_redirects=False)
+            guard(
+                bloque.status_code == 429 and 0 < int(bloque.headers.get("retry-after", "0")) <= reglages.login_lock_minutes * 60,
+                f"{connexion} : apres {reglages.login_max_failures} echecs, le bon mot de passe obtient {bloque.status_code}",
+            )
+            ratelimit.reset()
+
+            # 3. Formulaire d'un autre site : refuse, sans cookie.
+            etranger = client.post(connexion, data={"email": email, "password": secret}, headers={"Origin": "https://pirate.example"}, follow_redirects=False)
+            guard(etranger.status_code == 403 and "set-cookie" not in etranger.headers, f"{connexion} accepte un formulaire d'un autre site")
+
+            # 4. Connexion : cookie sur, empreinte seule en base, espace ouvert.
+            entree = client.post(connexion, data={"email": email, "password": secret}, follow_redirects=False)
+            cookie = entree.headers.get("set-cookie", "")
+            trouve = re.match(rf"{connexion_route.COOKIE}=([^;]+);", cookie)
+            guard(entree.status_code == 303 and trouve is not None, f"{connexion} : connexion {entree.status_code}")
+            for attribut in ("httponly", "secure", "path=/", "samesite=lax", f"max-age={reglages.session_hours * 3600}"):
+                guard(attribut in cookie.lower(), f"cookie de session sans {attribut}")
+            with fabrique() as session:
+                empreintes = [ligne.token_hash for ligne in session.query(CustomerSession).all()]
+            guard(
+                hashlib.sha256(trouve.group(1).encode()).hexdigest() in empreintes and trouve.group(1) not in empreintes,
+                "la base ne garde pas seulement l'empreinte du jeton de session",
+            )
+            espace = client.get(compte)
+            guard(espace.status_code == 200 and espace.headers.get("cache-control") == "no-store", f"{compte} avec session : {espace.status_code}")
+
+            # 5. Deconnexion : la copie du cookie ne rouvre rien.
+            client.post(compte + "/deconnexion", follow_redirects=False)
+            copie = TestClient(app, base_url="https://testserver", cookies={connexion_route.COOKIE: trouve.group(1)})
+            guard(copie.get(compte, follow_redirects=False).status_code == 303, f"{compte} : un cookie de session ferme rouvre l'espace")
+
+        # 6. Ce qui est montre est ce qui est applique (D48) : changer la configuration change la page.
+        autre = reglages.model_copy(update={"session_hours": 7, "login_max_failures": 9, "login_lock_minutes": 23})
+        connexion_route.get_settings = lambda: autre
+        for lang in i18n.LANGUES:
+            texte = connexion_route.page(lang).body.decode()
+            for valeur in (7, 9, 23):
+                guard(re.search(rf"(?<![\d.,]){valeur}(?![\d.,])", texte) is not None, f"connexion {lang} : {valeur} n'est pas affiche")
+    finally:
+        signup_route.SessionLocal, connexion_route.SessionLocal, connexion_route.get_settings = avant
+        ratelimit.reset()
+        moteur.dispose()
+    guard("D62" in read("DECISIONS.md"), "la decision D62 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 63)}
 
 
 def catalog() -> list[tuple[str, str]]:

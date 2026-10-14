@@ -92,6 +92,17 @@ CREATE INDEX IF NOT EXISTS idx_customers_api_key_hash ON customers(api_key_hash)
 -- D44 : une validation servie a un compte. C'est la source des statistiques du
 -- tableau de bord client (validations, adresses invalides, economies estimees) :
 -- un compteur tenu a la main deriverait desormais du service rendu.
+-- D62 : connexions ouvertes a l'espace client. La base garde l'empreinte
+-- SHA-256 du jeton du cookie, jamais le jeton ; fermer une session = effacer sa
+-- ligne. `expires_at` borne la session (12 h par defaut, SESSION_HOURS).
+CREATE TABLE IF NOT EXISTS customer_sessions (
+    id SERIAL PRIMARY KEY,
+    customer_id INTEGER NOT NULL REFERENCES customers(id),
+    token_hash VARCHAR(64) UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_customer_sessions_customer ON customer_sessions(customer_id);
 CREATE TABLE IF NOT EXISTS customer_validations (
     id SERIAL PRIMARY KEY,
     customer_id INTEGER NOT NULL REFERENCES customers(id),

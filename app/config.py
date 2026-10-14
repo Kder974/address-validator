@@ -143,6 +143,12 @@ class Settings(BaseSettings):
     # Plafond du formulaire public de validation (élément 3, `POST /validate-form`) :
     # 10 essais gratuits par IP et par 24 h.
     validate_form_rate_limit_per_day: int = 10
+    # Connexion à l'espace client (D62) : une session dure `session_hours` au plus ;
+    # `login_max_failures` mots de passe faux bloquent `login_lock_minutes`, par IP
+    # et par compte. Ces trois valeurs sont **écrites** sur la page de connexion.
+    session_hours: int = 12
+    login_max_failures: int = 5
+    login_lock_minutes: int = 15
 
     # Environnement
     environment: str = "development"

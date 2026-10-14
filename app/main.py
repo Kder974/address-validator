@@ -20,6 +20,7 @@ from app.observability import configure_logging
 from app.web import public_headers
 from app.routes import (
     accueil,
+    connexion,
     dashboard,
     guide,
     health,
@@ -90,6 +91,9 @@ app.include_router(pricing.router, tags=["commercial"])
 # en écriture (l'inscription est ouverte), fermées en lecture (`/compte` exige le
 # couple email/mot de passe) et plafonnées par IP (`app/ratelimit.py`).
 app.include_router(signup.router, tags=["commercial"])
+# /compte/connexion et /compte/deconnexion : la page de connexion et la session
+# de l'espace client (D62), à la place de la fenêtre grise du défi Basic.
+app.include_router(connexion.router, tags=["commercial"])
 # /validate-form : l'essai gratuit public (D46, élément 3 de la campagne). Même
 # pipeline que la route payante, mais aucune écriture : ni base des comptes, ni
 # registre des paiements. Plafonné par IP (app/ratelimit.py), et le refus parle

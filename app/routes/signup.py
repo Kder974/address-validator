@@ -8,8 +8,9 @@ Trois exigences, dans cet ordre de priorité :
    client (mot de passe exigé) ; la relire, non — c'est le prix de ne pas la
    stocker en clair. La nouvelle clé s'affiche sur la même page que celle de
    l'inscription, une seule fois.
-2. **Fermé par défaut côté lecture.** `/compte` exige le couple email/mot de
-   passe (HTTP Basic, même garde que `/dashboard`, D32). Base injoignable =
+2. **Fermé par défaut côté lecture.** `/compte` exige une session ouverte par
+   la page de connexion (D62, `app/routes/connexion.py`), ou le couple
+   email/mot de passe en HTTP Basic envoyé par un script. Base injoignable =
    `503` explicite : jamais des zéros décoratifs à la place de l'absence de
    données (même règle que `/prospection`).
 3. **Honnête et autonome.** Aucun script, aucun appel sortant, aucune ressource
@@ -44,13 +45,14 @@ from functools import partial
 from pathlib import Path
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app import accounts, i18n, ratelimit
 from app.config import get_settings
 from app.database import SessionLocal
 from app.observability import client_ip
+from app.routes import connexion
 from app.routes.dashboard import UNAUTHORIZED_HEADERS, _decode_basic
 from app.web import PRIVATE_HEADERS, public_headers
 
@@ -672,7 +674,7 @@ def _etat(lang: str, nom: str, champs: dict) -> str:
     )
 
 
-def _compte_page(lang: str, *, infos: dict, statut: dict, maintenant: datetime) -> HTMLResponse:
+def _compte_page(lang: str, *, infos: dict, statut: dict, maintenant: datetime, erreur_cle: str = "") -> HTMLResponse:
     """L'espace client : consommation réelle, clé, offre, facturation.
 
     Chaque chiffre a une source : `customer_validations` pour la consommation,
@@ -759,6 +761,8 @@ def _compte_page(lang: str, *, infos: dict, statut: dict, maintenant: datetime) 
         "prefixe": infos["prefixe"],
         "caches": accounts.API_KEY_CHARS - (len(infos["prefixe"]) - len(accounts.API_KEY_PREFIX)),
         "fin_essai": date_fin,
+        "url_deconnexion": i18n.chemin(lang, "compte") + "/deconnexion",
+        "session_heures": nombre(get_settings().session_hours),
     }
 
     blocs = {"fact_essai" if essai_plan else "fact_payant"}
@@ -779,7 +783,8 @@ def _compte_page(lang: str, *, infos: dict, statut: dict, maintenant: datetime) 
             "quota": valeurs["quota"], "motif": accounts.REFUS_QUOTA_ATTEINT, "sans_plafond": textes["sans_plafond"],
         })
 
-    page = _page("compte", lang, valeurs, blocs, fragments={"etat": etat, "jours": jours})
+    erreur = f'<p class="regen-err" role="alert">{html.escape(erreur_cle)}</p>' if erreur_cle else ""
+    page = _page("compte", lang, valeurs, blocs, fragments={"etat": etat, "jours": jours, "erreur_cle": erreur})
     return HTMLResponse(page, status_code=200, headers=SECRET_HEADERS)
 
 
@@ -847,27 +852,38 @@ async def _inscrire(request: Request, lang: str) -> Response:
     return _page_cle(lang, infos=infos, cle=cle, statut=statut, regeneration=False, maintenant=maintenant)
 
 
-def _espace_client(request: Request, lang: str, *, regeneration: bool) -> Response:
-    """Espace client : lecture, ou régénération de clé (même authentification)."""
+def _infos(client) -> dict:
+    return {
+        "shop_name": client.shop_name,
+        "email": client.email,
+        "prefixe": client.api_key_prefix,
+        "cree_le": client.created_at,
+    }
+
+
+def _espace_basic(request: Request, lang: str, *, regeneration: bool) -> Response:
+    """HTTP Basic envoyé par un script : même compte, même blocage des échecs (D62)."""
     textes = TEXTES[lang]
     identifiants = _decode_basic(request.headers.get("authorization", ""))
     if identifiants is None:
         return _refus(textes["auth_requise"])
     email, mot_de_passe = identifiants
+    cles = connexion.cles_echecs(request, email)
+    attente = connexion.attente_blocage(cles)
+    if attente is not None:
+        message = connexion.TEXTES[lang]["bloque"].format(attente=max(1, (attente + 59) // 60))
+        return Response(message, status_code=429, media_type="text/plain; charset=utf-8",
+                        headers={**PRIVATE_HEADERS, "Retry-After": str(attente)})
 
     maintenant = accounts.now_utc()
     try:
         with _session() as session:
             client = accounts.authenticate(session, email, mot_de_passe)
             if client is None:
+                connexion.compter_echec(cles)
                 return _refus(textes["auth_refus"])
             cle = accounts.regenerate_api_key(session, client) if regeneration else None
-            infos = {
-                "shop_name": client.shop_name,
-                "email": client.email,
-                "prefixe": client.api_key_prefix,
-                "cree_le": client.created_at,
-            }
+            infos = _infos(client)
             statut = accounts.plan_status(session, client, maintenant)
     except SQLAlchemyError as exc:
         return _indisponible(lang, exc)
@@ -875,6 +891,50 @@ def _espace_client(request: Request, lang: str, *, regeneration: bool) -> Respon
     if cle:
         return _page_cle(lang, infos=infos, cle=cle, statut=statut, regeneration=True, maintenant=maintenant)
     return _compte_page(lang, infos=infos, statut=statut, maintenant=maintenant)
+
+
+async def _espace_client(request: Request, lang: str, *, regeneration: bool) -> Response:
+    """Espace client : lecture, ou régénération de clé.
+
+    Un navigateur arrive avec le cookie de session (D62) ; sans session valable,
+    il est renvoyé vers la page de connexion de sa langue (`303`), jamais vers la
+    fenêtre grise du défi Basic. Régénérer la clé redemande le mot de passe : un
+    cookie volé ne suffit pas à obtenir une nouvelle clé.
+    """
+    if request.headers.get("authorization", "").lower().startswith("basic "):
+        return _espace_basic(request, lang, regeneration=regeneration)
+    if regeneration and connexion.origine_etrangere(request):
+        return connexion.page(lang, erreur=connexion.TEXTES[lang]["origine"], statut=403)
+    mot_de_passe = str((await request.form()).get("password", "") or "") if regeneration else ""
+
+    maintenant = accounts.now_utc()
+    erreur_cle, cle = "", None
+    try:
+        with _session() as session:
+            client = accounts.session_customer(session, connexion.jeton(request), maintenant)
+            if client is None:
+                return RedirectResponse(connexion.chemin_connexion(lang), status_code=303, headers=dict(SECRET_HEADERS))
+            if regeneration:
+                cles = connexion.cles_echecs(request, client.email)
+                attente = connexion.attente_blocage(cles)
+                if attente is not None:
+                    erreur_cle = connexion.TEXTES[lang]["bloque"].format(attente=max(1, (attente + 59) // 60))
+                elif accounts.verify_password(mot_de_passe, client.password_hash):
+                    cle = accounts.regenerate_api_key(session, client)
+                else:
+                    connexion.compter_echec(cles)
+                    erreur_cle = connexion.TEXTES[lang]["mdp_cle"]
+            infos = _infos(client)
+            statut = accounts.plan_status(session, client, maintenant)
+    except SQLAlchemyError as exc:
+        return _indisponible(lang, exc)
+
+    if cle:
+        return _page_cle(lang, infos=infos, cle=cle, statut=statut, regeneration=True, maintenant=maintenant)
+    reponse = _compte_page(lang, infos=infos, statut=statut, maintenant=maintenant, erreur_cle=erreur_cle)
+    if erreur_cle:
+        reponse.status_code = 400
+    return reponse
 
 
 @router.get("/signup")
@@ -891,13 +951,13 @@ async def signup_submit(request: Request) -> Response:
 
 @router.get("/compte")
 async def compte(request: Request) -> Response:
-    return _espace_client(request, i18n.DEFAUT, regeneration=False)
+    return await _espace_client(request, i18n.DEFAUT, regeneration=False)
 
 
 @router.post("/compte/cle")
 async def compte_nouvelle_cle(request: Request) -> Response:
     """Régénère la clé : la nouvelle est affichée une fois, l'ancienne meurt."""
-    return _espace_client(request, i18n.DEFAUT, regeneration=True)
+    return await _espace_client(request, i18n.DEFAUT, regeneration=True)
 
 
 def _routes(lang: str):
@@ -910,10 +970,10 @@ def _routes(lang: str):
         return await _inscrire(request, lang)
 
     async def espace(request: Request) -> Response:
-        return _espace_client(request, lang, regeneration=False)
+        return await _espace_client(request, lang, regeneration=False)
 
     async def nouvelle_cle(request: Request) -> Response:
-        return _espace_client(request, lang, regeneration=True)
+        return await _espace_client(request, lang, regeneration=True)
 
     return (
         (i18n.chemin(lang, "signup"), formulaire, "GET"),

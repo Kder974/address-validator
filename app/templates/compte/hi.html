@@ -404,6 +404,13 @@ p,li,dd{line-height:1.75}
 .lang-panel [lang="hi"]{font-size:1.05em}
 .ex,.term small,.pair .role,.days-l,.st,.at span,.range-bar b,.keystrip .live,.scale-note,.key-hint{font-size:.85rem!important}
 .phero-copy .state{margin-top:22px}
+.out{display:inline-flex}
+.menu-panel form .btn{width:100%}
+.pw{display:block;margin:4px 0 6px;font-size:.88rem;font-weight:600;color:var(--ink-soft)}
+.pw-in{width:100%;min-height:46px;margin-bottom:12px;padding:0 14px;border:1px solid #cfd7e4;border-radius:10px;background:#fff;color:var(--ink);font:500 1rem var(--sans)}
+.pw-in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px rgba(31,59,255,.16)}
+.regen-err{margin:0 0 12px;padding:10px 12px;border-radius:10px;border-inline-start:3px solid var(--bad);background:#fff4f2;color:var(--bad);font-size:.92rem;font-weight:500}
+@media (max-width:640px){.bar > .out{display:none}}
 </style>
 </head>
 <body>
@@ -432,7 +439,7 @@ p,li,dd{line-height:1.75}
         <li><a href="{{lien_ar}}" hreflang="ar" lang="ar">العربية</a></li>
       </ul>
     </details>
-    <a class="btn btn-ink btn-sm" href="{{url_signup}}">खाता बनाएँ <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+    <form class="out" method="post" action="{{url_deconnexion}}"><button class="btn btn-ink btn-sm" type="submit">साइन आउट</button></form>
     <details class="menu" name="entete">
       <summary><i aria-hidden="true"></i><span class="menu-t">मेनू</span></summary>
       <nav class="menu-panel" aria-label="मोबाइल नेविगेशन">
@@ -440,7 +447,7 @@ p,li,dd{line-height:1.75}
         <a href="{{url_guide}}">गाइड</a>
         <a href="{{url_validate_form}}">पता जाँचें</a>
         <a href="{{url_compte}}" aria-current="page">ग्राहक पोर्टल</a>
-        <a class="btn btn-ink" href="{{url_signup}}">खाता बनाएँ</a>
+        <form method="post" action="{{url_deconnexion}}"><button class="btn btn-ink" type="submit">साइन आउट</button></form>
       </nav>
     </details>
   </div>
@@ -456,7 +463,7 @@ p,li,dd{line-height:1.75}
       <p class="pill in" style="--i:0"><b>{{plan}}</b>{{boutique}}</p>
       <h1 id="titre" class="in" style="--i:1">ग्राहक पोर्टल</h1>
       <p class="lead in" style="--i:2">इस माह का आपका उपयोग, अनुमानित बचत, आपकी API कुंजी और आपका प्लान। हर आँकड़ा आपकी कुंजी से हुए वैलिडेशन से आता है।</p>
-      <p class="fine in" style="--i:3">यह पृष्ठ खाते के ईमेल और पासवर्ड से खुलता है, जो ब्राउज़र माँगता है। API कुंजी से यहाँ पहुँच नहीं मिलती।</p>
+      <p class="fine in" style="--i:3">आप अधिकतम {{session_heures}} घंटे तक साइन इन रहते हैं। API कुंजी से इस जगह तक पहुँच नहीं मिलती।</p>
       <!--@etat-->
     </div>
 
@@ -568,6 +575,9 @@ p,li,dd{line-height:1.75}
         <p class="warn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.8 18 16.6H2z"/><path d="M10 8v4"/><path d="M10 14.4v.1"/></svg><span>पुरानी कुंजी तुरंत काम करना बंद कर देती है। उसके बाद अपना स्टोर या स्क्रिप्ट अपडेट करें।</span></p>
         <p>यह तब करें जब कुंजी सादे रूप में कहीं पहुँच गई हो या खो गई हो।</p>
         <form method="post" action="{{url_compte_cle}}">
+          <!--@erreur_cle-->
+          <label class="pw" for="pw-cle">खाते का पासवर्ड</label>
+          <input class="pw-in" id="pw-cle" name="password" type="password" dir="ltr" required autocomplete="current-password">
           <button class="btn btn-ink" type="submit">मेरी कुंजी नई बनाएँ <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></button>
         </form>
         <p class="small">नई कुंजी अगले पृष्ठ पर सिर्फ़ एक बार दिखती है, जो कैश में नहीं रखा जाता। उसे तुरंत अपने सीक्रेट मैनेजर में कॉपी कर लें।</p>

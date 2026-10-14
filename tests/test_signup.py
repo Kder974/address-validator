@@ -9,8 +9,10 @@ Ce qui est mesuré, et pourquoi :
     refusés **avant** toute écriture ;
   * le plafond par IP (5 / heure) est réellement appliqué et annoncé
     (`Retry-After`) ;
-  * `/compte` est fermé par défaut (401 + défi Basic) et dit la même chose pour
-    un email inconnu et un mauvais mot de passe ;
+  * `/compte` est fermé par défaut : sans session, un navigateur est renvoyé vers
+    la page de connexion (`303`, D62), jamais vers la fenêtre du défi Basic ; un
+    script en Basic reçoit le même message pour un email inconnu et un mauvais
+    mot de passe ;
   * la base injoignable donne un `503` explicite, pas des zéros décoratifs ;
   * les statistiques affichées viennent des validations réellement servies.
 
@@ -185,9 +187,11 @@ def test_plafond_par_ip_annonce_et_applique(base, monkeypatch):
 def test_espace_client_ferme_par_defaut(base):
     client.post("/signup", data=FORME)
 
-    anonyme = client.get("/compte")
-    assert anonyme.status_code == 401
-    assert anonyme.headers["www-authenticate"].lower().startswith("basic")
+    anonyme = client.get("/compte", follow_redirects=False)
+    # D62 : la page de connexion du site, pas la fenêtre grise du navigateur.
+    assert anonyme.status_code == 303
+    assert anonyme.headers["location"] == "/compte/connexion"
+    assert "www-authenticate" not in anonyme.headers
     assert anonyme.headers["cache-control"] == "no-store"
     assert MOT_DE_PASSE not in anonyme.text
 
@@ -239,8 +243,10 @@ def test_regenerer_la_cle_invalide_l_ancienne(base):
         assert accounts.find_by_api_key(session, ancienne) is None
         assert accounts.find_by_api_key(session, nouvelle) is not None
 
-    # Sans mot de passe, la regeneration est refusee : une cle API ne suffit pas.
-    assert client.post("/compte/cle").status_code == 401
+    # Sans mot de passe ni session, la regeneration est refusee : une cle API ne
+    # suffit pas, et le navigateur est renvoye vers la connexion (D62).
+    refus = client.post("/compte/cle", follow_redirects=False)
+    assert refus.status_code == 303 and refus.headers["location"] == "/compte/connexion"
 
 
 def test_base_indisponible_donne_503(base, monkeypatch):

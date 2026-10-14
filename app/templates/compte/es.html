@@ -392,6 +392,13 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
   *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
 .phero-copy .state{margin-top:22px}
+.out{display:inline-flex}
+.menu-panel form .btn{width:100%}
+.pw{display:block;margin:4px 0 6px;font-size:.88rem;font-weight:600;color:var(--ink-soft)}
+.pw-in{width:100%;min-height:46px;margin-bottom:12px;padding:0 14px;border:1px solid #cfd7e4;border-radius:10px;background:#fff;color:var(--ink);font:500 1rem var(--sans)}
+.pw-in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px rgba(31,59,255,.16)}
+.regen-err{margin:0 0 12px;padding:10px 12px;border-radius:10px;border-inline-start:3px solid var(--bad);background:#fff4f2;color:var(--bad);font-size:.92rem;font-weight:500}
+@media (max-width:640px){.bar > .out{display:none}}
 </style>
 </head>
 <body>
@@ -420,7 +427,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
         <li><a href="{{lien_ar}}" hreflang="ar" lang="ar">العربية</a></li>
       </ul>
     </details>
-    <a class="btn btn-ink btn-sm" href="{{url_signup}}">Crear cuenta <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+    <form class="out" method="post" action="{{url_deconnexion}}"><button class="btn btn-ink btn-sm" type="submit">Cerrar sesión</button></form>
     <details class="menu" name="entete">
       <summary><i aria-hidden="true"></i><span class="menu-t">Menú</span></summary>
       <nav class="menu-panel" aria-label="Navegación móvil">
@@ -428,7 +435,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
         <a href="{{url_guide}}">Guía</a>
         <a href="{{url_validate_form}}">Probar una dirección</a>
         <a href="{{url_compte}}" aria-current="page">Área de cliente</a>
-        <a class="btn btn-ink" href="{{url_signup}}">Crear cuenta</a>
+        <form method="post" action="{{url_deconnexion}}"><button class="btn btn-ink" type="submit">Cerrar sesión</button></form>
       </nav>
     </details>
   </div>
@@ -444,7 +451,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
       <p class="pill in" style="--i:0"><b>{{plan}}</b>{{boutique}}</p>
       <h1 id="titre" class="in" style="--i:1">Área de cliente</h1>
       <p class="lead in" style="--i:2">Tu consumo del mes, tu ahorro estimado, tu clave de API y tu plan. Cada cifra procede de las validaciones atendidas con tu clave.</p>
-      <p class="fine in" style="--i:3">Esta página se abre con el correo y la contraseña de la cuenta, que pide el navegador. La clave de API, en cambio, no da acceso a ella.</p>
+      <p class="fine in" style="--i:3">Tu sesión dura {{session_heures}} horas como máximo. La clave de API, en cambio, no da acceso a este espacio.</p>
       <!--@etat-->
     </div>
 
@@ -556,6 +563,9 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
         <p class="warn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.8 18 16.6H2z"/><path d="M10 8v4"/><path d="M10 14.4v.1"/></svg><span>La clave anterior deja de funcionar al instante. Actualiza tu tienda o tu script justo después.</span></p>
         <p>Hazlo si la clave ha circulado en claro o si la has perdido.</p>
         <form method="post" action="{{url_compte_cle}}">
+          <!--@erreur_cle-->
+          <label class="pw" for="pw-cle">Contraseña de la cuenta</label>
+          <input class="pw-in" id="pw-cle" name="password" type="password" dir="ltr" required autocomplete="current-password">
           <button class="btn btn-ink" type="submit">Regenerar mi clave <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></button>
         </form>
         <p class="small">La nueva clave se muestra una sola vez, en la página siguiente, que no se guarda en la caché. Cópiala enseguida en tu gestor de secretos.</p>

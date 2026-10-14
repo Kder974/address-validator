@@ -308,13 +308,19 @@ def test_le_montant_suit_la_table_des_prix(lang):
 def test_l_espace_client_est_ferme_par_defaut(base, lang):
     textes = route.TEXTES[lang]
     email, _cle = _inscrit(base, lang)
-    for entetes, message in (({}, textes["auth_requise"]), (_auth(email, "mauvais"), textes["auth_refus"]),
+    # D62 : sans session, la page de connexion de la langue, jamais le défi Basic.
+    anonyme = client.get(_compte(lang), follow_redirects=False)
+    assert anonyme.status_code == 303 and anonyme.headers["location"] == _compte(lang) + "/connexion"
+    assert "www-authenticate" not in anonyme.headers and anonyme.headers["cache-control"] == "no-store"
+    # Un script qui envoie Basic de lui-même garde ses réponses.
+    for entetes, message in (({"Authorization": "Basic !!"}, textes["auth_requise"]),
+                             (_auth(email, "mauvais"), textes["auth_refus"]),
                              (_auth("inconnu@example.re"), textes["auth_refus"])):
         refus = client.get(_compte(lang), headers=entetes)
         assert refus.status_code == 401 and refus.text == message
         assert refus.headers["www-authenticate"].lower().startswith("basic")
         assert refus.headers["cache-control"] == "no-store"
-    assert client.post(_compte(lang) + "/cle").status_code == 401
+    assert client.post(_compte(lang) + "/cle", follow_redirects=False).status_code == 303
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUES)

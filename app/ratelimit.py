@@ -85,6 +85,23 @@ def allow(key: str, max_requests: int, window_seconds: int) -> tuple[bool, int]:
     return True, max_requests - compte
 
 
+def blocked(key: str, max_requests: int, window_seconds: int) -> bool:
+    """`True` si `key` a déjà atteint `max_requests` dans la fenêtre, **sans compter**.
+
+    Sert aux plafonds qui ne comptent que les échecs (connexion, D62) : on regarde
+    avant de vérifier le mot de passe, et seul un refus appelle `allow`.
+    """
+    if _redis_disponible():
+        try:
+            valeur = redis_client.get(f"rl:{key}")
+            return int(valeur or 0) >= max_requests
+        except Exception:
+            pass
+    maintenant = time.time()
+    with _lock:
+        return len([t for t in _fenetres.get(key, []) if maintenant - t < window_seconds]) >= max_requests
+
+
 def fallback_count() -> int:
     """Nombre de décisions prises par le repli local (Redis injoignable)."""
     with _lock:

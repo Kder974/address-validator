@@ -34,7 +34,7 @@ from functools import lru_cache
 import bcrypt
 from sqlalchemy import func
 
-from app.models import Customer, CustomerValidation
+from app.models import Customer, CustomerSession, CustomerValidation
 
 #: Format public d'une clé : `sk_live_` + 32 caractères (exigence de la spec).
 API_KEY_PREFIX = "sk_live_"
@@ -255,6 +255,55 @@ def authenticate(session, email: str, password: str) -> Customer | None:
     if not verify_password(password or "", client.password_hash):
         return None
     return client
+
+
+def _sans_fuseau(moment: datetime) -> datetime:
+    """La base garde des `TIMESTAMP` sans fuseau, en UTC."""
+    return moment.astimezone(timezone.utc).replace(tzinfo=None) if moment.tzinfo else moment
+
+
+def open_session(session, client: Customer, maintenant: datetime, heures: int) -> str:
+    """Ouvre une session : renvoie le jeton du cookie, dont seule l'empreinte est gardée.
+
+    Les sessions échues de tous les comptes sont effacées au passage : une ligne
+    ne survit pas à sa durée (PRIVACY.md §3).
+    """
+    # ponytail: purge à chaque connexion, sans tâche planifiée ; suffit tant que les connexions se comptent en milliers par jour.
+    session.query(CustomerSession).filter(CustomerSession.expires_at <= _sans_fuseau(maintenant)).delete()
+    jeton = secrets.token_urlsafe(32)
+    session.add(
+        CustomerSession(
+            customer_id=client.id,
+            token_hash=hashlib.sha256(jeton.encode("ascii")).hexdigest(),
+            expires_at=_sans_fuseau(maintenant + timedelta(hours=heures)),
+        )
+    )
+    session.commit()
+    return jeton
+
+
+def session_customer(session, jeton: str, maintenant: datetime) -> Customer | None:
+    """Le compte d'une session encore valable, sinon `None` (session échue effacée)."""
+    if not jeton or len(jeton) > 128:
+        return None
+    empreinte = hashlib.sha256(jeton.encode("utf-8", "replace")).hexdigest()
+    ligne = session.query(CustomerSession).filter(CustomerSession.token_hash == empreinte).one_or_none()
+    if ligne is None:
+        return None
+    if ligne.expires_at <= _sans_fuseau(maintenant):
+        session.delete(ligne)
+        session.commit()
+        return None
+    return session.get(Customer, ligne.customer_id)
+
+
+def close_session(session, jeton: str) -> None:
+    """Ferme une session (déconnexion) : sa ligne disparaît, le cookie ne vaut plus rien."""
+    if not jeton:
+        return
+    empreinte = hashlib.sha256(jeton.encode("utf-8", "replace")).hexdigest()
+    session.query(CustomerSession).filter(CustomerSession.token_hash == empreinte).delete()
+    session.commit()
 
 
 def regenerate_api_key(session, client: Customer) -> str:
