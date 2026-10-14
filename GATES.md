@@ -342,3 +342,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D56: client_ip reads the last X-Forwarded-For entry (the one Nginx adds), a spoofed IP placed in front of the real one no longer opens new free-trial attempts, and nginx.conf replaces the incoming header with $remote_addr
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D56
   EXPECT: DECISION OK D56
+- [ ] D57: the public site speaks six languages: French stays at the root and /en/, /zh/, /hi/, /es/, /ar/ serve their showcase page in their language and writing direction, with hreflang and language-selector links built by app/i18n.py, four photos served by the application under /images/ as image/jpeg with nosniff, a public CSP that adds only img-src 'self' (still default-src 'none', no script-src, no external URL), and prices converted from the euros in pricing.OFFRES within 1 % at the documented September 2026 rates
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D57
+  EXPECT: DECISION OK D57

@@ -15,14 +15,16 @@ Ce qui diffère, en revanche, est délibéré et mesurable :
   * les pages **publiques** (D43 : `/pricing`, puis `/signup` et
     `/validate-form`) doivent au contraire être indexables et servies sans
     compte — mais elles restent **autonomes** : aucune ressource externe (pas de
-    CDN, pas de police distante, pas de script, pas d'image). La FAQ utilise
-    `<details>`, qui fonctionne sans JavaScript. La CSP le rend vérifiable par
-    le navigateur plutôt que par la seule lecture du code.
+    CDN, pas de police distante, pas de script). La FAQ utilise `<details>`, qui
+    fonctionne sans JavaScript. La CSP le rend vérifiable par le navigateur
+    plutôt que par la seule lecture du code. Seule ouverture (D57) : les photos
+    du site, servies par l'application elle-même sous `/images/`
+    (`img-src 'self'`) ; aucune image d'un tiers.
 
 `public_headers()` porte donc la seule différence autorisée entre une page
-publique et une page d'exploitation : la politique de cache et `form-action`
-(`'none'` sur une page sans formulaire, `'self'` sur `/signup` et
-`/validate-form`).
+publique et une page d'exploitation : la politique de cache, `img-src 'self'`
+et `form-action` (`'none'` sur une page sans formulaire, `'self'` sur `/signup`
+et `/validate-form`).
 """
 
 from __future__ import annotations
@@ -141,7 +143,7 @@ def public_headers(*, form: bool = False, max_age: int = 300) -> dict:
         # proxy : elle ne contient ni donnée client, ni identifiant.
         "Cache-Control": f"public, max-age={max_age}",
         "Content-Security-Policy": (
-            "default-src 'none'; style-src 'unsafe-inline'; "
+            "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; "
             f"form-action {form_action}; "
             "frame-ancestors 'none'; base-uri 'none'"
         ),

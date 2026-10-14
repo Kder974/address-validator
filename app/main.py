@@ -7,10 +7,12 @@ non bloquant : l'API démarre et `/health` remonte l'état réel de la base.
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import init_db
@@ -97,6 +99,26 @@ app.include_router(validate_form.router, tags=["commercial"])
 # indexable, cachable 5 min, sans secret et sans ressource externe : il repond a
 # la question que se pose un client qui vient de recevoir sa cle.
 app.include_router(guide.router, tags=["commercial"])
+# /en/, /zh/, /hi/, /es/, /ar/ : la vitrine dans les autres langues (D57), chemins
+# littéraux ; le français reste sur / (route `root` ci-dessous).
+app.include_router(accueil.router, tags=["commercial"])
+
+
+class _Images(StaticFiles):
+    """Photos du site public (D57), servies par l'application : la CSP n'autorise
+    que `img-src 'self'`. Même refus du reniflage de type que les pages."""
+
+    def file_response(self, *args, **kwargs):
+        reponse = super().file_response(*args, **kwargs)
+        reponse.headers["X-Content-Type-Options"] = "nosniff"
+        return reponse
+
+
+app.mount(
+    "/images",
+    _Images(directory=Path(__file__).resolve().parent / "static" / "images"),
+    name="images",
+)
 
 
 @app.get("/")
