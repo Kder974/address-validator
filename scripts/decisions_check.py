@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D64, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D65, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 64
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 65
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -114,6 +114,13 @@ class CheckFailed(Exception):
 def guard(condition, message: str) -> None:
     if not condition:
         raise CheckFailed(message)
+
+
+def hors_bloc(texte: str) -> str:
+    """La page sans son bloc de referencement (D65), qui a sa propre porte."""
+    from app.seo import hors_bloc as retirer
+
+    return retirer(texte)
 
 
 def read(relative: str) -> str:
@@ -3017,7 +3024,7 @@ def d43() -> None:
     # 2. Autonome, comme /dashboard (D32) : rien a charger, rien a executer. Depuis
     #    le dessin valide (D57), la feuille est celle de la maquette, ecrite dans la
     #    page : les seuls <link> sont les hreflang, aucune feuille ni police.
-    page = reponse.text
+    page = hors_bloc(reponse.text)  # D65 : le bloc de referencement a sa propre porte
     guard("<script" not in page.lower(), "la page embarque du script")
     for motif in ("http://", "https://", "//cdn", "@import", "url(http", "<img", "<iframe"):
         guard(motif not in page, f"la page charge une ressource externe ({motif})")
@@ -3877,9 +3884,9 @@ def d46() -> None:
             'action="/validate-form"' in page.text,
             "le formulaire ne poste plus sur la route",
         )
-        guard("<script" not in page.text, "la page d'essai charge un script")
+        guard("<script" not in hors_bloc(page.text), "la page d'essai charge un script")
         guard(
-            "http://" not in page.text and "https://" not in page.text,
+            "http://" not in hors_bloc(page.text) and "https://" not in hors_bloc(page.text),
             "la page d'essai renvoie vers une ressource externe",
         )
         guard(
@@ -4302,12 +4309,12 @@ def d48() -> None:
     )
     for interdit in ("<script", "<img", "src=", "@import", "url("):
         guard(
-            interdit not in page.text,
+            interdit not in hors_bloc(page.text),
             f"le guide charge quelque chose ({interdit}) : il n'est plus autonome",
         )
     # D57 : des <link>, mais seulement les hreflang (comme la vitrine, D53 amende).
     guard(
-        all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", page.text)),
+        all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", hors_bloc(page.text))),
         "le guide charge une ressource par <link>",
     )
 
@@ -4861,10 +4868,11 @@ def d53() -> None:
         navigateur.status_code == 200 and navigateur.headers["content-type"].startswith("text/html"),
         f"un navigateur ne recoit pas la vitrine sur / : {navigateur.status_code}",
     )
-    guard(navigateur.headers.get("vary") == "Accept", "la vitrine ne porte pas Vary: Accept")
+    # D65 : Vary nomme aussi User-Agent (un robot de moteur recoit la vitrine).
+    guard(navigateur.headers.get("vary") == "Accept, User-Agent", "la vitrine ne porte pas Vary: Accept, User-Agent")
     csp = navigateur.headers.get("content-security-policy", "")
     guard("default-src 'none'" in csp and "form-action 'self'" in csp, f"CSP de la vitrine inattendue : {csp}")
-    texte = navigateur.text
+    texte = hors_bloc(navigateur.text)  # D65 : le bloc de referencement a sa propre porte
     for interdit in ("<script", "@import", "url(", "{{"):
         guard(interdit not in texte, f"la vitrine contient {interdit!r}")
     guard(not re.search(r"https?://", texte), "la vitrine cite une URL externe")
@@ -4882,7 +4890,7 @@ def d53() -> None:
 
     programme = client.get("/")
     guard(programme.headers.get("content-type") == "application/json", "un programme ne recoit plus du JSON sur /")
-    guard(programme.headers.get("vary") == "Accept", "le JSON de / ne porte pas Vary: Accept")
+    guard(programme.headers.get("vary") == "Accept, User-Agent", "le JSON de / ne porte pas Vary: Accept, User-Agent")
     guard(programme.json().get("service") == "Address Validator API", f"charge utile de / : {programme.json()}")
 
     guard(
@@ -5039,7 +5047,7 @@ def d57() -> None:
         csp = reponse.headers.get("content-security-policy", "")
         guard("img-src 'self'" in csp, f"{adresse} : la CSP n'autorise pas les photos du site : {csp}")
         guard("default-src 'none'" in csp and "script-src" not in csp, f"{adresse} : CSP elargie : {csp}")
-        texte = reponse.text
+        texte = hors_bloc(reponse.text)  # D65 : le bloc de referencement a sa propre porte
         balise = re.search(r'<html lang="([\w-]+)"( dir="rtl")?>', texte)
         guard(balise is not None and balise.group(1).split("-")[0] == lang, f"{adresse} n'est pas en {lang}")
         guard(bool(balise.group(2)) == (lang in i18n.RTL), f"{adresse} : sens d'ecriture faux")
@@ -5117,7 +5125,7 @@ def d58() -> None:
             "default-src 'none'" in csp and "form-action 'none'" in csp and "script-src" not in csp,
             f"{adresse} : CSP inattendue : {csp}",
         )
-        texte = reponse.text
+        texte = hors_bloc(reponse.text)  # D65 : le bloc de referencement a sa propre porte
         balise = re.search(r'<html lang="([\w-]+)"( dir="rtl")?>', texte)
         guard(balise is not None and balise.group(1).split("-")[0] == lang, f"{adresse} n'est pas en {lang}")
         guard(bool(balise.group(2)) == (lang in i18n.RTL), f"{adresse} : sens d'ecriture faux")
@@ -5164,7 +5172,7 @@ def d58() -> None:
     )
     try:
         for lang in i18n.LANGUES:
-            page = guide.page(autres, lang)
+            page = hors_bloc(guide.page(autres, lang))  # D65 : le bloc a sa propre porte
             for valeur, fois in ((8642, 1), (7531, 2), (9753, 1), (864, 3), (975, 1), (0.05, 5)):
                 vu = page.count(i18n.nombre(lang, valeur))
                 guard(vu == fois, f"guide {lang} : {valeur} affiche {vu} fois au lieu de {fois} : un chiffre est recopie dans le gabarit")
@@ -5221,7 +5229,7 @@ def d59() -> None:
             guard(balise is not None and balise.group(1).split("-")[0] == lang, f"{chemin} n'est pas en {lang}")
             guard(bool(balise.group(2)) == (lang in i18n.RTL), f"{chemin} : sens d'ecriture faux")
             for interdit in ("<script", "{{", "http://", "https://"):
-                guard(interdit not in page.text, f"{chemin} contient {interdit!r}")
+                guard(interdit not in hors_bloc(page.text), f"{chemin} contient {interdit!r}")
             guard(f'method="post" action="{chemin}"' in page.text, f"{chemin} : le formulaire ne poste pas sur sa propre langue")
             champs = re.findall(r'<input[^>]*\bname="(\w+)"', page.text)
             guard(champs == noms, f"{chemin} : champs du formulaire {champs}")
@@ -5302,7 +5310,7 @@ def d60() -> None:
             "default-src 'none'" in csp and "form-action 'none'" in csp and "script-src" not in csp,
             f"{adresse} : CSP inattendue : {csp}",
         )
-        texte = reponse.text
+        texte = hors_bloc(reponse.text)  # D65 : le bloc de referencement a sa propre porte
         balise = re.search(r'<html lang="([\w-]+)"( dir="rtl")?>', texte)
         guard(balise is not None and balise.group(1).split("-")[0] == lang, f"{adresse} n'est pas en {lang}")
         guard(bool(balise.group(2)) == (lang in i18n.RTL), f"{adresse} : sens d'ecriture faux")
@@ -5384,7 +5392,7 @@ def d61() -> None:
             ratelimit.reset()
             inscription, compte = i18n.chemin(lang, "signup"), i18n.chemin(lang, "compte")
             # 1. Le formulaire : dans sa langue, postant dans sa langue, sans plan (D54), sans script.
-            texte = client.get(inscription + "?plan=enterprise").text
+            texte = hors_bloc(client.get(inscription + "?plan=enterprise").text)  # D65
             balise = re.search(r'<html lang="([\w-]+)"( dir="rtl")?>', texte)
             guard(balise is not None and balise.group(1).split("-")[0] == lang, f"{inscription} n'est pas en {lang}")
             guard(bool(balise.group(2)) == (lang in i18n.RTL), f"{inscription} : sens d'ecriture faux")
@@ -5698,7 +5706,68 @@ def d64() -> None:
     guard("D64" in read("DECISIONS.md"), "la decision D64 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 65)}
+def d65() -> None:
+    """Les pages publiques se referencent sans rien ceder : un bloc de donnees, des adresses du site, un plan, une seule adresse."""
+    import json
+    import xml.etree.ElementTree as ET
+
+    from fastapi.testclient import TestClient
+
+    from app import accounts, i18n, seo
+    from app.config import get_settings
+    from app.main import app
+    from app.routes import guide
+
+    client = TestClient(app)
+    base = get_settings().public_base_url.rstrip("/")
+    for page in seo.PUBLIQUES:
+        for lang in i18n.LANGUES:
+            adresse = i18n.chemin(lang, page)
+            texte = client.get(adresse, headers={"Accept": "text/html"}).text
+            blocs = re.findall(r"<!-- seo -->(.*?)<!-- /seo -->", texte, re.S)
+            guard(len(blocs) == 1 and texte.index("<!-- seo -->") < texte.index("</head>"), f"{adresse} : {len(blocs)} bloc(s) de referencement")
+            bloc = blocs[0]
+            guard(f'<link rel="canonical" href="{base}{adresse}">' in bloc, f"{adresse} : adresse canonique fausse")
+            guard(re.findall(r"<script\b[^>]*>", bloc) == ['<script type="application/ld+json">'], f"{adresse} : un script autre que des donnees")
+            etrangeres = [u for u in re.findall(r"https?://[^\s\"'<>]+", bloc) if not u.startswith(base) and "schema.org" not in u]
+            guard(not etrangeres, f"{adresse} : adresses d'un autre site {etrangeres}")
+            guard("<script" not in seo.hors_bloc(texte), f"{adresse} : un script hors du bloc")
+
+    # Les prix des donnees structurees sont ceux de l'API (D48).
+    graphe = json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>', client.get("/pricing").text, re.S).group(1))["@graph"]
+    service = next(noeud for noeud in graphe if noeud["@type"] == "SoftwareApplication")
+    attendus = {offre["nom"]: offre["prix_eur"] for offre in accounts.OFFRES if offre["prix_eur"] is not None}
+    guard({o["name"]: o["price"] for o in service["offers"]} == {"Trial": 0, **attendus}, "les prix des donnees structurees ne sont pas ceux de l'API")
+
+    # Une valeur hostile ne sort pas du JSON-LD.
+    hostile = get_settings().model_copy(update={"public_base_url": 'https://exemple.test/"><script>alert(1)</script>'})
+    bloc = re.search(r"<!-- seo -->(.*?)<!-- /seo -->", guide.page(hostile, "fr"), re.S).group(1)
+    guard(len(re.findall(r"<script\b", bloc)) == 1 and "<script>alert" not in bloc, "une valeur hostile sort du bloc de donnees")
+
+    # Pages privees : aucun bloc.
+    for privee in (client.get("/compte/connexion"), client.post("/validate-form", data={"street": ""})):
+        guard("<!-- seo -->" not in privee.text, "une page privee porte un bloc de referencement")
+
+    # Racine : un robot de moteur recoit la vitrine, un programme le JSON.
+    for agent in ("Mozilla/5.0 (compatible; bingbot/2.0)", "GPTBot/1.1", "ClaudeBot/1.0", "PerplexityBot/1.0"):
+        guard(client.get("/", headers={"User-Agent": agent, "Accept": "*/*"}).headers["content-type"].startswith("text/html"), f"{agent} recoit le JSON a la racine")
+    guard(client.get("/", headers={"User-Agent": "curl/8", "Accept": "*/*"}).headers["content-type"] == "application/json", "un programme ne recoit plus le JSON")
+
+    # robots.txt, plan du site, icone, adresse unique.
+    robots = client.get("/robots.txt").text
+    guard("User-agent: *\nAllow: /\n" in robots and f"Sitemap: {base}/sitemap.xml" in robots, "robots.txt ne laisse pas entrer ou ne cite pas le plan")
+    plan = ET.fromstring(client.get("/sitemap.xml").content)
+    locs = [n.text for n in plan.iter("{http://www.sitemaps.org/schemas/sitemap/0.9}loc")]
+    guard(len(locs) == len(seo.PUBLIQUES) * len(i18n.LANGUES) and all(loc.startswith(base) for loc in locs), f"plan du site : {len(locs)} adresses")
+    guard(client.get("/favicon.ico", follow_redirects=False).status_code == 301, "/favicon.ico ne renvoie pas vers l'icone")
+    hote = base.split("://", 1)[1]
+    www = client.get("/guide", headers={"Host": f"www.{hote}"}, follow_redirects=False)
+    guard(www.status_code == 301 and www.headers.get("location") == f"{base}/guide", "www ne renvoie pas vers l'adresse officielle")
+    guard("](https://kder-ai.com/pricing)" in read("llms.txt"), "llms.txt ne lie plus les pages du site")
+    guard("D65" in read("DECISIONS.md"), "la decision D65 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 66)}
 
 
 def catalog() -> list[tuple[str, str]]:

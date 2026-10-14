@@ -47,7 +47,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from app import accounts, i18n, ratelimit
+from app import accounts, i18n, ratelimit, seo
 from app.config import get_settings
 from app.database import SessionLocal
 from app.observability import client_ip
@@ -583,6 +583,9 @@ def _formulaire(
         items = "".join(f"<li>{html.escape(erreur)}</li>" for erreur in erreurs)
         alerte = f'<div class="alert" role="alert"><ul>{items}</ul></div>'
     page = _page("inscription", lang, valeurs, fragments={"alerte": alerte})
+    if statut == 200:
+        # Le formulaire vide est indexable (D65) ; un refus, privé, ne l'est pas.
+        page = seo.enrichir(page, lang, "signup", settings)
     if entetes is None:
         entetes = public_headers(form=True) if statut == 200 else SECRET_HEADERS
     return HTMLResponse(page, status_code=statut, headers=entetes)

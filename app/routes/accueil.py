@@ -27,17 +27,23 @@ from pathlib import Path
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
-from app import accounts, i18n
+from app import accounts, i18n, seo
 from app.config import get_settings
 from app.web import public_headers
 
 GABARITS = Path(__file__).resolve().parents[1] / "templates" / "accueil"
 
 
-def veut_html(accept: str) -> bool:
-    """Un navigateur annonce `text/html` ; un client qui préfère JSON le garde."""
+def veut_html(accept: str, agent: str = "") -> bool:
+    """Un navigateur annonce `text/html` ; un robot de moteur reçoit aussi la vitrine (D65).
+
+    Bing, GPTBot, ClaudeBot ou Perplexity envoient `*/*` : ils recevaient le JSON de
+    l'API et ne voyaient pas le site. Un client qui cite `application/json` le garde.
+    """
     # ponytail: pas de lecture des poids q= ; « application/json » cité l'emporte toujours.
-    return "text/html" in accept and "application/json" not in accept
+    if "application/json" in accept:
+        return False
+    return "text/html" in accept or seo.est_robot(agent)
 
 
 def valeurs(settings, lang: str = i18n.DEFAUT) -> dict[str, str]:
@@ -59,7 +65,7 @@ def valeurs(settings, lang: str = i18n.DEFAUT) -> dict[str, str]:
 
 def page(settings, lang: str = i18n.DEFAUT) -> str:
     """La vitrine complète dans une langue, champs remplis et échappés."""
-    return i18n.rendre(GABARITS / f"{lang}.html", valeurs(settings, lang))
+    return seo.enrichir(i18n.rendre(GABARITS / f"{lang}.html", valeurs(settings, lang)), lang, "", settings)
 
 
 router = APIRouter()

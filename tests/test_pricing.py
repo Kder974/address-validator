@@ -26,6 +26,7 @@ from app import i18n
 from app.config import Settings, get_settings
 from app.main import app
 from app.routes.pricing import OFFRES, page
+from app import seo
 
 client = TestClient(app)
 
@@ -56,7 +57,7 @@ def test_pricing_est_publique_et_annoncee():
 
 def test_page_autonome_sans_ressource_externe():
     """Comme /dashboard (D32) : rien à charger, rien à exécuter."""
-    html = client.get("/pricing").text
+    html = seo.hors_bloc(client.get("/pricing").text)  # D65 : le bloc a ses propres règles
     assert "<script" not in html.lower()
     for motif in ("http://", "https://", "//cdn", "@import", "url(http", "<img", "<iframe"):
         assert motif not in html, f"ressource externe ou active : {motif}"

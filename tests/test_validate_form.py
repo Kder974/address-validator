@@ -34,6 +34,7 @@ from app.main import app
 from app.routes import validate as validate_route
 from app.routes import validate_form as validate_form_route
 from app.routes.metrics import metrics
+from app import seo
 
 client = TestClient(app)
 
@@ -102,8 +103,9 @@ def test_la_page_est_publique_indexable_et_ne_charge_rien():
         assert f'name="{nom}"' in page.text
     assert 'action="/validate-form"' in page.text
     # Autonome : rien à charger, donc rien qui puisse suivre le visiteur.
-    assert "<script" not in page.text
-    assert "http://" not in page.text and "https://" not in page.text
+    hors = seo.hors_bloc(page.text)  # D65 : le bloc de référencement a ses propres règles
+    assert "<script" not in hors
+    assert "http://" not in hors and "https://" not in hors
     assert 'href="/signup"' in page.text and 'href="/pricing"' in page.text
 
 

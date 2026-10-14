@@ -22,6 +22,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import accounts, i18n
+from app import seo
 from app.config import get_settings
 from app.main import app
 from app.routes import accueil
@@ -49,7 +50,7 @@ def test_un_navigateur_recoit_la_vitrine():
 
     assert page.status_code == 200
     assert page.headers["content-type"].startswith("text/html")
-    assert page.headers["vary"] == "Accept"
+    assert page.headers["vary"] == "Accept, User-Agent"
     assert page.headers["cache-control"] == "public, max-age=300"
     csp = page.headers["content-security-policy"]
     assert "default-src 'none'" in csp and "form-action 'self'" in csp
@@ -61,12 +62,13 @@ def test_un_programme_garde_le_json_d_avant():
     for accept in (None, "*/*", "application/json", "application/json, text/html"):
         reponse = client.get("/", headers={"Accept": accept} if accept else {})
         assert reponse.headers["content-type"] == "application/json"
-        assert reponse.headers["vary"] == "Accept"
+        assert reponse.headers["vary"] == "Accept, User-Agent"
         assert reponse.json() == JSON_AVANT
 
 
 def test_la_vitrine_ne_charge_rien_de_l_exterieur():
-    texte = client.get("/", headers=NAVIGATEUR).text
+    # D65 : le bloc de référencement a ses propres règles (tests/test_seo.py).
+    texte = seo.hors_bloc(client.get("/", headers=NAVIGATEUR).text)
 
     for interdit in ("<script", "@import", "url("):
         assert interdit not in texte
@@ -134,9 +136,10 @@ def test_chaque_langue_a_sa_vitrine(lang):
     assert balise and balise.group(1).split("-")[0] == lang
     assert bool(balise.group(2)) == (lang in i18n.RTL)
     assert page.text.count("<h1") == 1
+    hors = seo.hors_bloc(page.text)  # D65 : le bloc de référencement a ses propres règles
     for interdit in ("<script", "{{", "@import", "url("):
-        assert interdit not in page.text
-    assert not re.search(r"https?://", page.text)
+        assert interdit not in hors
+    assert not re.search(r"https?://", hors)
 
 
 def test_une_langue_prefixee_est_toujours_du_html():
@@ -208,4 +211,4 @@ def test_les_chiffres_sont_ceux_du_code_dans_chaque_langue(lang):
     assert i18n.nombre(lang, accounts.PLANS["pro"]) in texte
     assert texte.count(i18n.nombre(lang, reglages.x402_price)) >= 5
     assert i18n.mention_euros(lang) in texte
-    assert texte.count(reglages.contact_email) == 2
+    assert seo.hors_bloc(texte).count(reglages.contact_email) == 2

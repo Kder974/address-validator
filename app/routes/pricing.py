@@ -38,7 +38,7 @@ from pathlib import Path
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
-from app import accounts, i18n
+from app import accounts, i18n, seo
 from app.cache import CACHE_TTL
 from app.config import get_settings
 from app.web import public_headers
@@ -90,7 +90,7 @@ def valeurs(settings, lang: str) -> dict:
 
 def page(settings, lang: str) -> str:
     """La page des tarifs dans une langue, champs remplis et échappés."""
-    return i18n.rendre(GABARITS / f"{lang}.html", valeurs(settings, lang))
+    return seo.enrichir(i18n.rendre(GABARITS / f"{lang}.html", valeurs(settings, lang)), lang, "pricing", settings)
 
 
 def _tarifs(lang: str):

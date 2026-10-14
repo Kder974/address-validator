@@ -30,6 +30,7 @@ from app.routes import guide
 from app.routes.guide import CODES
 from app.schemas import AddressInput, AddressOutput, ValidationRequest, ValidationResponse
 from app.web import public_headers
+from app import seo
 
 client = TestClient(app)
 
@@ -84,7 +85,7 @@ def test_les_routes_des_langues_sont_litterales():
 
 @pytest.mark.parametrize("lang", i18n.LANGUES)
 def test_le_guide_ne_charge_rien_et_ne_cite_que_la_base_publique(lang):
-    texte = _guide(lang).text
+    texte = seo.hors_bloc(_guide(lang).text)  # D65 : le bloc a ses propres règles
     base = get_settings().public_base_url.rstrip("/")
 
     for interdit in ("<script", "<img", "src=", "@import", "url(", "<form", "{{", "BASE_URL"):
@@ -172,7 +173,7 @@ def test_les_chiffres_sont_injectes_pas_recopies(lang, monkeypatch):
         }
     )
 
-    texte = guide.page(reglages, lang)
+    texte = seo.hors_bloc(guide.page(reglages, lang))
 
     def n(valeur):
         return i18n.nombre(lang, valeur)
@@ -209,6 +210,6 @@ def test_une_valeur_injectee_est_echappee():
     )
 
     for lang in i18n.LANGUES:
-        texte = guide.page(reglages, lang)
+        texte = seo.hors_bloc(guide.page(reglages, lang))
         assert "<script" not in texte and "&lt;script&gt;" in texte
         assert "a&amp;b@exemple.test" in texte

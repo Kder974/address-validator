@@ -58,7 +58,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, Response
 
-from app import accounts, i18n, ratelimit
+from app import accounts, i18n, ratelimit, seo
 from app.config import get_settings
 from app.observability import client_ip
 from app.routes.metrics import metrics
@@ -887,6 +887,9 @@ def _page(
     )
     blocs = {"essai": essai, "resultat": resultat}
     texte = _BLOCS.sub(lambda trouve: blocs[trouve.group(1)], texte)
+    if public:
+        # La page vide est indexable (D65) ; une réponse à un essai, privée, ne l'est pas.
+        texte = seo.enrichir(texte, lang, "validate-form", reglages)
     entetes = public_headers(form=True, max_age=300) if public else dict(PRIVATE_HEADERS)
     if retry_after is not None:
         # Le client sait quand réessayer sans le deviner.

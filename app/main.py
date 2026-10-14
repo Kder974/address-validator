@@ -11,9 +11,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from app import seo
 from app.config import get_settings
 from app.database import init_db
 from app.observability import configure_logging
@@ -110,6 +111,19 @@ app.include_router(guide.router, tags=["commercial"])
 # /en/, /zh/, /hi/, /es/, /ar/ : la vitrine dans les autres langues (D57), chemins
 # littéraux ; le français reste sur / (route `root` ci-dessous).
 app.include_router(accueil.router, tags=["commercial"])
+# robots.txt, sitemap.xml, favicon.ico : ce que les moteurs lisent en premier (D65).
+app.include_router(seo.router, tags=["commercial"])
+
+
+@app.middleware("http")
+async def adresse_unique(request: Request, call_next):
+    """`www.` renvoie en 301 vers `PUBLIC_BASE_URL` : une seule adresse par page (D65)."""
+    base = settings.public_base_url.rstrip("/")
+    hote_officiel = base.split("://", 1)[-1].split("/", 1)[0].lower()
+    if request.headers.get("host", "").split(":")[0].lower() == "www." + hote_officiel:
+        suite = f"?{request.url.query}" if request.url.query else ""
+        return RedirectResponse(f"{base}{request.url.path}{suite}", status_code=301)
+    return await call_next(request)
 
 
 class _Images(StaticFiles):
@@ -134,10 +148,11 @@ async def root(request: Request):
     # D53 : un navigateur reçoit la vitrine, un programme garde le JSON d'avant.
     # `Vary: Accept` sur les deux : un cache partagé ne doit jamais servir l'une
     # à la place de l'autre.
-    if accueil.veut_html(request.headers.get("accept", "")):
+    # D65 : un robot de moteur (Bing, GPTBot, ClaudeBot…) reçoit lui aussi la vitrine.
+    if accueil.veut_html(request.headers.get("accept", ""), request.headers.get("user-agent", "")):
         return HTMLResponse(
             accueil.page(settings),
-            headers={**public_headers(form=True), "Vary": "Accept"},
+            headers={**public_headers(form=True), "Vary": "Accept, User-Agent"},
         )
     return JSONResponse(
         {
@@ -149,5 +164,5 @@ async def root(request: Request):
             "mcp": "/mcp",
             "pricing": "/pricing",
         },
-        headers={"Vary": "Accept"},
+        headers={"Vary": "Accept, User-Agent"},
     )

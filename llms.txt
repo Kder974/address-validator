@@ -4,6 +4,20 @@
 > Une requete HTTP payee en x402, sans inscription ; les boutiques peuvent aussi
 > s'abonner avec une cle d'API.
 
+## Pages du site
+
+- [Accueil](https://kder-ai.com/) : ce que fait le service, pour qui, a quel prix.
+- [Tarifs](https://kder-ai.com/pricing) : essai gratuit, Starter, Pro, Enterprise, prix a l'appel en x402.
+- [Guide d'integration](https://kder-ai.com/guide) : contrat JSON, codes de retour, exemples d'appel.
+- [Tester une adresse](https://kder-ai.com/validate-form) : essai gratuit sans compte.
+- [Creer un compte](https://kder-ai.com/signup) : cle d'API, essai gratuit sans carte bancaire.
+- [Espace client](https://kder-ai.com/compte) : quota, consommation, cle (connexion requise).
+- [Plan du site](https://kder-ai.com/sitemap.xml) : toutes les pages publiques, dans les six langues.
+
+Six langues : [francais](https://kder-ai.com/), [English](https://kder-ai.com/en/),
+[chinois](https://kder-ai.com/zh/), [hindi](https://kder-ai.com/hi/),
+[espanol](https://kder-ai.com/es/), [arabe](https://kder-ai.com/ar/).
+
 ## Appel principal
 
 POST https://kder-ai.com/validate
