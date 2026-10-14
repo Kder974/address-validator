@@ -118,12 +118,11 @@ class Settings(BaseSettings):
     dashboard_password: str = ""
 
     # Pages publiques de la campagne commerciale (D43 : `/pricing`, puis
-    # `/signup` et `/validate-form`). Les témoignages affichés sur `/pricing`
-    # sont des **exemples** : les publier par défaut reviendrait à présenter des
-    # retours inventés comme réels — une pratique commerciale trompeuse, et un
-    # mensonge à la première visite d'un client. Défaut `false` : la section
-    # n'apparaît qu'après **remplacement** du contenu par de vrais témoignages,
-    # sur décision explicite de l'exploitant.
+    # `/signup` et `/validate-form`). **Sans effet** depuis le dessin validé des
+    # tarifs (six langues) : `/pricing` n'a plus de section témoignages, quelle
+    # que soit la valeur. Les seuls qui existaient étaient des exemples, et
+    # présenter des retours inventés comme réels serait une pratique commerciale
+    # trompeuse. Le réglage reste lu pour qu'un `.env` existant reste valide.
     pricing_show_testimonials: bool = False
 
     # CRM de prospection (Tâche 7, `app/routes/prospection.py`). Chemin de la base

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D59, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D60, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 59
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 60
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -2982,10 +2982,11 @@ def d43() -> None:
     """La page publique /pricing vend sans mentir et sans ressource externe."""
     from fastapi.testclient import TestClient
 
+    from app import accounts, i18n
     from app.config import get_settings
     from app.main import app
-    from app.routes.pricing import OFFRES, QUESTIONS, _page, _prix_unitaire
-    from app.web import DASHBOARD_CSS
+    from app.routes.pricing import OFFRES
+    from app.routes.pricing import page as page_tarifs
 
     settings = get_settings()
     client = TestClient(app)
@@ -3013,14 +3014,16 @@ def d43() -> None:
     )
     guard(client.get("/").json().get("pricing") == "/pricing", "/ ne pointe plus vers /pricing")
 
-    # 2. Autonome, comme /dashboard (D32) : rien a charger, rien a executer.
+    # 2. Autonome, comme /dashboard (D32) : rien a charger, rien a executer. Depuis
+    #    le dessin valide (D57), la feuille est celle de la maquette, ecrite dans la
+    #    page : les seuls <link> sont les hreflang, aucune feuille ni police.
     page = reponse.text
     guard("<script" not in page.lower(), "la page embarque du script")
     for motif in ("http://", "https://", "//cdn", "@import", "url(http", "<img", "<iframe"):
         guard(motif not in page, f"la page charge une ressource externe ({motif})")
     guard(
-        DASHBOARD_CSS in page,
-        "la feuille du dashboard n'est plus servie par /pricing : deux feuilles divergent",
+        all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", page)),
+        "/pricing charge une feuille ou une ressource par <link>",
     )
     source_dashboard = read("app/routes/dashboard.py")
     guard(
@@ -3029,27 +3032,26 @@ def d43() -> None:
         "dashboard.py ne partage plus la feuille commune (app/web.py)",
     )
 
-    # 3. Ce qui est vendu est ce qui est livre : prix unitaires calcules.
-    guard(
-        len(OFFRES) == 4 and len(QUESTIONS) == 5,
-        f"{len(OFFRES)} offres et {len(QUESTIONS)} questions publiees",
-    )
-    guard(page.count('<details class="faq">') == len(QUESTIONS), "la FAQ n'affiche plus une question par entree")
+    # 3. Ce qui est vendu est ce qui est livre : prix unitaire = prix / quota du
+    #    plan, la division affichee a cote. Le texte se lit sans balises (le titre
+    #    est decoupe mot a mot pour son animation).
+    questions = page.count('<details class="qa"')
+    guard(len(OFFRES) == 4 and questions == 5, f"{len(OFFRES)} offres et {questions} questions publiees")
     for offre in OFFRES:
         guard(offre["nom"] in page, f"l'offre {offre['nom']} a disparu de la page")
         guard(offre["prix"] in page, f"le prix de {offre['nom']} a disparu de la page")
         guard(offre["periode"] in page, f"le quota de {offre['nom']} a disparu de la page")
-        unite = _prix_unitaire(offre)
+    for plan in ("starter", "pro"):
+        unite = i18n.prix("fr", f"unitaire_{plan}")
+        division = f"{i18n.prix('fr', plan)} ÷ {i18n.nombre('fr', accounts.PLANS[plan])} validations"
         guard(
-            not unite or unite in page,
-            f"le prix unitaire calcule de {offre['nom']} n'est plus affiche ({unite})",
+            f">{unite}<" in page and division in page,
+            f"le prix unitaire calcule de {plan} n'est plus affiche ({unite}, {division})",
         )
-    guard(
-        _prix_unitaire({"prix_eur": None, "validations": None}) == "",
-        "un plan sans quota fabrique un prix unitaire",
-    )
+    guard("<b>Sur devis</b>" in page, "un plan sans quota fabrique un prix unitaire")
+    texte = re.sub(r"<[^>]+>", "", page)
     for attendu in ("Arrêtez de perdre de l'argent", "Commencer l'essai gratuit", "RGPD"):
-        guard(attendu in page, f"la page ne contient plus : {attendu}")
+        guard(attendu in texte, f"la page ne contient plus : {attendu}")
 
     # 4. Une page indexable ne publie aucun secret.
     for secret in (
@@ -3063,25 +3065,29 @@ def d43() -> None:
             "un secret de configuration apparait sur une page publique indexable",
         )
 
-    # 5. Temoignages : des exemples, jamais publies par defaut (pratique
-    #    commerciale trompeuse si un visiteur les lit comme des clients reels).
+    # 5. Temoignages : aucun, dans aucune langue (maquette validee). Des exemples lus
+    #    comme des clients reels seraient une pratique commerciale trompeuse ; le
+    #    drapeau historique PRICING_SHOW_TESTIMONIALS reste lu, mais sans effet.
     drapeau = settings.pricing_show_testimonials
     try:
-        settings.pricing_show_testimonials = False
-        guard(
-            'id="temoignages"' not in _page(settings),
-            "des temoignages d'exemple sont publies par defaut",
-        )
-        settings.pricing_show_testimonials = True
-        avec = _page(settings)
-        guard('id="temoignages"' in avec, "les temoignages ne s'affichent pas quand l'exploitant les active")
-        guard("exemple" in fold(avec), "un temoignage publie ne se declare pas comme exemple")
+        for valeur in (False, True):
+            settings.pricing_show_testimonials = valeur
+            for lang in i18n.LANGUES:
+                guard(
+                    'id="temoignages"' not in page_tarifs(settings, lang),
+                    f"des temoignages sont publies ({lang}, PRICING_SHOW_TESTIMONIALS={valeur})",
+                )
     finally:
         settings.pricing_show_testimonials = drapeau
 
     # 6. La decision est consignee et le contenu reste echappe.
     guard("D43" in read("DECISIONS.md"), "la decision D43 n'est plus consignee dans DECISIONS.md")
-    guard("html.escape" in read("app/routes/pricing.py"), "le contenu affiche n'est plus echappe")
+    piege = '<b>"x"</b>@example.org'
+    rendu = page_tarifs(settings.model_copy(update={"contact_email": piege}), "fr")
+    guard(
+        piege not in rendu and "&lt;b&gt;&quot;x&quot;&lt;/b&gt;@example.org" in rendu,
+        "le contenu affiche n'est plus echappe",
+    )
 
 
 def d44() -> None:
@@ -4258,8 +4264,8 @@ def d48() -> None:
         reellement poses par la route, plans reellement appliques, et les huit
         codes de retour ;
       * elle est **atteignable** : liee depuis la navigation partagee, donc depuis
-        `/pricing` et `/validate-form`, et `/pricing` ne recopie plus sa propre
-        copie de la navigation (une seule definition, comme la feuille de style).
+        `/pricing` et `/validate-form`, et la barre de `/pricing` couvre chaque
+        lien de la navigation partagee (une seule liste de pages, D60).
     """
     from fastapi.testclient import TestClient
 
@@ -4267,6 +4273,7 @@ def d48() -> None:
     from app.config import get_settings
     from app.main import app
     from app.routes.guide import CODES
+    from app.web import site_head
 
     reglages = get_settings()
     client = TestClient(app)
@@ -4340,9 +4347,11 @@ def d48() -> None:
             'href="/guide"' in vue.text,
             f"le guide n'est pas atteignable depuis {chemin}",
         )
+    # La barre de /pricing vient du dessin valide (D60) : elle couvre chaque lien de site_head().
+    tarifs = client.get("/pricing").text
     guard(
-        "site_head()" in read("app/routes/pricing.py"),
-        "/pricing recopie sa propre navigation : les pages peuvent diverger",
+        all(f'href="{lien}"' in tarifs for lien in re.findall(r'href="(/[^"]*)"', site_head())),
+        "/pricing a perdu un lien de site_head() : les pages peuvent diverger",
     )
 
     # 5. La decision est consignee.
@@ -5250,7 +5259,94 @@ def d59() -> None:
     guard("D59" in read("DECISIONS.md"), "la decision D59 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 60)}
+def d60() -> None:
+    """La page des tarifs parle six langues : adresses litterales, chiffres du code, aucun temoignage."""
+    from fastapi.testclient import TestClient
+
+    from app import accounts, i18n
+    from app.config import get_settings
+    from app.main import app
+    from app.routes import pricing
+
+    reglages = get_settings()
+    client = TestClient(app)
+    chemins = [getattr(route, "path", "") for route in app.routes]
+    guard(
+        not [chemin for chemin in chemins if "{" in chemin and "pricing" in chemin],
+        "une route /{lang}/pricing avalerait d'autres adresses : chemins litteraux exiges (D57)",
+    )
+    autre = reglages.model_copy(
+        update={"trial_days": 21, "x402_price": 0.05, "contact_email": "porte@example.org"}
+    )
+    for lang in i18n.LANGUES:
+        adresse = i18n.chemin(lang, "pricing")
+        guard(chemins.count(adresse) == 1, f"{adresse} n'est pas une route litterale unique")
+        reponse = client.get(adresse)
+        guard(reponse.status_code == 200, f"{adresse} repond {reponse.status_code}")
+        guard(
+            reponse.headers.get("cache-control") == "public, max-age=300",
+            f"{adresse} n'est pas cachable comme une page publique",
+        )
+        csp = reponse.headers.get("content-security-policy", "")
+        guard(
+            "default-src 'none'" in csp and "form-action 'none'" in csp and "script-src" not in csp,
+            f"{adresse} : CSP inattendue : {csp}",
+        )
+        texte = reponse.text
+        balise = re.search(r'<html lang="([\w-]+)"( dir="rtl")?>', texte)
+        guard(balise is not None and balise.group(1).split("-")[0] == lang, f"{adresse} n'est pas en {lang}")
+        guard(bool(balise.group(2)) == (lang in i18n.RTL), f"{adresse} : sens d'ecriture faux")
+        guard('name="robots" content="index, follow"' in texte, f"{adresse} n'est pas indexable")
+        for interdit in ("<script", "{{", "@import", "url(", "<img", "<form"):
+            guard(interdit not in texte, f"{adresse} contient {interdit!r}")
+        guard(not re.search(r"https?://", texte), f"{adresse} cite une URL externe")
+
+        # 1. Les chiffres du code : prix de la langue, prix unitaire = prix / quota
+        #    avec sa division affichee, quotas d'accounts.PLANS, mention en euros.
+        for cle in ("essai", "starter", "pro", "unitaire_starter", "unitaire_pro"):
+            guard(f">{i18n.prix(lang, cle)}<" in texte, f"{adresse} n'affiche pas {i18n.prix(lang, cle)}")
+        for plan in ("starter", "pro"):
+            quota = i18n.nombre(lang, accounts.PLANS[plan])
+            guard(
+                f">{quota}<" in texte and f"{i18n.prix(lang, plan)} ÷ {quota}" in texte,
+                f"{adresse} : le quota ou la division du prix {plan} ne sont plus ceux du code",
+            )
+        guard(i18n.mention_euros(lang) in texte, f"{adresse} : la mention de facturation en euros manque")
+
+        # 2. Les boutons : essai, Starter et Pro vers l'inscription de la langue (D54 :
+        #    aucun plan transmis), Enterprise vers le contact de la configuration.
+        grille = re.search(r'<ol class="tiers">(.*?)</ol>', texte, re.S)
+        boutons = re.findall(r'<a class="btn [^"]*" href="([^"]*)"', grille.group(1) if grille else "")
+        guard(
+            boutons == [i18n.chemin(lang, "signup")] * 3 + [f"mailto:{reglages.contact_email}"],
+            f"{adresse} : boutons des offres inattendus : {boutons}",
+        )
+
+        # 3. Ce qui est montre est ce qui est applique (D48) : changer la configuration
+        #    change la page, donc aucun de ces chiffres n'est ecrit dans le gabarit.
+        lu = re.sub(r'<style>.*?</style>|<svg\b.*?</svg>|\sstyle="[^"]*"', "", pricing.page(autre, lang), flags=re.S)
+        guard(
+            i18n.nombre(lang, 0.05) in lu and i18n.nombre(lang, reglages.x402_price) not in lu,
+            f"{adresse} : le prix x402 affiche n'est pas celui de la configuration",
+        )
+        guard(
+            "porte@example.org" in lu and reglages.contact_email not in lu,
+            f"{adresse} : le contact affiche n'est pas celui de la configuration",
+        )
+        guard(
+            re.search(r"(?<![\d.,])21(?![\d.,])", lu) is not None
+            and re.search(rf"(?<![\d.,]){reglages.trial_days}(?![\d.,])", lu) is None,
+            f"{adresse} : la duree d'essai affichee n'est pas celle de la configuration",
+        )
+
+        # 4. Aucun temoignage, meme drapeau leve (corrections d'honnetete validees).
+        avec_drapeau = pricing.page(reglages.model_copy(update={"pricing_show_testimonials": True}), lang)
+        guard('id="temoignages"' not in avec_drapeau, f"{adresse} publie des temoignages")
+
+    guard("D60" in read("DECISIONS.md"), "la decision D60 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 61)}
 
 
 def catalog() -> list[tuple[str, str]]:

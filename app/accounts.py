@@ -69,6 +69,25 @@ PLAN_PAR_DEFAUT = "trial"
 JOURS_ESSAI = 14
 VALIDATIONS_ESSAI = 100
 
+#: Les offres, en euros : la **vérité de facturation** (D57). `app/i18n.py` en tire
+#: le prix de chaque langue et le prix unitaire (prix ÷ quota), la porte D45
+#: vérifie que les quotas sont ceux de `PLANS`. Le texte des cartes vit dans les
+#: gabarits de `/pricing` ; `periode` est la portée du quota telle que la page
+#: française l'écrit. Elles vivent ici, pas dans la route : `i18n` les lit, et la
+#: page des tarifs lit `i18n` (D60).
+OFFRES = (
+    {"nom": "Essai gratuit", "prix": "0 €", "prix_eur": None, "validations": 100, "periode": "au total"},
+    {"nom": "Starter", "prix": "29 €", "prix_eur": 29.0, "validations": 2000, "periode": "par mois"},
+    {"nom": "Pro", "prix": "79 €", "prix_eur": 79.0, "validations": 10000, "periode": "par mois"},
+    {
+        "nom": "Enterprise",
+        "prix": "Sur devis",
+        "prix_eur": None,
+        "validations": None,
+        "periode": "sans plafond mensuel",
+    },
+)
+
 #: Coût évité par adresse invalide détectée : borne basse de la fourchette
 #: publiée sur `/pricing` (17 à 30 $). Borne basse = estimation prudente.
 COUT_ECHEC_USD = 17.0
