@@ -31,6 +31,7 @@ from app.main import app
 from app.routes import validate_form as route
 from app.routes.metrics import metrics
 from app.routes.validate_form import CHAMPS, TEXTES, _texte
+from app import seo
 
 client = TestClient(app)
 
@@ -95,9 +96,10 @@ def test_chaque_langue_a_sa_page_autonome(lang):
     balise = re.search(r'<html lang="([\w-]+)"( dir="rtl")?>', texte)
     assert balise.group(1).split("-")[0] == lang
     assert bool(balise.group(2)) == (lang in i18n.RTL)
+    hors = seo.hors_bloc(texte)  # D65 : le bloc de référencement a ses propres règles
     for interdit in ("<script", "{{", "\0", "http://", "https://", "<img", "@import"):
-        assert interdit not in texte
-    assert all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", texte))
+        assert interdit not in hors
+    assert all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", hors))
     # Aucun écran d'exemple de la maquette : pas de résultat sans essai.
     for exemple in ('class="illus"', 'class="ex-cap"', "9999 Stewart", "47.61050", "Retry-After: 2220"):
         assert exemple not in texte
@@ -144,7 +146,7 @@ def test_les_chiffres_affiches_sont_ceux_de_la_configuration(lang, monkeypatch):
 
     assert _texte(lang, "essais", 3) in texte
     assert f"{i18n.nombre(lang, 0.05)}" in texte and i18n.nombre(lang, 0.02) not in texte
-    assert texte.count(reglages.contact_email) == 2
+    assert seo.hors_bloc(texte).count(reglages.contact_email) == 2
 
 
 @pytest.mark.parametrize("lang", i18n.LANGUES)

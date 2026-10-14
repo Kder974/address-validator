@@ -37,6 +37,7 @@ from app.main import app
 from app.models import Customer, CustomerValidation
 from app.routes import signup as route
 from app.routes import tableau
+from app import seo
 
 client = TestClient(app)
 
@@ -75,6 +76,7 @@ def _bloc(lang: str, dossier: str, nom: str) -> str:
 
 
 def _sans_ressource_externe(page: str, lang: str) -> None:
+    page = seo.hors_bloc(page)  # D65 : le bloc de référencement a ses propres règles
     balise = re.search(r'<html lang="([\w-]+)"( dir="rtl")?>', page)
     assert balise and balise.group(1).split("-")[0] == lang
     assert bool(balise.group(2)) == (lang in i18n.RTL)
@@ -143,7 +145,7 @@ def test_le_formulaire_dans_chaque_langue(lang):
                    str(accounts.PASSWORD_MAX_BYTES), str(accounts.API_KEY_CHARS)):
         assert valeur in page, valeur
     assert i18n.mention_euros(lang) in page
-    assert page.count(settings.contact_email) == 2
+    assert seo.hors_bloc(page).count(settings.contact_email) == 2
     # Sélecteur de langue et hreflang : la même page dans chaque langue ; navigation dans la langue.
     assert re.findall(r'<a href="([^"]*)" hreflang="([\w-]+)"', page) == [(_signup(autre), autre) for autre in i18n.LANGUES]
     for page_site in ("pricing", "guide", "validate-form", "compte"):

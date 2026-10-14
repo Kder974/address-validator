@@ -39,7 +39,7 @@ from pathlib import Path
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, Response
 
-from app import accounts, cache, i18n, x402
+from app import accounts, cache, i18n, seo, x402
 from app.config import get_settings
 from app.web import public_headers
 
@@ -80,7 +80,7 @@ def valeurs(settings, lang: str = i18n.DEFAUT) -> dict[str, str]:
 
 def page(settings, lang: str = i18n.DEFAUT) -> str:
     """Le guide complet dans une langue, champs remplis et échappés."""
-    return i18n.rendre(GABARITS / f"{lang}.html", valeurs(settings, lang))
+    return seo.enrichir(i18n.rendre(GABARITS / f"{lang}.html", valeurs(settings, lang)), lang, "guide", settings)
 
 
 def _reponse(lang: str) -> HTMLResponse:

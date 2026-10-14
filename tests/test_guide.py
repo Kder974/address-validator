@@ -22,6 +22,7 @@ from app import i18n
 from app.config import get_settings
 from app.main import app
 from app.routes.guide import CODES
+from app import seo
 
 client = TestClient(app)
 
@@ -50,12 +51,13 @@ def test_le_guide_est_public_indexable_et_cachable():
 def test_le_guide_ne_charge_rien_et_ne_publie_aucun_secret():
     page = client.get("/guide")
     reglages = get_settings()
+    hors = seo.hors_bloc(page.text)  # D65 : le bloc de référencement a ses propres règles
 
     # Autonome : rien à charger, donc rien qui puisse suivre le visiteur.
     for interdit in ("<script", "<img", "src=", "@import", "url("):
-        assert interdit not in page.text, f"le guide charge quelque chose : {interdit}"
+        assert interdit not in hors, f"le guide charge quelque chose : {interdit}"
     # D57 : des <link>, mais seulement les hreflang (aucune feuille, aucune police).
-    assert all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", page.text))
+    assert all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", hors))
     # Page indexable : aucun secret ne peut y figurer.
     if reglages.api_secret_key:
         assert reglages.api_secret_key not in page.text

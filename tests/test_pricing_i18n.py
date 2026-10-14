@@ -30,6 +30,7 @@ from app.config import get_settings
 from app.main import app
 from app.routes import pricing
 from app.web import site_head
+from app import seo
 
 client = TestClient(app)
 
@@ -74,10 +75,11 @@ def test_chaque_langue_a_sa_page_des_tarifs(lang):
     assert f"<title>{TITRES[lang]} · Address Validator</title>" in texte
     assert '<meta name="robots" content="index, follow">' in texte
     assert texte.count("<h1") == 1
+    hors = seo.hors_bloc(texte)  # D65 : le bloc de référencement a ses propres règles
     for interdit in ("<script", "{{", "@import", "url(", "<img", "<iframe", "<form"):
-        assert interdit not in texte
-    assert not re.search(r"https?://", texte)
-    assert all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", texte))
+        assert interdit not in hors
+    assert not re.search(r"https?://", hors)
+    assert all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", hors))
 
 
 def test_les_adresses_sont_litterales():
@@ -182,7 +184,7 @@ def test_changer_la_configuration_change_la_page(lang):
             "discovery_log_retention_days": 7,
         }
     )
-    lu = _sans_dessin(pricing.page(reglages, lang))
+    lu = _sans_dessin(seo.hors_bloc(pricing.page(reglages, lang)))
 
     assert re.search(_nombre_seul("21"), lu) and not re.search(_nombre_seul("14"), lu)
     assert re.search(_nombre_seul("7"), lu)
