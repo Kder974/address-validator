@@ -313,9 +313,9 @@ Vérification : `.\.venv\Scripts\python.exe scripts\decisions_check.py D53`.
 
 ### 4.8 Six langues (D57)
 
-Le français reste à la racine ; les cinq autres langues ont leur préfixe. La vitrine
-et le guide (D58) existent aujourd'hui dans les six ; les autres pages suivront, aux
-mêmes adresses.
+Le français reste à la racine ; les cinq autres langues ont leur préfixe. La vitrine,
+le guide (D58) et l'essai gratuit (D59) existent aujourd'hui dans les six ; les autres
+pages suivront, aux mêmes adresses.
 
 | Langue | Accueil | Monnaie affichée (facturé en euros) |
 |---|---|---|

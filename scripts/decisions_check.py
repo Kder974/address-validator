@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D58, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D59, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 58
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 59
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -5162,7 +5162,95 @@ def d58() -> None:
 # --- fin du texte proposé -----------------------------------------------------
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 59)}
+def d59() -> None:
+    """L'essai gratuit parle six langues : chaque page poste sur sa propre adresse, montre le vrai resultat dans sa langue, et le plafond reste par IP."""
+    from unittest import mock
+
+    from fastapi.testclient import TestClient
+
+    from app import i18n, ratelimit
+    from app.config import get_settings
+    from app.main import app
+    from app.routes import validate as validate_route
+    from app.routes import validate_form as form_route
+
+    guard(
+        form_route.perform_validation is validate_route.perform_validation,
+        "l'essai gratuit a sa propre copie du pipeline : les deux peuvent diverger",
+    )
+    reconnu = {
+        "validated": True,
+        "standardized": {"line1": "100 Stewart Street", "line2": "", "city": "Seattle", "state": "WA", "zip": "98101", "country": "US"},
+        "latitude": 47.6105, "longitude": -122.341, "deliverability": "residential", "confidence": 1.0, "degraded": False,
+    }
+    degrade = {**reconnu, "validated": False, "deliverability": "invalid", "confidence": 0.05, "degraded": True}
+    adresse = {"street": "100 stewart st", "city": "seattle", "state": "wa", "zip": "98101", "country": "US"}
+    noms = [nom for nom, _libelle, _exemple in form_route.CHAMPS]
+    plafond = get_settings().validate_form_rate_limit_per_day
+    guard(plafond > 1, f"plafond d'essais gratuits trop bas pour etre mesure : {plafond}")
+    client = TestClient(app)
+
+    ratelimit.reset()
+    try:
+        for index, lang in enumerate(i18n.LANGUES):
+            chemin, textes = i18n.chemin(lang, "validate-form"), form_route.TEXTES[lang]
+            page = client.get(chemin)
+            guard(page.status_code == 200, f"{chemin} repond {page.status_code}")
+            guard(page.headers.get("cache-control") == "public, max-age=300", f"{chemin} : cache {page.headers.get('cache-control')}")
+            guard("form-action 'self'" in page.headers.get("content-security-policy", ""), f"{chemin} : la CSP n'autorise plus le formulaire")
+            balise = re.search(r'<html lang="([\w-]+)"( dir="rtl")?>', page.text)
+            guard(balise is not None and balise.group(1).split("-")[0] == lang, f"{chemin} n'est pas en {lang}")
+            guard(bool(balise.group(2)) == (lang in i18n.RTL), f"{chemin} : sens d'ecriture faux")
+            for interdit in ("<script", "{{", "http://", "https://"):
+                guard(interdit not in page.text, f"{chemin} contient {interdit!r}")
+            guard(f'method="post" action="{chemin}"' in page.text, f"{chemin} : le formulaire ne poste pas sur sa propre langue")
+            champs = re.findall(r'<input[^>]*\bname="(\w+)"', page.text)
+            guard(champs == noms, f"{chemin} : champs du formulaire {champs}")
+            guard(form_route._texte(lang, "essais", plafond) in page.text, f"{chemin} n'annonce pas le plafond configure ({plafond})")
+
+            ip = {"X-Forwarded-For": f"203.0.113.{100 + index}"}
+            with mock.patch.object(form_route, "perform_validation", return_value=(reconnu, "cle")):
+                servie = client.post(chemin, data=adresse, headers=ip)
+            guard(
+                servie.status_code == 200 and servie.headers.get("cache-control") == "no-store",
+                f"{chemin} : un essai obtient {servie.status_code} en {servie.headers.get('cache-control')}",
+            )
+            guard(
+                textes["ok"] in servie.text and "100 Stewart Street" in servie.text and ">residential<" in servie.text,
+                f"{chemin} : le vrai resultat du pipeline n'est pas affiche dans la langue",
+            )
+            guard(form_route._texte(lang, "reste", plafond - 1) in servie.text, f"{chemin} : essais restants faux")
+            with mock.patch.object(form_route, "perform_validation", return_value=(degrade, "cle")):
+                panne = client.post(chemin, data=adresse, headers=ip)
+            guard(
+                textes["degrade"] in panne.text and textes["ko"] not in panne.text and 'class="big ko"' not in panne.text,
+                f"{chemin} : une panne du fournisseur est presentee comme une adresse invalide",
+            )
+
+        # Le plafond est par IP, toutes langues confondues, et le 429 parle la langue de son adresse.
+        ip = {"X-Forwarded-For": "203.0.113.200"}
+        with mock.patch.object(form_route, "perform_validation", return_value=(reconnu, "cle")):
+            codes = [
+                client.post(i18n.chemin(i18n.LANGUES[n % len(i18n.LANGUES)], "validate-form"), data=adresse, headers=ip).status_code
+                for n in range(plafond)
+            ]
+            bloque = client.post(i18n.chemin("ar", "validate-form"), data=adresse, headers=ip)
+    finally:
+        ratelimit.reset()
+    guard(codes == [200] * plafond, f"essais servis avant le plafond : {codes}")
+    guard(bloque.status_code == 429, f"changer de langue ouvre de nouveaux essais : {bloque.status_code}")
+    attente = int(bloque.headers.get("retry-after", "0"))
+    guard(0 < attente <= form_route.FENETRE_ESSAI_SECONDES, f"Retry-After annonce {attente} s")
+    minutes = max(1, (attente + 59) // 60)
+    guard(
+        form_route._texte("ar", "attente", minutes) in bloque.text and f"Retry-After: {attente}" in bloque.text,
+        "le 429 ne donne pas l'attente exacte dans la langue de son adresse",
+    )
+    guard("<form" not in bloque.text, "le 429 garde le formulaire au lieu de la page dediee")
+    guard("D59" in read("DECISIONS.md"), "la decision D59 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 60)}
 
 
 def catalog() -> list[tuple[str, str]]:
