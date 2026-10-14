@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D56, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D57, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 56
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 57
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -4840,9 +4840,18 @@ def d53() -> None:
     csp = navigateur.headers.get("content-security-policy", "")
     guard("default-src 'none'" in csp and "form-action 'self'" in csp, f"CSP de la vitrine inattendue : {csp}")
     texte = navigateur.text
-    for interdit in ("<script", "<img", "<link", "@import", "url(", "{{"):
+    for interdit in ("<script", "@import", "url(", "{{"):
         guard(interdit not in texte, f"la vitrine contient {interdit!r}")
     guard(not re.search(r"https?://", texte), "la vitrine cite une URL externe")
+    # D57 : des photos, mais seulement celles du site ; des <link>, mais seulement hreflang.
+    guard(
+        all(src.startswith("/images/") for src in re.findall(r'<img\b[^>]*\bsrc="([^"]*)"', texte)),
+        "la vitrine charge une image qui n'est pas celle du site",
+    )
+    guard(
+        all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", texte)),
+        "la vitrine charge une ressource par <link>",
+    )
     noms = re.findall(r'<input[^>]*\bname="(\w+)"', texte)
     guard(noms == [nom for nom, _, _ in CHAMPS], f"champs du formulaire de la vitrine : {noms}")
 
@@ -4983,7 +4992,81 @@ def d56() -> None:
     guard("D56" in read("DECISIONS.md"), "la decision D56 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 57)}
+def d57() -> None:
+    """Le site parle six langues : six vitrines servies, photos du site sous /images, CSP img-src 'self', prix convertis depuis les euros du code."""
+    from decimal import Decimal
+
+    from fastapi.testclient import TestClient
+
+    from app import accounts, i18n
+    from app.main import app
+    from app.routes.pricing import OFFRES
+
+    client = TestClient(app)
+    guard(i18n.chemin("fr", "pricing") == "/pricing", "le francais n'est plus a la racine : les adresses publiees changent")
+    for lang in i18n.LANGUES:
+        adresse = i18n.chemin(lang)
+        reponse = client.get(adresse, headers={"Accept": "text/html,*/*;q=0.8"})
+        guard(
+            reponse.status_code == 200 and reponse.headers.get("content-type", "").startswith("text/html"),
+            f"{adresse} ne sert pas la vitrine : {reponse.status_code}",
+        )
+        csp = reponse.headers.get("content-security-policy", "")
+        guard("img-src 'self'" in csp, f"{adresse} : la CSP n'autorise pas les photos du site : {csp}")
+        guard("default-src 'none'" in csp and "script-src" not in csp, f"{adresse} : CSP elargie : {csp}")
+        texte = reponse.text
+        balise = re.search(r'<html lang="([\w-]+)"( dir="rtl")?>', texte)
+        guard(balise is not None and balise.group(1).split("-")[0] == lang, f"{adresse} n'est pas en {lang}")
+        guard(bool(balise.group(2)) == (lang in i18n.RTL), f"{adresse} : sens d'ecriture faux")
+        for interdit in ("<script", "{{", "@import", "url("):
+            guard(interdit not in texte, f"{adresse} contient {interdit!r}")
+        guard(not re.search(r"https?://", texte), f"{adresse} cite une URL externe")
+        guard(
+            all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", texte)),
+            f"{adresse} charge une ressource par <link>",
+        )
+        alternatives = dict(re.findall(r'<link rel="alternate" hreflang="([\w-]+)" href="([^"]*)">', texte))
+        guard(
+            alternatives == {**{autre: i18n.chemin(autre) for autre in i18n.LANGUES}, "x-default": i18n.chemin("en")},
+            f"{adresse} : hreflang inattendus : {alternatives}",
+        )
+        sources = re.findall(r'<img\b[^>]*\bsrc="([^"]*)"', texte)
+        guard(len(sources) == 4, f"{adresse} montre {len(sources)} photos au lieu de 4")
+        for src in sources:
+            guard(src.startswith("/images/"), f"{adresse} charge une image hors du site : {src}")
+            photo = client.get(src)
+            guard(
+                photo.status_code == 200 and photo.headers.get("content-type") == "image/jpeg",
+                f"{src} n'est pas servie en image/jpeg : {photo.status_code}",
+            )
+            guard(photo.headers.get("x-content-type-options") == "nosniff", f"{src} sans nosniff")
+        for cle in ("essai", "starter", "pro"):
+            guard(f">{i18n.prix(lang, cle)}<" in texte, f"{adresse} n'affiche pas {i18n.prix(lang, cle)}")
+        guard(i18n.mention_euros(lang) in texte, f"{adresse} : la mention de facturation en euros manque")
+
+    offres = {offre["nom"]: offre for offre in OFFRES}
+    for cle, nom in (("starter", "Starter"), ("pro", "Pro")):
+        guard(i18n.prix("fr", cle) == offres[nom]["prix"], f"le prix {nom} en euros n'est plus celui de pricing.OFFRES")
+        euros = Decimal(str(offres[nom]["prix_eur"]))
+        for devise, taux in i18n.TAUX.items():
+            converti, attendu = i18n.MONTANTS[devise][cle], euros * taux
+            guard(
+                abs(converti - attendu) <= attendu / 100,
+                f"{nom} en {devise} : {converti} affiche pour {euros} EUR factures (~{attendu:.0f}) : table a refaire",
+            )
+        for devise, montants in i18n.MONTANTS.items():
+            guard(
+                montants[f"unitaire_{cle}"] == montants[cle] / accounts.PLANS[cle],
+                f"prix unitaire {nom} en {devise} : n'est pas le prix divise par le quota",
+            )
+    guard(
+        i18n.MONTANTS["USD"]["colis_rate"] == Decimal(str(accounts.COUT_ECHEC_USD)),
+        "le colis rate en dollars n'est plus celui d'accounts.COUT_ECHEC_USD",
+    )
+    guard("D57" in read("DECISIONS.md"), "la decision D57 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 58)}
 
 
 def catalog() -> list[tuple[str, str]]:

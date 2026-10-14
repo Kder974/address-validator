@@ -1,11 +1,18 @@
 <!doctype html>
-<!-- Page d'accueil (D53). Maquette d'origine : docs/maquettes/page-accueil/. Les champs entre doubles accolades sont remplis par app/routes/accueil.py. -->
-<html lang="fr">
+<!-- Page d'accueil (D53, D57), version espagnole. Maquette validée : docs/maquettes/site-multilingue/accueil-es.html. Les champs entre doubles accolades sont remplis par app/routes/accueil.py. -->
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Address Validator · Vérifiez l'adresse avant l'expédition</title>
-<meta name="description" content="API de validation d'adresses postales : adresse standardisée, coordonnées GPS, livrabilité et indice de confiance. Optimisée pour les adresses des États-Unis.">
+<title>Address Validator · Verifica la dirección antes del envío</title>
+<meta name="description" content="API de validación de direcciones postales: dirección estandarizada, coordenadas GPS, entregabilidad e índice de confianza. Optimizada para direcciones de Estados Unidos.">
+<link rel="alternate" hreflang="fr" href="{{lien_fr}}">
+<link rel="alternate" hreflang="en" href="{{lien_en}}">
+<link rel="alternate" hreflang="zh" href="{{lien_zh}}">
+<link rel="alternate" hreflang="hi" href="{{lien_hi}}">
+<link rel="alternate" hreflang="es" href="{{lien_es}}">
+<link rel="alternate" hreflang="ar" href="{{lien_ar}}">
+<link rel="alternate" hreflang="x-default" href="{{lien_en}}">
 <style>
 :root{
   --ink:#0b1b34;--ink-soft:#14223d;--muted:#4b5974;--faint:#66738c;
@@ -74,6 +81,18 @@ a:hover .arr .h,button:hover .arr .h{transform:translateX(2px)}
 .menu-panel a{display:flex;align-items:center;min-height:46px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
 .menu-panel a:hover{background:var(--soft)}
 .menu-panel .btn{margin-top:6px;color:#fff;justify-content:center}
+/* Sélecteur de langue */
+.lang{position:relative}
+.lang summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;padding:0 12px;border-radius:999px;font-weight:600;font-size:.9rem;color:var(--ink-soft);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12)}
+.lang summary::-webkit-details-marker{display:none}
+.lang summary:hover,.lang[open] summary{background:rgba(11,27,52,.06)}
+.lang summary svg{width:15px;height:15px;flex:none}
+.lang-panel{position:absolute;right:0;top:calc(100% + 10px);width:200px;display:grid;gap:2px;padding:8px;list-style:none;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.lang-panel a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.lang-panel a:hover{background:var(--soft)}
+.lang-panel [lang="ar"]{font-size:1.12em}
+.lang-panel [aria-current]{color:var(--accent);background:var(--accent-wash);font-weight:600}
+.lang-panel [aria-current]::after{content:"";width:9px;height:5px;margin-top:-3px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg)}
 
 /* ---------- Héros ---------- */
 .hero{position:relative;margin-top:calc(-1*var(--nav-h));padding:calc(var(--nav-h) + clamp(40px,6vw,84px)) 0 clamp(40px,4vw,64px);overflow-x:clip}
@@ -156,7 +175,7 @@ h2{margin-top:14px;font-size:clamp(2rem,1.15rem + 2.7vw,3.35rem);line-height:1.0
 h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
 .inline{font-size:.86em;padding:.12em .4em;border-radius:6px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
 
-/* Comment ça marche */
+/* Cómo funciona */
 .how{padding-top:clamp(48px,6vw,88px)}
 .steps{list-style:none;padding:0;margin-top:64px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(24px,3vw,48px);position:relative}
 .steps::before{content:"";position:absolute;top:5px;left:0;right:0;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--saffron),var(--coral),var(--aqua),var(--cobalt));transform-origin:left}
@@ -167,10 +186,10 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
 .mini{display:inline-block;margin-top:20px;max-width:100%;padding:9px 12px;border-radius:9px;background:var(--navy-2);color:#dbe4f3;font-size:.8rem;line-height:1.4;white-space:pre-wrap;box-shadow:var(--sh-sm)}
 .mini .k{color:#93c5ff}.mini .s{color:#ffcf9a}.mini .ok{color:#7ff0c4}
 
-/* Deux portes */
+/* Dos accesos */
 .doors{background:var(--soft);clip-path:polygon(0 4vw,100% 0,100% 100%,0 100%);padding-top:calc(4vw + clamp(84px,9vw,128px))}
 .doors-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:56px}
-.door{position:relative;display:flex;flex-direction:column;padding:clamp(28px,3.6vw,48px);border-radius:20px;transition:translate .6s var(--expo),box-shadow .6s var(--expo)}
+.door{--pad:clamp(28px,3.6vw,48px);position:relative;display:flex;flex-direction:column;padding:var(--pad);border-radius:20px;transition:translate .6s var(--expo),box-shadow .6s var(--expo)}
 .door-shop{background:#fff;box-shadow:var(--sh-md)}
 .door-dev{background:var(--navy);color:#e8eef8;box-shadow:var(--sh-lg)}
 .kicker{font:600 .8rem/1 var(--mono);letter-spacing:.02em;color:var(--accent)}
@@ -193,6 +212,19 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
 .door-links{display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;margin-top:auto;padding-top:32px}
 .door-dev .link{color:#b9c8ff}
 .door-dev .link:hover{color:#fff}
+.door-media{margin:calc(-1*var(--pad)) calc(-1*var(--pad)) 30px;border-radius:20px 20px 0 0;overflow:hidden;background:var(--soft)}
+.door-dev .door-media{background:var(--navy-2)}
+.door-media img{display:block;width:100%;height:auto;aspect-ratio:2/1;object-fit:cover;object-position:50% 24%}
+
+/* En el terreno */
+.terrain{padding-top:0}
+.shots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:clamp(20px,3vw,40px);align-items:start;margin-top:56px}
+.shot:nth-child(2){margin-top:clamp(0px,5vw,72px)}
+.shot-media{border-radius:20px;overflow:hidden;background:var(--soft);box-shadow:var(--sh-md)}
+.shot img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover}
+.shot figcaption{display:flex;align-items:center;gap:12px;margin-top:18px;font-weight:500;color:var(--ink-soft)}
+.shot figcaption::before{content:"";flex:none;width:22px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--saffron),var(--coral))}
+.shot:nth-child(2) figcaption::before{background:linear-gradient(90deg,var(--aqua),var(--cobalt))}
 
 /* Test en direct */
 .live{background:var(--navy);color:#e8eef8;clip-path:polygon(0 0,100% 5vw,100% 100%,0 calc(100% - 5vw));padding-block:calc(5vw + clamp(84px,9vw,128px));margin-block:-1px;scroll-margin-top:0}
@@ -292,8 +324,9 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
 }
 @media (max-width:960px){
   .nav{display:none}
+  .bar{gap:12px}
   .menu{display:block;margin-left:0}
-  .bar > .btn{margin-left:auto}
+  .lang{margin-left:auto}
   .api{width:100%}
   .mapcard{position:relative;right:auto;width:min(62%,280px);margin:-26px 14px 0 auto}
   .stage{padding-bottom:0}
@@ -317,10 +350,21 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
   .step{padding-top:0}
   .step::before{left:-28px;top:4px}
   .cover-item{grid-template-columns:minmax(0,1fr)}
+  .shots{grid-template-columns:minmax(0,1fr)}
+  .shot:nth-child(2){margin-top:0}
+}
+@media (max-width:640px){
+  .bar > .btn{display:none}
+}
+@media (max-width:480px){
+  .menu summary{width:44px;padding:0;justify-content:center}
+  .menu-t{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+}
+@media (max-width:370px){
+  .lang summary svg{display:none}
 }
 @media (max-width:560px){
-  .bar > .btn{display:none}
-  .menu{margin-left:auto}
+  .door-media img{aspect-ratio:16/10}
   .mapcard{width:min(74%,270px);margin-right:10px}
   .code{font-size:12px}
   .pane{padding:13px 16px 15px}
@@ -358,6 +402,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
 @keyframes shade{0%{opacity:0;transform:scale(.25)}56%{opacity:.34;transform:scale(1.2)}100%{opacity:.26;transform:none}}
 @keyframes ripple{0%{opacity:.6;transform:scale(.5)}100%{opacity:0;transform:scale(3.2)}}
 @keyframes draw{from{stroke-dashoffset:1}}
+@keyframes settle{from{transform:scale(1.08)}}
 @keyframes d1{50%{transform:translate(-6vw,4vw) scale(1.12)}100%{transform:translate(3vw,7vw) scale(.94)}}
 @keyframes d2{50%{transform:translate(7vw,-3vw) scale(.9)}100%{transform:translate(-4vw,-6vw) scale(1.1)}}
 @keyframes d3{50%{transform:translate(-5vw,-4vw) scale(1.15)}100%{transform:translate(6vw,3vw)}}
@@ -407,6 +452,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
     .step{animation:rise both var(--expo);animation-timeline:view();animation-range:entry calc(8% + var(--r)*12%) cover calc(26% + var(--r)*8%)}
     .steps::before{animation:grow both var(--expo);animation-timeline:view();animation-range:entry 30% cover 50%}
     .track i{animation:grow both var(--expo);animation-timeline:view();animation-range:entry 40% cover 45%}
+    .door-media img,.shot img{animation:settle both linear;animation-timeline:view();animation-range:entry 0% cover 55%}
   }
   @media (max-width:720px){
     @supports (animation-timeline:view()){
@@ -420,29 +466,40 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
 </style>
 </head>
 <body>
-<a class="skip" href="#contenu">Aller au contenu</a>
+<a class="skip" href="#contenu">Ir al contenido</a>
 
 <header class="top">
   <div class="wrap bar">
-    <a class="brand" href="/" aria-label="Address Validator, accueil">
+    <a class="brand" href="{{url_accueil}}" aria-label="Address Validator, inicio">
       <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>
       Address Validator
     </a>
-    <nav class="nav" aria-label="Navigation principale">
-      <a href="/pricing">Tarifs</a>
-      <a href="/guide">Guide</a>
-      <a href="/validate-form">Tester une adresse</a>
-      <a href="/compte">Espace client</a>
+    <nav class="nav" aria-label="Navegación principal">
+      <a href="{{url_pricing}}">Precios</a>
+      <a href="{{url_guide}}">Guía</a>
+      <a href="{{url_validate_form}}">Probar una dirección</a>
+      <a href="{{url_compte}}">Área de cliente</a>
     </nav>
-    <a class="btn btn-ink btn-sm" href="/signup">Créer un compte <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
-    <details class="menu">
-      <summary><i aria-hidden="true"></i>Menu</summary>
-      <nav class="menu-panel" aria-label="Navigation mobile">
-        <a href="/pricing">Tarifs</a>
-        <a href="/guide">Guide</a>
-        <a href="/validate-form">Tester une adresse</a>
-        <a href="/compte">Espace client</a>
-        <a class="btn btn-ink" href="/signup">Créer un compte</a>
+    <details class="lang" name="entete">
+      <summary><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6.3"/><path d="M1.7 8h12.6M8 1.7c1.9 2 2.8 4.1 2.8 6.3S9.9 12.3 8 14.3C6.1 12.3 5.2 10.2 5.2 8S6.1 3.7 8 1.7z"/></svg><span class="sr">Idioma: </span>ES</summary>
+      <ul class="lang-panel">
+        <li><a href="{{lien_fr}}" hreflang="fr" lang="fr">Français</a></li>
+        <li><a href="{{lien_en}}" hreflang="en" lang="en">English</a></li>
+        <li><a href="{{lien_zh}}" hreflang="zh" lang="zh">中文</a></li>
+        <li><a href="{{lien_hi}}" hreflang="hi" lang="hi">हिन्दी</a></li>
+        <li><a href="{{lien_es}}" hreflang="es" lang="es" aria-current="page">Español</a></li>
+        <li><a href="{{lien_ar}}" hreflang="ar" lang="ar">العربية</a></li>
+      </ul>
+    </details>
+    <a class="btn btn-ink btn-sm" href="{{url_signup}}">Crear cuenta <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+    <details class="menu" name="entete">
+      <summary><i aria-hidden="true"></i><span class="menu-t">Menú</span></summary>
+      <nav class="menu-panel" aria-label="Navegación móvil">
+        <a href="{{url_pricing}}">Precios</a>
+        <a href="{{url_guide}}">Guía</a>
+        <a href="{{url_validate_form}}">Probar una dirección</a>
+        <a href="{{url_compte}}">Área de cliente</a>
+        <a class="btn btn-ink" href="{{url_signup}}">Crear cuenta</a>
       </nav>
     </details>
   </div>
@@ -455,14 +512,14 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
   <div class="guides" aria-hidden="true"></div>
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <p class="pill in" style="--i:0"><b>API</b>Adresses postales, optimisé pour les États-Unis</p>
-      <h1 id="titre"><span class="w" style="--i:1">Vérifiez</span> <span class="w" style="--i:2">l'adresse</span> <span class="w" style="--i:3">avant</span> <span class="w" style="--i:4">que</span> <span class="w" style="--i:5">le</span> <span class="w" style="--i:6">colis</span> <span class="w" style="--i:7">parte.</span></h1>
-      <p class="lead in" style="--i:5">Envoyez l'adresse telle que le client l'a tapée. L'API la renvoie standardisée, avec ses coordonnées GPS, sa livrabilité et un indice de confiance de 0 à 1.</p>
+      <p class="pill in" style="--i:0"><b>API</b>Direcciones postales, optimizado para EE. UU.</p>
+      <h1 id="titre"><span class="w" style="--i:1">Verifica</span> <span class="w" style="--i:2">la</span> <span class="w" style="--i:3">dirección</span> <span class="w" style="--i:4">antes</span> <span class="w" style="--i:5">de</span> <span class="w" style="--i:6">que</span> <span class="w" style="--i:7">salga</span> <span class="w" style="--i:8">el</span> <span class="w" style="--i:9">paquete.</span></h1>
+      <p class="lead in" style="--i:5">Envía la dirección tal como la escribió el cliente. La API la devuelve estandarizada, con sus coordenadas GPS, su entregabilidad y un índice de confianza de 0 a 1.</p>
       <div class="cta in" style="--i:6">
-        <a class="btn btn-accent" href="/signup">Commencer l'essai gratuit <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
-        <a class="btn btn-glass" href="#tester">Tester une adresse</a>
+        <a class="btn btn-accent" href="{{url_signup}}">Empezar la prueba gratuita <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        <a class="btn btn-glass" href="#tester">Probar una dirección</a>
       </div>
-      <p class="fine in" style="--i:7">Essai {{jours_essai}} jours, {{validations_essai}} validations, sans carte bancaire. Ou {{prix_x402}} USDC par appel, sans compte.</p>
+      <p class="fine in" style="--i:7">Prueba de {{jours_essai}} días, {{validations_essai}} validaciones, sin tarjeta de crédito. O {{prix_x402}} USDC por llamada, sin cuenta.</p>
     </div>
 
     <figure class="stage">
@@ -473,7 +530,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
           <span class="status">200 OK</span>
         </div>
         <div class="pane req">
-          <p class="pane-row"><span>Requête</span><span>saisie du client</span></p>
+          <p class="pane-row"><span>Solicitud</span><span>texto del cliente</span></p>
           <div class="code">
             <span class="ln"><span class="h">X-API-Key: ••••••••••••</span></span>
             <span class="ln t" style="--n:13;--du:.14s;--d:.36s"><span class="p">{</span><span class="k">"address"</span><span class="p">: {</span></span>
@@ -484,7 +541,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
         </div>
         <div class="wire"></div>
         <div class="pane res">
-          <p class="pane-row"><span>Réponse standardisée</span><span class="legend"><span>corrigé</span><span class="lg-add">ajouté</span></span></p>
+          <p class="pane-row"><span>Respuesta estandarizada</span><span class="legend"><span>corregido</span><span class="lg-add">añadido</span></span></p>
           <div class="code">
             <span class="ln"><span class="p">{</span><span class="k">"result"</span><span class="p">: {</span></span>
             <span class="ln"><span class="p">  </span><span class="k">"validated"</span><span class="p">: </span><span class="b">true</span><span class="p">,</span></span>
@@ -499,7 +556,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
             <span class="ln"><span class="p">  </span><span class="k">"degraded"</span><span class="p">: </span><span class="b late" style="--d:1.76s">false</span><span class="p"> } }</span></span>
           </div>
         </div>
-        <p class="api-foot">Exemple illustratif</p>
+        <p class="api-foot">Ejemplo ilustrativo</p>
       </div>
 
       <div class="mapcard" aria-hidden="true">
@@ -539,7 +596,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
         </svg>
         <p class="map-meta"><span class="gps">47.6105, -122.341</span><span class="tag">GPS</span></p>
       </div>
-      <figcaption class="sr">Exemple illustratif : la requête 100 stewart st, seattle, wa, 98101, us revient standardisée en 100 Stewart Street, Seattle, WA 98101, US, avec les coordonnées 47.6105, -122.341, la livrabilité residential, une confiance de 1.0 et degraded à false.</figcaption>
+      <figcaption class="sr">Ejemplo ilustrativo: la solicitud 100 stewart st, seattle, wa, 98101, us vuelve estandarizada como 100 Stewart Street, Seattle, WA 98101, US, con las coordenadas 47.6105, -122.341, la entregabilidad residential, una confianza de 1.0 y degraded en false.</figcaption>
     </figure>
   </div>
 </section>
@@ -548,68 +605,90 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
   <div class="guides" aria-hidden="true"></div>
   <div class="wrap" style="position:relative">
     <div class="sec-head reveal">
-      <p class="eyebrow">Comment ça marche</p>
-      <h2 id="h-how">Une requête, trois temps.</h2>
-      <p class="sec-lead">Pas de base d'adresses à maintenir, pas de règles maison à écrire. Vous appelez l'API au moment où l'adresse est saisie.</p>
+      <p class="eyebrow">Cómo funciona</p>
+      <h2 id="h-how">Una solicitud, tres pasos.</h2>
+      <p class="sec-lead">No hay base de direcciones que mantener ni reglas propias que escribir. Llamas a la API en el momento en que se escribe la dirección.</p>
     </div>
     <ol class="steps">
       <li class="step" style="--r:0">
         <span class="num">01</span>
-        <h3>Envoyer</h3>
-        <p>Votre boutique, votre script ou votre agent envoie la rue, la ville, l'état, le code postal et le pays, tels que le client les a saisis.</p>
+        <h3>Enviar</h3>
+        <p>Tu tienda, tu script o tu agente envía la calle, la ciudad, el estado, el código postal y el país, tal como los escribió el cliente.</p>
         <code class="mini"><span class="k">"street"</span>: <span class="s">"100 stewart st"</span></code>
       </li>
       <li class="step" style="--r:1">
         <span class="num">02</span>
-        <h3>Recevoir</h3>
-        <p>L'API renvoie l'adresse standardisée, ses coordonnées GPS, une livrabilité et une confiance de 0 à 1.</p>
+        <h3>Recibir</h3>
+        <p>La API devuelve la dirección estandarizada, sus coordenadas GPS, una entregabilidad y una confianza de 0 a 1.</p>
         <code class="mini"><span class="k">"line1"</span>: <span class="s">"100 Stewart Street"</span></code>
       </li>
       <li class="step" style="--r:2">
         <span class="num">03</span>
-        <h3>Expédier</h3>
-        <p>Adresse confirmée : le colis part. Sinon, vous la reprenez avec le client avant l'envoi. Une adresse déjà vérifiée sort du cache et n'est pas refacturée.</p>
+        <h3>Enviar el paquete</h3>
+        <p>Dirección confirmada: el paquete sale. Si no, la revisas con el cliente antes del envío. Una dirección ya verificada sale de la caché y no se vuelve a cobrar.</p>
         <code class="mini"><span class="k">"deliverability"</span>: <span class="ok">"residential"</span></code>
       </li>
     </ol>
   </div>
 </section>
 
+<section class="sec terrain" aria-labelledby="h-terrain">
+  <div class="guides" aria-hidden="true"></div>
+  <div class="wrap" style="position:relative">
+    <div class="sec-head reveal">
+      <p class="eyebrow">En el terreno</p>
+      <h2 id="h-terrain">Una dirección correcta, del paquete preparado al paquete entregado.</h2>
+    </div>
+    <div class="shots">
+      <figure class="shot reveal">
+        <div class="shot-media"><img src="/images/entrepot.jpg" width="1600" height="1066" alt="En un almacén, una empleada con chaleco amarillo escanea la etiqueta de un paquete frente a estanterías de cajas." loading="lazy" decoding="async"></div>
+        <figcaption>El paquete sale con una dirección verificada.</figcaption>
+      </figure>
+      <figure class="shot reveal">
+        <div class="shot-media"><img src="/images/livraison.jpg" width="1600" height="1066" alt="Un repartidor entrega un paquete de cartón a una mujer en la puerta de su casa." loading="lazy" decoding="async"></div>
+        <figcaption>Llega a la puerta correcta.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
 <section class="sec doors" aria-labelledby="h-doors">
   <div class="wrap">
     <div class="sec-head reveal">
-      <p class="eyebrow">Deux portes</p>
-      <h2 id="h-doors">Boutique ou agent, la même vérification.</h2>
-      <p class="sec-lead">La réponse est identique des deux côtés. Seuls l'accès et le paiement changent.</p>
+      <p class="eyebrow">Dos accesos</p>
+      <h2 id="h-doors">Tienda o agente, la misma verificación.</h2>
+      <p class="sec-lead">La respuesta es idéntica en ambos casos. Solo cambian el acceso y el pago.</p>
     </div>
     <div class="doors-grid">
       <article class="door door-shop reveal">
-        <p class="kicker">Abonnement</p>
-        <h3>Boutiques en ligne</h3>
-        <p>Un compte, une clé d'API dans l'en-tête <code class="inline">X-API-Key</code>, et chaque adresse est vérifiée au moment de la commande.</p>
+        <div class="door-media"><img src="/images/commercante-colis.jpg" width="1600" height="1066" alt="Una mujer pega una etiqueta de envío en una caja, en su mesa de trabajo, frente a estantes con paquetes." loading="lazy" decoding="async"></div>
+        <p class="kicker">Suscripción</p>
+        <h3>Tiendas en línea</h3>
+        <p>Una cuenta, una clave de API en el encabezado <code class="inline">X-API-Key</code>, y cada dirección se verifica al hacer el pedido.</p>
         <ul class="facts">
-          <li>Compte créé sur <code class="inline">/signup</code>, clé disponible dans l'espace client</li>
-          <li>Essai gratuit de {{jours_essai}} jours, {{validations_essai}} validations, sans carte bancaire</li>
-          <li>Ensuite Starter ou Pro, sans engagement, sans prélèvement automatique</li>
+          <li>Cuenta creada en <code class="inline">/signup</code>, clave disponible en el área de cliente</li>
+          <li>Prueba gratuita de {{jours_essai}} días, {{validations_essai}} validaciones, sin tarjeta de crédito</li>
+          <li>Después, Starter o Pro, sin compromiso y sin cobro automático</li>
         </ul>
-        <pre class="codeblock code-lite mono"><code><span><span class="v">POST</span> /validate</span><span><span class="hk">X-API-Key</span>: &lt;votre clé&gt;</span><span class="c">// essai : {{validations_essai}} validations, {{jours_essai}} jours</span><span>{<span class="k">"address"</span>: {<span class="k">"street"</span>: …, <span class="k">"zip"</span>: …}}</span></code></pre>
+        <pre class="codeblock code-lite mono"><code><span><span class="v">POST</span> /validate</span><span><span class="hk">X-API-Key</span>: &lt;tu clave&gt;</span><span class="c">// prueba: {{validations_essai}} validaciones, {{jours_essai}} días</span><span>{<span class="k">"address"</span>: {<span class="k">"street"</span>: …, <span class="k">"zip"</span>: …}}</span></code></pre>
         <div class="door-links">
-          <a class="btn btn-accent" href="/signup">Créer un compte <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
-          <a class="link" href="/guide">Guide d'intégration <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+          <a class="btn btn-accent" href="{{url_signup}}">Crear cuenta <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+          <a class="link" href="{{url_guide}}">Guía de integración <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
         </div>
       </article>
       <article class="door door-dev dark reveal">
-        <p class="kicker">Paiement à l'appel</p>
-        <h3>Développeurs et agents IA</h3>
-        <p>Sans compte. Chaque appel se paie {{prix_x402}} USDC avec x402, sur le réseau Base.</p>
-        <pre class="codeblock mono"><code><span><span class="v">POST</span> /validate</span><span><span class="hk">X-PAYMENT</span>: &lt;preuve x402&gt;</span><span class="c">// {{prix_x402}} USDC par appel, réseau Base</span><span>{<span class="k">"address"</span>: {<span class="k">"street"</span>: …, <span class="k">"zip"</span>: …}}</span></code></pre>
+        <div class="door-media"><img src="/images/developpeur.jpg" width="1600" height="1066" alt="Un desarrollador escribe código en un portátil y una pantalla, frente a una ciudad al atardecer." loading="lazy" decoding="async"></div>
+        <p class="kicker">Pago por llamada</p>
+        <h3>Desarrolladores y agentes de IA</h3>
+        <p>Sin cuenta. Cada llamada cuesta {{prix_x402}} USDC con x402, en la red Base.</p>
+        <pre class="codeblock mono"><code><span><span class="v">POST</span> /validate</span><span><span class="hk">X-PAYMENT</span>: &lt;prueba x402&gt;</span><span class="c">// {{prix_x402}} USDC por llamada, red Base</span><span>{<span class="k">"address"</span>: {<span class="k">"street"</span>: …, <span class="k">"zip"</span>: …}}</span></code></pre>
         <ul class="facts">
-          <li>Serveur MCP sur <code class="inline">/mcp</code>, outil <code class="inline">validate_address</code>, découverte gratuite</li>
-          <li><code class="inline">/manifest</code>, <code class="inline">/llms.txt</code> et <code class="inline">/AGENTS.md</code> pour vos agents</li>
+          <li>Servidor MCP en <code class="inline">/mcp</code>, herramienta <code class="inline">validate_address</code>, descubrimiento gratuito</li>
+          <li><code class="inline">/manifest</code>, <code class="inline">/llms.txt</code> y <code class="inline">/AGENTS.md</code> para tus agentes</li>
         </ul>
         <div class="door-links">
-          <a class="btn btn-light" href="/docs">Lire la documentation <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
-          <a class="link" href="/mcp">Serveur MCP <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+          <a class="btn btn-light" href="/docs">Leer la documentación <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+          <a class="link" href="/mcp">Servidor MCP <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
         </div>
       </article>
     </div>
@@ -619,20 +698,20 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
 <section class="sec live dark" id="tester" aria-labelledby="h-live">
   <div class="wrap live-grid">
     <div class="live-copy reveal">
-      <p class="eyebrow">Le test en direct</p>
-      <h2 id="h-live">Essayez une adresse, sans compte.</h2>
-      <p>Quelques essais gratuits par jour et par adresse IP. Pour un résultat complet, prenez une adresse des États-Unis : ailleurs, la vérification reste partielle.</p>
-      <p class="hint mono">Exemple : <b>100 stewart st</b> · <b>seattle</b> · <b>wa</b> · <b>98101</b> · <b>US</b></p>
+      <p class="eyebrow">Prueba en vivo</p>
+      <h2 id="h-live">Prueba una dirección, sin cuenta.</h2>
+      <p>Unas pocas pruebas gratuitas al día por dirección IP. Para un resultado completo, usa una dirección de Estados Unidos: en otros países, la verificación es parcial.</p>
+      <p class="hint mono">Ejemplo: <b>100 stewart st</b> · <b>seattle</b> · <b>wa</b> · <b>98101</b> · <b>US</b></p>
     </div>
-    <form class="form reveal" method="post" action="/validate-form">
-      <p class="form-head">Votre adresse <span>POST /validate-form</span></p>
-      <div class="field f-wide"><label for="street">Numéro et rue</label><input id="street" name="street" type="text" placeholder="1 Rue de Paris" autocomplete="address-line1"></div>
-      <div class="field"><label for="city">Ville</label><input id="city" name="city" type="text" placeholder="Saint-Denis" autocomplete="address-level2"></div>
-      <div class="field"><label for="state">Région ou état</label><input id="state" name="state" type="text" placeholder="RE, CA…" autocomplete="address-level1"></div>
-      <div class="field"><label for="zip">Code postal</label><input id="zip" name="zip" type="text" placeholder="97400" autocomplete="postal-code"></div>
-      <div class="field"><label for="country">Pays (2 lettres)</label><input id="country" name="country" type="text" placeholder="US" maxlength="2" autocomplete="country"></div>
-      <button class="btn btn-accent" type="submit">Vérifier l'adresse <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></button>
-      <p class="form-note">Sans compte. Le résultat s'affiche sur la page suivante.</p>
+    <form class="form reveal" method="post" action="{{url_validate_form}}">
+      <p class="form-head">Tu dirección <span>POST /validate-form</span></p>
+      <div class="field f-wide"><label for="street">Número y calle</label><input id="street" name="street" type="text" placeholder="100 Stewart St" autocomplete="address-line1"></div>
+      <div class="field"><label for="city">Ciudad</label><input id="city" name="city" type="text" placeholder="Seattle" autocomplete="address-level2"></div>
+      <div class="field"><label for="state">Estado o región</label><input id="state" name="state" type="text" placeholder="WA" autocomplete="address-level1"></div>
+      <div class="field"><label for="zip">Código postal</label><input id="zip" name="zip" type="text" placeholder="98101" autocomplete="postal-code"></div>
+      <div class="field"><label for="country">País (2 letras)</label><input id="country" name="country" type="text" placeholder="US" maxlength="2" autocomplete="country"></div>
+      <button class="btn btn-accent" type="submit">Verificar la dirección <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></button>
+      <p class="form-note">Sin cuenta. El resultado aparece en la página siguiente.</p>
     </form>
   </div>
 </section>
@@ -640,33 +719,33 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
 <section class="sec plans" aria-labelledby="h-plans">
   <div class="wrap">
     <div class="sec-head reveal">
-      <p class="eyebrow">Offres</p>
-      <h2 id="h-plans">Trois paliers, sans engagement.</h2>
-      <p class="sec-lead">Prix hors taxes. Aucun prélèvement automatique.</p>
+      <p class="eyebrow">Planes</p>
+      <h2 id="h-plans">Tres planes, sin compromiso.</h2>
+      <p class="sec-lead">Precios sin IVA. Sin cobro automático.</p>
     </div>
     <div class="plans-grid">
       <article class="plan plan-trial reveal">
-        <h3 class="plan-name">Essai</h3>
-        <p class="price"><strong>0 €</strong><span>pendant {{jours_essai}} jours</span></p>
-        <ul><li>{{validations_essai}} validations</li><li>Sans carte bancaire</li><li>Clé d'API dès l'inscription</li></ul>
-        <a class="btn btn-accent" href="/signup">Commencer l'essai <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        <h3 class="plan-name">Prueba</h3>
+        <p class="price"><strong>{{prix_essai}}</strong><span>durante {{jours_essai}} días</span></p>
+        <ul><li>{{validations_essai}} validaciones</li><li>Sin tarjeta de crédito</li><li>Clave de API desde el registro</li></ul>
+        <a class="btn btn-accent" href="{{url_signup}}">Empezar la prueba <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
       </article>
       <article class="plan reveal">
         <h3 class="plan-name">Starter</h3>
-        <p class="price"><strong>{{prix_starter}}</strong><span>par mois, HT</span></p>
-        <ul><li>{{quota_starter}} validations par mois</li><li>Sans engagement</li><li>Espace client sur /compte</li></ul>
-        <a class="link" href="/pricing">Détail de l'offre <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        <p class="price"><strong>{{prix_starter}}</strong><span>al mes, sin IVA</span></p>
+        <ul><li>{{quota_starter}} validaciones al mes</li><li>Sin compromiso</li><li>Área de cliente en /compte</li></ul>
+        <a class="link" href="{{url_pricing}}">Detalle del plan <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
       </article>
       <article class="plan reveal">
         <h3 class="plan-name">Pro</h3>
-        <p class="price"><strong>{{prix_pro}}</strong><span>par mois, HT</span></p>
-        <ul><li>{{quota_pro}} validations par mois</li><li>Sans engagement</li><li>Espace client sur /compte</li></ul>
-        <a class="link" href="/pricing">Détail de l'offre <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        <p class="price"><strong>{{prix_pro}}</strong><span>al mes, sin IVA</span></p>
+        <ul><li>{{quota_pro}} validaciones al mes</li><li>Sin compromiso</li><li>Área de cliente en /compte</li></ul>
+        <a class="link" href="{{url_pricing}}">Detalle del plan <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
       </article>
     </div>
     <div class="plans-foot reveal">
-      <p>Plus de volume : offre Enterprise sur devis. Sans abonnement : {{prix_x402}} USDC par validation en appel direct.</p>
-      <a class="link" href="/pricing">Voir tous les tarifs <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+      <p>¿Más volumen? Plan Enterprise a medida, con presupuesto. Sin suscripción: {{prix_x402}} USDC por validación en llamada directa.</p>
+      <a class="link" href="{{url_pricing}}">Ver todos los precios <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
     </div>
   </div>
 </section>
@@ -674,22 +753,22 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
 <section class="sec cover" aria-labelledby="h-cover">
   <div class="wrap">
     <div class="sec-head reveal">
-      <p class="eyebrow">Couverture</p>
-      <h2 id="h-cover">Ce qui est vérifié, et jusqu'où.</h2>
-      <p class="sec-lead">Le service est optimisé pour les adresses des États-Unis. Mieux vaut le savoir avant d'intégrer.</p>
+      <p class="eyebrow">Cobertura</p>
+      <h2 id="h-cover">Qué se verifica y hasta dónde.</h2>
+      <p class="sec-lead">El servicio está optimizado para direcciones de Estados Unidos. Conviene saberlo antes de integrarlo.</p>
     </div>
     <div class="cover-grid">
       <dl class="cover-list reveal">
-        <div class="cover-item"><dt>États-Unis<br><span class="st st-ok">Optimisé</span></dt><dd>Adresse standardisée, coordonnées GPS, livrabilité et indice de confiance.</dd></div>
-        <div class="cover-item"><dt>Hors États-Unis<br><span class="st st-warn">Partiel</span></dt><dd>La vérification est partielle. Une réponse pour une adresse française ou réunionnaise ne vaut pas confirmation complète.</dd></div>
-        <div class="cover-item"><dt><code>degraded: true</code><br><span class="st st-info">À re-vérifier</span></dt><dd>Le fournisseur n'a pas répondu. La réponse ne dit rien de l'adresse : ce n'est pas un refus. Relancez la vérification plus tard.</dd></div>
-        <div class="cover-item"><dt>Cache</dt><dd>Une adresse déjà vérifiée est servie depuis le cache, donc pas refacturée.</dd></div>
+        <div class="cover-item"><dt>Estados Unidos<br><span class="st st-ok">Optimizado</span></dt><dd>Dirección estandarizada, coordenadas GPS, entregabilidad e índice de confianza.</dd></div>
+        <div class="cover-item"><dt>Fuera de Estados Unidos<br><span class="st st-warn">Parcial</span></dt><dd>La verificación es parcial. Una respuesta para una dirección francesa o de La Reunión no equivale a una confirmación completa.</dd></div>
+        <div class="cover-item"><dt><code>degraded: true</code><br><span class="st st-info">Reverificar</span></dt><dd>El proveedor no respondió. La respuesta no dice nada sobre la dirección: no es un rechazo. Repite la verificación más tarde.</dd></div>
+        <div class="cover-item"><dt>Caché</dt><dd>Una dirección ya verificada se sirve desde la caché, por lo que no se vuelve a cobrar.</dd></div>
       </dl>
       <div class="scale reveal">
-        <h3>Livrabilité et confiance</h3>
-        <p>Valeurs renvoyées pour une adresse géolocalisée.</p>
+        <h3>Entregabilidad y confianza</h3>
+        <p>Valores devueltos para una dirección geolocalizada.</p>
         <ul class="rows">
-          <li class="row"><code>residential</code><span class="val">1.0</span><span class="track"><i style="--v:100%;--c:#18b47c"></i></span><small>0.99 sans point GPS</small></li>
+          <li class="row"><code>residential</code><span class="val">1.0</span><span class="track"><i style="--v:100%;--c:#18b47c"></i></span><small>0.99 sin punto GPS</small></li>
           <li class="row"><code>commercial</code><span class="val">1.0</span><span class="track"><i style="--v:100%;--c:#2fbfa9"></i></span></li>
           <li class="row"><code>unknown</code><span class="val">0.55</span><span class="track"><i style="--v:55%;--c:#ffad3b"></i></span></li>
           <li class="row"><code>invalid</code><span class="val">0.05</span><span class="track"><i style="--v:5%;--c:#e5484d"></i></span></li>
@@ -703,11 +782,11 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
   <div class="band band-final" aria-hidden="true"><i class="b4"></i><i class="b5"></i></div>
   <div class="wrap">
     <div class="final-card reveal">
-      <h2 id="h-final">Vérifiez vos prochaines adresses avant l'envoi.</h2>
-      <p>Essai gratuit de {{jours_essai}} jours, {{validations_essai}} validations, sans carte bancaire. Ou un premier test tout de suite, sans compte.</p>
+      <h2 id="h-final">Verifica tus próximas direcciones antes del envío.</h2>
+      <p>Prueba gratuita de {{jours_essai}} días, {{validations_essai}} validaciones, sin tarjeta de crédito. O una primera prueba ahora mismo, sin cuenta.</p>
       <div class="cta">
-        <a class="btn btn-accent" href="/signup">Commencer l'essai gratuit <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
-        <a class="btn btn-glass" href="#tester">Tester une adresse</a>
+        <a class="btn btn-accent" href="{{url_signup}}">Empezar la prueba gratuita <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        <a class="btn btn-glass" href="#tester">Probar una dirección</a>
       </div>
     </div>
   </div>
@@ -719,32 +798,32 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
   <div class="wrap">
     <div class="foot-grid">
       <div class="foot-brand">
-        <a class="brand" href="/"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>Address Validator</a>
+        <a class="brand" href="{{url_accueil}}"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>Address Validator</a>
         <p>Address Validator, Kder Daoud</p>
         <a class="mail" href="mailto:{{contact}}">{{contact}}</a>
       </div>
       <div>
-        <p class="foot-h">Boutiques</p>
+        <p class="foot-h">Tiendas</p>
         <ul>
-          <li><a href="/pricing">Tarifs</a></li>
-          <li><a href="/guide">Guide d'intégration</a></li>
-          <li><a href="/validate-form">Tester une adresse</a></li>
-          <li><a href="/compte">Espace client</a></li>
-          <li><a href="/signup">Créer un compte</a></li>
+          <li><a href="{{url_pricing}}">Precios</a></li>
+          <li><a href="{{url_guide}}">Guía de integración</a></li>
+          <li><a href="{{url_validate_form}}">Probar una dirección</a></li>
+          <li><a href="{{url_compte}}">Área de cliente</a></li>
+          <li><a href="{{url_signup}}">Crear cuenta</a></li>
         </ul>
       </div>
       <div>
-        <p class="foot-h">Développeurs et agents</p>
+        <p class="foot-h">Desarrolladores y agentes</p>
         <ul>
-          <li><a href="/docs">Documentation</a></li>
-          <li><a href="/mcp">Serveur MCP</a></li>
-          <li><a href="/manifest">Manifeste</a></li>
+          <li><a href="/docs">Documentación</a></li>
+          <li><a href="/mcp">Servidor MCP</a></li>
+          <li><a href="/manifest">Manifiesto</a></li>
           <li><a href="/llms.txt">llms.txt</a></li>
           <li><a href="/AGENTS.md">AGENTS.md</a></li>
         </ul>
       </div>
     </div>
-    <p class="legal">Prix hors taxes. Appel direct sans abonnement : {{prix_x402}} USDC par validation.</p>
+    <p class="legal">Precios sin IVA. Llamada directa sin suscripción: {{prix_x402}} USDC por validación.</p>
   </div>
 </footer>
 </body>

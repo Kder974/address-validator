@@ -299,7 +299,7 @@ applique, y compris le cas du client payant dont la date d'essai est passée.
 ### 4.7 Page d'accueil (D53)
 
 `GET /` sert la vitrine à un navigateur et garde le JSON d'avant pour un programme
-(`Vary: Accept` sur les deux). Le dessin vit dans `app/templates/accueil.html`
+(`Vary: Accept` sur les deux). Le dessin vit dans `app/templates/accueil/fr.html`
 (maquette d'origine : `docs/maquettes/page-accueil/`) ; ses chiffres (essai, quotas,
 prix, prix x402, contact) sont injectés par `app/routes/accueil.py` depuis le code et
 la configuration.
@@ -310,6 +310,34 @@ curl.exe -s -H "Accept: text/html" https://kder-ai.com/   # la vitrine
 ```
 
 Vérification : `.\.venv\Scripts\python.exe scripts\decisions_check.py D53`.
+
+### 4.8 Six langues (D57)
+
+Le français reste à la racine ; les cinq autres langues ont leur préfixe. La vitrine
+existe aujourd'hui dans les six ; les autres pages suivront, aux mêmes adresses.
+
+| Langue | Accueil | Monnaie affichée (facturé en euros) |
+|---|---|---|
+| français | `/` | 29 € / 79 € |
+| anglais | `/en/` | $33 / $90 |
+| chinois | `/zh/` | ¥223 / ¥608 |
+| hindi | `/hi/` | ₹3,160 / ₹8,620 |
+| espagnol | `/es/` | 29 € / 79 € |
+| arabe (droite à gauche) | `/ar/` | $33 / $90 |
+
+`app/i18n.py` fabrique les adresses (`chemin(lang, page)`), les nombres et les prix de
+chaque langue (`prix`, `mention_euros`, taux de septembre 2026) et rend les gabarits
+(`rendre`). Les montants en euros viennent de `pricing.OFFRES` : changer un prix sans
+refaire la table convertie fait échouer `tests/test_i18n.py` et la porte D57. Les
+photos sont servies par l'application sous `/images/` : la CSP publique n'ouvre que
+`img-src 'self'`.
+
+```powershell
+curl.exe -s https://kder-ai.com/en/                              # la vitrine en anglais
+curl.exe -sI https://kder-ai.com/images/commercante-colis.jpg    # image/jpeg, nosniff
+```
+
+Vérification : `.\.venv\Scripts\python.exe scripts\decisions_check.py D57`.
 
 ## 5. Exemple d'appel payant
 
