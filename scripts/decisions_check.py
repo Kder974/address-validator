@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D57, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D58, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 57
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 58
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -4263,6 +4263,7 @@ def d48() -> None:
     """
     from fastapi.testclient import TestClient
 
+    from app import i18n
     from app.config import get_settings
     from app.main import app
     from app.routes.guide import CODES
@@ -4282,11 +4283,16 @@ def d48() -> None:
         'name="robots" content="index, follow"' in page.text,
         "le guide n'est plus indexable",
     )
-    for interdit in ("<script", "<link", "<img", "src=", "@import", "url("):
+    for interdit in ("<script", "<img", "src=", "@import", "url("):
         guard(
             interdit not in page.text,
             f"le guide charge quelque chose ({interdit}) : il n'est plus autonome",
         )
+    # D57 : des <link>, mais seulement les hreflang (comme la vitrine, D53 amende).
+    guard(
+        all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", page.text)),
+        "le guide charge une ressource par <link>",
+    )
 
     # 2. Aucun secret sur une page indexable.
     if reglages.api_secret_key:
@@ -4309,7 +4315,7 @@ def d48() -> None:
     guard(base in page.text, f"la base publique du guide n'est plus {base}")
     guard("BASE_URL" not in page.text, "un gabarit d'URL est reste non remplace")
     guard(
-        f"{reglages.x402_price:.2f}" in page.text,
+        f"{i18n.nombre('fr', reglages.x402_price)} USDC" in page.text,
         "le prix publie n'est plus celui de la configuration",
     )
     guard(
@@ -5066,7 +5072,97 @@ def d57() -> None:
     guard("D57" in read("DECISIONS.md"), "la decision D57 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 58)}
+def d58() -> None:
+    """Le guide d'integration parle six langues et dit dans chacune ce que le code applique : base, prix, plafonds, essai, cache et version x402 injectes, aucun secret."""
+    from fastapi.testclient import TestClient
+
+    from app import accounts, cache, i18n, x402
+    from app.config import get_settings
+    from app.main import app
+    from app.routes import guide
+    from app.routes.guide import CODES
+
+    reglages = get_settings()
+    client = TestClient(app)
+    base = reglages.public_base_url.rstrip("/")
+    for lang in i18n.LANGUES:
+        adresse = i18n.chemin(lang, "guide")
+        reponse = client.get(adresse)
+        guard(reponse.status_code == 200, f"{adresse} repond {reponse.status_code}")
+        guard(
+            reponse.headers.get("cache-control") == "public, max-age=300",
+            f"{adresse} est servi en {reponse.headers.get('cache-control')}",
+        )
+        csp = reponse.headers.get("content-security-policy", "")
+        guard(
+            "default-src 'none'" in csp and "form-action 'none'" in csp and "script-src" not in csp,
+            f"{adresse} : CSP inattendue : {csp}",
+        )
+        texte = reponse.text
+        balise = re.search(r'<html lang="([\w-]+)"( dir="rtl")?>', texte)
+        guard(balise is not None and balise.group(1).split("-")[0] == lang, f"{adresse} n'est pas en {lang}")
+        guard(bool(balise.group(2)) == (lang in i18n.RTL), f"{adresse} : sens d'ecriture faux")
+        for interdit in ("<script", "<img", "src=", "@import", "url(", "<form", "{{", "BASE_URL"):
+            guard(interdit not in texte, f"{adresse} contient {interdit!r}")
+        guard(
+            all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", texte)),
+            f"{adresse} charge une ressource par <link>",
+        )
+        adresses = re.findall(r"https?://[^\s\"'<]+", texte)
+        guard(
+            adresses and all(url == f"{base}/validate" for url in adresses),
+            f"{adresse} cite une autre URL que {base}/validate : {sorted(set(adresses))}",
+        )
+        alternatives = dict(re.findall(r'<link rel="alternate" hreflang="([\w-]+)" href="([^"]*)">', texte))
+        guard(
+            alternatives == {**{autre: i18n.chemin(autre, "guide") for autre in i18n.LANGUES}, "x-default": i18n.chemin("en", "guide")},
+            f"{adresse} : hreflang inattendus : {alternatives}",
+        )
+        guard(not re.search(r"sk_live_[A-Za-z0-9]{16,}", texte), f"{adresse} publie une cle sk_live_ complete")
+        for secret in (reglages.api_secret_key, reglages.dashboard_password):
+            guard(not secret or secret not in texte, f"{adresse} publie un secret de la configuration")
+        for en_tete in ("X-Payment-Mode", "X-Plan", "X-Quota-Remaining"):
+            guard(
+                en_tete in texte and en_tete in read("app/routes/validate.py"),
+                f"{adresse} : l'en-tete {en_tete} manque au guide ou n'est plus pose par la route",
+            )
+        guard(
+            texte.count('class="code-row') == len(CODES) and all(f'id="code-{code}"' in texte for code, _, _ in CODES),
+            f"{adresse} ne decrit plus les huit codes de retour",
+        )
+
+    # D48 : changer le code change la page. Valeurs reconnaissables, chacune a sa place.
+    sauve = accounts.JOURS_ESSAI, accounts.VALIDATIONS_ESSAI, cache.CACHE_TTL, cache.CACHE_TTL_DEGRADED, x402.X402_VERSION
+    accounts.JOURS_ESSAI, accounts.VALIDATIONS_ESSAI = 8642, 7531
+    cache.CACHE_TTL, cache.CACHE_TTL_DEGRADED, x402.X402_VERSION = 864 * 86400, 975 * 60, 7
+    autres = reglages.model_copy(
+        update={
+            "x402_price": 0.05,
+            "validate_form_rate_limit_per_day": 9753,
+            "public_base_url": "https://exemple.test",
+            "contact_email": "contact@exemple.test",
+        }
+    )
+    try:
+        for lang in i18n.LANGUES:
+            page = guide.page(autres, lang)
+            for valeur, fois in ((8642, 1), (7531, 2), (9753, 1), (864, 3), (975, 1), (0.05, 5)):
+                vu = page.count(i18n.nombre(lang, valeur))
+                guard(vu == fois, f"guide {lang} : {valeur} affiche {vu} fois au lieu de {fois} : un chiffre est recopie dans le gabarit")
+            guard(page.count('{"x402Version": 7}') == 2, f"guide {lang} : la version x402 n'est pas celle du code")
+            guard(
+                page.count("https://exemple.test/validate") == 4 and "kder-ai.com" not in page,
+                f"guide {lang} : la base des exemples n'est pas public_base_url",
+            )
+            guard(page.count("contact@exemple.test") == 2, f"guide {lang} : le contact n'est pas celui de la configuration")
+    finally:
+        accounts.JOURS_ESSAI, accounts.VALIDATIONS_ESSAI, cache.CACHE_TTL, cache.CACHE_TTL_DEGRADED, x402.X402_VERSION = sauve
+
+    guard("D58" in read("DECISIONS.md"), "la decision D58 n'est plus consignee dans DECISIONS.md")
+# --- fin du texte proposé -----------------------------------------------------
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 59)}
 
 
 def catalog() -> list[tuple[str, str]]:

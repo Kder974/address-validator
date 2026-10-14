@@ -1,0 +1,842 @@
+<!doctype html>
+<!-- Guide d'intégration (D48, D57), version arabe. Maquette validée : docs/maquettes/site-multilingue/guide-ar.html. Les champs entre doubles accolades sont remplis par app/routes/guide.py. -->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="index, follow">
+<title>دليل التكامل · Address Validator</title>
+<meta name="description" content="دمج واجهة Address Validator: مفتاح API أو الدفع عبر x402، وعقد JSON، ورموز الاستجابة، وذاكرة التخزين المؤقت والحصص، وأمثلة Shopify وWooCommerce واستيراد CSV.">
+<link rel="alternate" hreflang="fr" href="{{lien_fr}}">
+<link rel="alternate" hreflang="en" href="{{lien_en}}">
+<link rel="alternate" hreflang="zh" href="{{lien_zh}}">
+<link rel="alternate" hreflang="hi" href="{{lien_hi}}">
+<link rel="alternate" hreflang="es" href="{{lien_es}}">
+<link rel="alternate" hreflang="ar" href="{{lien_ar}}">
+<link rel="alternate" hreflang="x-default" href="{{lien_en}}">
+<style>
+:root{
+  --ink:#0b1b34;--ink-soft:#14223d;--muted:#4b5974;--faint:#66738c;
+  --line:#e2e7f0;--bg:#fff;--soft:#f5f7fb;
+  --accent:#1f3bff;--accent-deep:#1429cc;--accent-wash:#e9edff;
+  --ok:#0a7350;--ok-bg:#dff5ea;--warn:#9a5b00;--warn-bg:#fff1d6;--bad:#b42318;
+  --navy:#0b1b34;--navy-2:#0d2242;
+  --saffron:#ffc15e;--tang:#ff9455;--coral:#ff6f61;--aqua:#2fd3c1;--sky:#4ab3ff;--cobalt:#3150ff;
+  --sans:"SF Arabic","Geeza Pro","Segoe UI","Noto Sans Arabic","Tahoma",-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif;
+  --latin:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --expo:cubic-bezier(.16,1,.3,1);
+  --sh-lg:0 50px 100px -20px rgba(20,40,110,.26),0 30px 60px -30px rgba(0,0,0,.3);
+  --sh-md:0 13px 27px -5px rgba(20,40,110,.16),0 8px 16px -8px rgba(0,0,0,.16);
+  --sh-sm:0 2px 5px -1px rgba(20,40,110,.12),0 1px 3px -1px rgba(0,0,0,.1);
+  --g:clamp(16px,4vw,40px);
+  --nav-h:84px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;font-size:106.25%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1.0625rem/1.85 var(--sans);letter-spacing:normal;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:inherit}
+h1,h2,h3,p,ul,ol,dl,dd,figure{margin:0}
+h1,h2,h3{text-wrap:balance}
+p,li,dd{text-wrap:pretty}
+code,.mono{font-family:var(--mono)}
+/* RTL : ilots latins en police latine (le point et la virgule des polices arabes sont reduits), fragments arabes dans le code en police arabe */
+.lat,.brand,.mail{font-family:var(--latin)}
+.ar{font-family:var(--sans);font-size:1.12em}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:8px}
+.dark :focus-visible{outline-color:#9db2ff}
+.wrap{width:min(100% - 2*var(--g),1180px);margin-inline:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.skip{position:absolute;inset-inline-start:16px;top:-80px;z-index:99;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none}
+.skip:focus{top:12px}
+
+/* ---------- Boutons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;min-height:48px;padding:0 1.35rem;border:0;border-radius:999px;font:600 .97rem/1 var(--sans);letter-spacing:normal;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background-color .2s ease,box-shadow .35s var(--expo)}
+.btn-accent{background:var(--accent);color:#fff;box-shadow:0 1px 1px rgba(11,27,52,.14),0 8px 18px -8px rgba(31,59,255,.6)}
+.btn-accent:hover{background:var(--accent-deep)}
+.btn-glass{background:rgba(255,255,255,.74);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.btn-glass:hover{background:#fff}
+.btn-ink{background:var(--ink);color:#fff}
+.btn-ink:hover{background:#1b2f52}
+.btn-light{background:#fff;color:var(--ink)}
+.btn-light:hover{background:#e9eef7}
+.btn-sm{min-height:44px;padding:0 1.1rem;font-size:.93rem}
+.arr{width:10px;height:10px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;overflow:visible;transform:scaleX(-1)}
+.arr .l{opacity:0;transition:opacity .2s ease}
+.arr .h{transition:transform .35s var(--expo)}
+a:hover .arr .l,button:hover .arr .l{opacity:1}
+a:hover .arr .h,button:hover .arr .h{transform:translateX(2px)}
+.link{display:inline-flex;align-items:center;gap:.45em;min-height:44px;font-weight:600;color:var(--accent);text-decoration:none}
+.link:hover{color:var(--accent-deep)}
+
+/* ---------- En-tête ---------- */
+.top{position:sticky;top:0;z-index:50;height:var(--nav-h);padding-top:12px;pointer-events:none}
+.bar{pointer-events:auto;display:flex;align-items:center;gap:20px;height:60px;padding-block:0;padding-inline:16px 10px;border-radius:16px;background:rgba(255,255,255,.72);box-shadow:inset 0 0 0 1px rgba(255,255,255,.7),0 10px 30px -18px rgba(20,40,110,.45);-webkit-backdrop-filter:saturate(1.6) blur(16px);backdrop-filter:saturate(1.6) blur(16px)}
+.brand{display:inline-flex;align-items:center;gap:10px;min-height:44px;text-decoration:none;font-weight:650;font-size:1.02rem;letter-spacing:-.015em;white-space:nowrap}
+.mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:conic-gradient(from 210deg,var(--cobalt),var(--aqua),var(--saffron),var(--coral),var(--cobalt));box-shadow:inset 0 0 0 1px rgba(11,27,52,.08)}
+.mark svg{width:17px;height:17px}
+.nav{display:flex;gap:2px;margin-inline-start:auto}
+.nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;border-radius:10px;text-decoration:none;font-weight:500;font-size:.95rem;color:var(--ink-soft)}
+.nav a:hover{background:rgba(11,27,52,.06)}
+.nav a[aria-current="page"],.menu-panel a[aria-current="page"]{color:var(--accent)}
+.menu{display:none;position:relative;margin-inline-start:auto}
+.menu summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;background:var(--ink);color:#fff;font-weight:600;font-size:.93rem}
+.menu summary::-webkit-details-marker{display:none}
+.menu summary i{display:block;width:14px;height:8px;border-block:2px solid currentColor}
+.menu-panel{position:absolute;inset-inline-end:0;top:calc(100% + 10px);width:min(86vw,300px);display:grid;gap:2px;padding:8px;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.menu-panel a{display:flex;align-items:center;min-height:46px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.menu-panel a:hover{background:var(--soft)}
+.menu-panel .btn{margin-top:6px;color:#fff;justify-content:center}
+/* Sélecteur de langue */
+.lang{position:relative}
+.lang summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;padding:0 12px;border-radius:999px;font-weight:600;font-size:.9rem;color:var(--ink-soft);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12)}
+.lang summary::-webkit-details-marker{display:none}
+.lang summary:hover,.lang[open] summary{background:rgba(11,27,52,.06)}
+.lang summary svg{width:15px;height:15px;flex:none}
+.lang-panel{position:absolute;inset-inline-end:0;top:calc(100% + 10px);width:200px;display:grid;gap:2px;padding:8px;list-style:none;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.lang-panel a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.lang-panel a:hover{background:var(--soft)}
+.lang-panel [lang="ar"]{font-size:1.12em}
+.lang-panel [aria-current]{color:var(--accent);background:var(--accent-wash);font-weight:600}
+.lang-panel [aria-current]::after{content:"";width:9px;height:5px;margin-top:-3px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg)}
+
+/* ---------- En-tête de page (bande adoucie, en miroir) ---------- */
+.phead{position:relative;margin-top:calc(-1*var(--nav-h));padding:calc(var(--nav-h) + clamp(36px,5vw,72px)) 0 clamp(44px,5vw,72px);overflow-x:clip}
+.band{position:absolute;inset:0;overflow:hidden;clip-path:polygon(0 0,100% 0,100% 100%,0 calc(100% - 7vw));background:linear-gradient(258deg,#fff6ea 0%,#ffe8c6 17%,#ffd391 33%,#ffb469 47%,#ff9160 57%,#ff7766 66%,#3fd4c4 80%,#4cb2ff 91%,#3552ff 100%)}
+.band::after{content:"";position:absolute;inset:0;background:linear-gradient(270deg,rgba(255,255,255,.86) 0%,rgba(255,255,255,.7) 46%,rgba(255,255,255,.18) 78%,rgba(255,255,255,0) 100%)}
+.band i{position:absolute;display:block;border-radius:50%}
+.b2{width:40vw;height:32vw;inset-inline-start:58%;top:-10%;background:radial-gradient(closest-side,rgba(47,211,193,.8),rgba(47,211,193,0))}
+.b4{width:46vw;height:34vw;inset-inline-start:-8%;top:10%;background:radial-gradient(closest-side,rgba(255,196,100,.7),rgba(255,196,100,0))}
+.b5{width:30vw;height:26vw;inset-inline-start:80%;top:4%;background:radial-gradient(closest-side,rgba(74,179,255,.85),rgba(74,179,255,0))}
+.guides{position:absolute;inset:0;width:min(100% - 2*var(--g),1180px);margin-inline:auto;pointer-events:none;background:linear-gradient(90deg,rgba(11,27,52,.075) 1px,transparent 1px) 0 0/25% 100%;box-shadow:inset -1px 0 rgba(11,27,52,.075);-webkit-mask-image:repeating-linear-gradient(180deg,#000 0 4px,transparent 4px 9px);mask-image:repeating-linear-gradient(180deg,#000 0 4px,transparent 4px 9px)}
+.phead-in{position:relative}
+.pill{display:inline-flex;align-items:center;gap:10px;padding-block:5px;padding-inline:5px 14px;border-radius:999px;background:rgba(255,255,255,.78);box-shadow:inset 0 0 0 1px rgba(11,27,52,.08);font-size:.875rem;font-weight:500;color:var(--ink-soft)}
+.pill b{font:700 .8rem/1.2 var(--sans);letter-spacing:normal;color:#fff;background:var(--ink);padding:5px 10px;border-radius:999px}
+h1{margin-top:22px;font-size:clamp(2.4rem,1.2rem + 3.5vw,3.8rem);line-height:1.3;font-weight:400;letter-spacing:normal;color:var(--ink)}
+.lead{margin-top:20px;max-width:36em;font-size:clamp(1.06rem,.98rem + .35vw,1.22rem);line-height:1.9;color:var(--ink-soft)}
+.quick{list-style:none;padding:0;margin-top:28px;display:flex;flex-wrap:wrap;gap:10px}
+.quick li{display:inline-flex;align-items:center;gap:8px;min-height:38px;padding-block:0;padding-inline:6px 12px;border-radius:10px;background:rgba(255,255,255,.82);box-shadow:inset 0 0 0 1px rgba(11,27,52,.08),var(--sh-sm);font:600 .82rem/1 var(--mono);color:var(--ink)}
+.quick li:not(:has(.verb)){padding-inline-start:12px}
+
+/* ---------- Badges ---------- */
+.verb{font:700 11px/1 var(--mono);color:var(--accent);background:var(--accent-wash);padding:5px 7px;border-radius:5px;letter-spacing:.02em}
+.inline{font-size:.86em;padding:.12em .4em;border-radius:6px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
+.st{display:inline-block;font:600 .8rem/1.5 var(--sans);letter-spacing:normal;padding:2px 9px;border-radius:6px}
+.st-ok{color:var(--ok);background:var(--ok-bg)}
+.st-warn{color:var(--warn);background:var(--warn-bg)}
+.st-info{color:var(--accent);background:var(--accent-wash)}
+
+/* ---------- Mise en page documentation (sommaire à droite) ---------- */
+.doc{display:grid;grid-template-columns:220px minmax(0,1fr);gap:clamp(40px,5vw,72px);align-items:start;padding-block:clamp(24px,3vw,40px) clamp(72px,8vw,120px)}
+.toc{position:sticky;top:calc(var(--nav-h) + 16px);max-height:calc(100vh - var(--nav-h) - 32px);overflow-y:auto;padding-block:4px 12px;padding-inline:0 4px;font-size:.92rem}
+.toc-h{font-size:.82rem;font-weight:600;letter-spacing:normal;color:var(--faint)}
+.toc ol{list-style:none;padding:0;margin:12px 0 0;border-inline-start:1px solid var(--line)}
+.toc li a{display:flex;align-items:center;min-height:36px;padding-block:4px;padding-inline:16px 0;margin-inline-start:-1px;border-inline-start:2px solid transparent;color:var(--muted);text-decoration:none;line-height:1.5}
+.toc li a:hover{color:var(--ink);border-inline-start-color:var(--ink)}
+.toc .toc-sub a{padding-inline-start:30px;font-size:.86rem;min-height:32px}
+.toc-codes{list-style:none;display:flex;flex-wrap:wrap;gap:4px;padding-block:6px 8px;padding-inline:16px 0;margin:0}
+.toc .toc-codes a{display:inline-grid;place-items:center;min-width:44px;min-height:30px;padding:0 6px;margin:0;border:0;border-radius:6px;font:700 .76rem/1 var(--mono);color:var(--fam);background:var(--fam-bg)}
+.toc .toc-codes a:hover{box-shadow:inset 0 0 0 1.5px var(--fam);border:0}
+.content{min-width:0}
+.dsec{padding-top:clamp(44px,5vw,64px);scroll-margin-top:calc(var(--nav-h) + 8px)}
+.dsec:first-child{padding-top:8px}
+[id]{scroll-margin-top:calc(var(--nav-h) + 16px)}
+.eyebrow{font-size:.92rem;font-weight:600;color:var(--accent);letter-spacing:normal}
+h2{margin-top:10px;font-size:clamp(1.7rem,1.25rem + 1.4vw,2.35rem);line-height:1.4;font-weight:500;letter-spacing:normal}
+h3{font-size:1.18rem;line-height:1.5;font-weight:600;letter-spacing:normal}
+.content h3.sub{margin-top:40px}
+.prose{max-width:68ch}
+.prose p,.content > .dsec > p{max-width:68ch}
+.dsec > p:not(.eyebrow),.dsec .prose{margin-top:16px;color:var(--ink-soft)}
+.dsec p + p{margin-top:14px}
+.dsec a:not([class]){color:var(--accent);text-underline-offset:3px}
+.dsec a:not([class]):hover{color:var(--accent-deep)}
+.content p code,.content li code,.content dd code,.content dt code,.note code{font-size:.88em;padding:.1em .38em;border-radius:6px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);overflow-wrap:anywhere}
+.cm-d code,.nw{white-space:nowrap}
+.hr{height:1px;margin-top:clamp(44px,5vw,64px);background:var(--line)}
+
+/* Étapes */
+.steps{list-style:none;padding:0;margin-top:24px;display:grid;gap:14px;counter-reset:s;max-width:68ch}
+.steps li{position:relative;padding-inline-start:44px;color:var(--ink-soft)}
+.steps li::before{counter-increment:s;content:counter(s);position:absolute;inset-inline-start:0;top:2px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:700 .8rem/1 var(--mono);color:var(--accent);background:var(--accent-wash)}
+.steps strong{color:var(--ink)}
+
+/* Blocs de code (thème de la carte API) : ilots LTR */
+.cb{margin-top:20px;border-radius:12px;background:#071429;box-shadow:var(--sh-md),inset 0 0 0 1px rgba(255,255,255,.06);overflow:hidden;min-width:0}
+.cb-top{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.08);font:600 .74rem/1.2 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#a3b3cf}
+.cb-top .dots{display:flex;gap:6px;margin-right:2px}
+.cb-top .dots i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.14)}
+.cb-top .verb{background:rgba(147,197,255,.14);color:#b9d8ff;text-transform:none}
+.cb-top .cb-path{font:600 .8rem/1 var(--mono);color:#e8eef8;text-transform:none;letter-spacing:0}
+.cb-top .cb-t{font:600 .84rem/1.3 var(--sans)}
+.cb-top .cb-lang{margin-left:auto}
+.cb pre{margin:0;padding:16px 18px 18px;overflow-x:auto;font:500 13px/1.72 var(--mono);font-variant-ligatures:none;color:#dbe4f3;white-space:pre;tab-size:4;scrollbar-color:rgba(255,255,255,.25) transparent}
+.cb pre:focus-visible{outline:3px solid #9db2ff;outline-offset:-3px;border-radius:0 0 12px 12px}
+.cb .k{color:#93c5ff}.cb .s{color:#ffcf9a}.cb .c{color:#93a5c3}.cb .v{color:#7ff0c4}.cb .n{color:#ffb3a6}
+.cb .ar{font-size:1.06em}
+.cb-note{margin-top:10px;font-size:.88rem;color:var(--muted)}
+
+/* Encadrés (liseré à droite) */
+.note{margin-top:22px;max-width:68ch;padding-block:16px;padding-inline:20px 18px;border-radius:12px;background:var(--accent-wash);box-shadow:inset -3px 0 var(--accent);color:var(--ink-soft);font-size:.98rem}
+.note strong{color:var(--ink)}
+.note-warn{background:var(--warn-bg);box-shadow:inset -3px 0 #d98a00}
+.note-ok{background:var(--ok-bg);box-shadow:inset -3px 0 var(--ok)}
+
+/* Deux portes d'authentification */
+.auth{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:24px}
+.door{padding:24px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm)}
+.door-dev{background:var(--navy);color:#e8eef8;box-shadow:var(--sh-md)}
+.kicker{font:600 .86rem/1.4 var(--sans);letter-spacing:normal;color:var(--accent)}
+.door-dev .kicker{color:#7ff0c4}
+.door h3{margin-top:10px}
+.door dl{margin-top:16px;display:grid;gap:14px}
+.door dt{font-size:.82rem;font-weight:600;letter-spacing:normal;color:var(--faint)}
+.door-dev dt{color:#a3b3cf}
+.door dd{margin-top:4px;font-size:.96rem;color:var(--ink-soft)}
+.door-dev dd{color:#dbe4f3}
+.door-dev dd code{background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);color:#fff}
+.door-dev strong{color:#fff}
+
+/* Références en lignes (champs, en-têtes, cache, intégrations) */
+.ref{margin-top:24px;border-top:1px solid var(--line)}
+.ref-head{display:grid;gap:8px 24px;padding:12px 0 10px;border-bottom:1px solid var(--line);font-size:.82rem;font-weight:600;letter-spacing:normal;color:var(--faint)}
+.ref-row{display:grid;gap:6px 24px;padding:16px 0;border-bottom:1px solid var(--line)}
+.ref-2 .ref-head,.ref-2 .ref-row{grid-template-columns:minmax(0,190px) minmax(0,1fr)}
+.ref-3 .ref-head,.ref-3 .ref-row{grid-template-columns:minmax(0,160px) minmax(0,1fr) minmax(0,1fr)}
+.ref dt{font-weight:600;color:var(--ink);font-size:.98rem}
+.ref dt code{font-weight:600}
+.ref dd{color:var(--ink-soft);font-size:.96rem}
+.ref .rr-l{display:none}
+.map{list-style:none;padding:0;display:grid;gap:6px}
+.ref-wide .ref-head,.ref-wide .ref-row{grid-template-columns:minmax(0,210px) minmax(0,1fr)}
+
+/* ---------- Codes de retour (le détail fort) ---------- */
+.f-ok{--fam:var(--ok);--fam-bg:var(--ok-bg)}
+.f-fix{--fam:var(--bad);--fam-bg:#fde8e5}
+.f-lim{--fam:var(--warn);--fam-bg:var(--warn-bg)}
+.f-srv{--fam:var(--accent);--fam-bg:var(--accent-wash)}
+.codemap{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:28px}
+.cm{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm);border-top:3px solid var(--fam)}
+.cm-h{font-size:.92rem;font-weight:600;line-height:1.5;color:var(--ink)}
+.cm-codes{display:flex;flex-wrap:wrap;gap:6px}
+.cm-codes a{display:inline-grid;place-items:center;min-width:52px;min-height:44px;padding:0 10px;border-radius:9px;font:700 1.05rem/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fam);background:var(--fam-bg);text-decoration:none;transition:box-shadow .25s var(--expo)}
+.cm-codes a:hover{box-shadow:inset 0 0 0 2px var(--fam)}
+.cm-d{font-size:.86rem;line-height:1.65;color:var(--muted)}
+.codes-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.55fr) 184px;gap:24px;margin-top:32px;padding-block:0 10px;padding-inline:23px 20px;font-size:.82rem;font-weight:600;letter-spacing:normal;color:var(--faint)}
+.codes{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+.code-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.55fr) 184px;gap:12px 24px;align-items:start;padding-block:18px;padding-inline:23px 20px;border-radius:14px;background:#fff;box-shadow:inset -3px 0 var(--fam),inset 0 0 0 1px var(--line),var(--sh-sm)}
+.code-row:target{box-shadow:inset -3px 0 var(--fam),inset 0 0 0 2px var(--fam),var(--sh-md)}
+.cr-id h3{display:flex;align-items:flex-start;gap:14px;font-size:1.02rem;line-height:1.55}
+.sc{flex:none;display:inline-grid;place-items:center;min-width:64px;padding:8px 0;border-radius:9px;font:700 1.32rem/1 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:var(--fam);background:var(--fam-bg)}
+.cr-t{padding-top:3px}
+.cr-fam{margin-top:10px;margin-inline-start:78px;font-size:.8rem;font-weight:600;color:var(--fam)}
+.cr-do{color:var(--ink-soft);font-size:.96rem}
+.cr-do p + p{margin-top:8px}
+.cr-do strong{color:var(--ink)}
+.rt{position:relative;display:inline-block;padding-block:6px;padding-inline:26px 10px;border-radius:8px;font-size:.84rem;font-weight:600;line-height:1.5;color:var(--fam);background:var(--fam-bg)}
+.rt::before{content:"";position:absolute;inset-inline-start:10px;top:calc(6px + .75em - 4px);width:8px;height:8px;border-radius:50%;background:currentColor}
+.rt-no::before{border-radius:2px;width:9px;height:2.5px;top:calc(6px + .75em - 1px)}
+.rt-none{color:var(--muted);background:var(--soft)}
+.rt code{padding:0!important;background:none!important;box-shadow:none!important;color:inherit;font-size:.95em!important;overflow-wrap:normal!important}
+.split{grid-column:2/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:-2px}
+.split div{padding:12px 14px;border-radius:10px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);font-size:.88rem;line-height:1.65}
+.split .sb{display:block;width:fit-content;max-width:100%;margin-bottom:6px;padding:0!important;background:none!important;box-shadow:none!important;font-size:.82rem!important;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.never{display:inline-block;margin-top:8px;padding:3px 8px;border-radius:6px;font-size:.84rem;font-weight:600;color:var(--accent);background:var(--accent-wash)}
+
+/* Agents */
+.flow{list-style:none;padding:0;margin-top:24px;display:grid;gap:0;max-width:72ch}
+.flow li{position:relative;padding-block:0 22px;padding-inline:44px 0;color:var(--ink-soft)}
+.flow li::before{content:"";position:absolute;inset-inline-start:13px;top:30px;bottom:2px;width:2px;background:linear-gradient(180deg,var(--aqua),var(--cobalt));border-radius:2px;opacity:.5}
+.flow li:last-child::before{display:none}
+.flow b{position:absolute;inset-inline-start:0;top:2px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:700 .8rem/1 var(--mono);color:#fff;background:var(--navy)}
+.flow strong{color:var(--ink)}
+.res{list-style:none;padding:0;margin-top:22px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.res a{display:flex;flex-direction:column;gap:4px;min-height:44px;height:100%;padding:14px 16px;border-radius:12px;background:#fff;box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm);text-decoration:none;color:var(--muted)!important;font-size:.9rem;line-height:1.6;transition:box-shadow .3s var(--expo)}
+.res a:hover{box-shadow:inset 0 0 0 1px var(--accent),var(--sh-md)}
+.res .rp{font:700 .95rem/1.2 var(--mono);color:var(--accent)}
+
+
+/* Fin de page */
+.next{margin-top:clamp(56px,6vw,80px);padding:clamp(24px,3vw,36px);border-radius:20px;background:linear-gradient(200deg,#fff7ec 0%,#fff 46%,#eefbf8 100%);box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm)}
+.next h2{margin-top:0;font-size:clamp(1.5rem,1.2rem + 1vw,1.9rem)}
+.next > p{margin-top:10px;color:var(--muted);max-width:52ch}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
+
+/* Pied de page */
+.foot{padding:56px 0 48px;border-top:1px solid var(--line)}
+.foot-grid{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(0,1fr));gap:36px}
+.foot-brand p{margin-top:14px;color:var(--muted);font-size:.95rem;max-width:30em}
+.foot-brand a.mail{display:inline-flex;align-items:center;min-height:44px;color:var(--accent);font-weight:600;text-decoration:none}
+.foot-brand a.mail:hover{text-decoration:underline}
+.foot-h{font-size:.85rem;font-weight:600;color:var(--ink)}
+.foot ul{list-style:none;padding:0;margin:8px 0 0}
+.foot li a{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);text-decoration:none;font-size:.95rem}
+.foot li a:hover{color:var(--ink)}
+.legal{margin-top:40px;padding-top:22px;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted)}
+
+/* ---------- Survol ---------- */
+@media (hover:hover){
+  .btn:hover{translate:0 -1px}
+  .btn{transition:background-color .2s ease,box-shadow .35s var(--expo),translate .35s var(--expo)}
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1060px){
+  .nav a{padding:0 9px;font-size:.92rem}
+  .codes-head,.code-row{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)}
+  .codes-head span:last-child{display:none}
+  .cr-retry{grid-column:2}
+  .split{grid-column:2}
+  .codemap{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:960px){
+  .nav{display:none}
+  .bar{gap:12px}
+  .menu{display:block;margin-inline-start:0}
+  .lang{margin-inline-start:auto}
+  .band{clip-path:polygon(0 0,100% 0,100% 100%,0 calc(100% - 12vw))}
+  .band::after{background:linear-gradient(180deg,rgba(255,255,255,.8) 0%,rgba(255,255,255,.66) 60%,rgba(255,255,255,.3) 100%)}
+  .doc{grid-template-columns:minmax(0,1fr);gap:8px}
+  .toc{position:static;max-height:none;overflow:visible;padding:18px 18px 10px;border-radius:16px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line)}
+  .toc > ol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;border-inline-start:0}
+  .toc li a{padding-inline-start:0;margin-inline-start:0;border-inline-start:0;min-height:44px}
+  .toc .toc-codes a{min-height:44px;min-width:46px}
+  .toc .toc-sub{display:none}
+  .toc-codes{grid-column:1/-1;padding-inline-start:0}
+  .toc-li-codes{grid-column:1/-1}
+  .foot-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .foot-brand{grid-column:1/-1}
+}
+@media (max-width:720px){
+  .auth,.res{grid-template-columns:minmax(0,1fr)}
+  .codes-head{display:none}
+  .codes{margin-top:20px}
+  .code-row{grid-template-columns:minmax(0,1fr);padding-block:16px;padding-inline:19px 16px}
+  .cr-retry,.split{grid-column:auto}
+  .cr-fam{margin-inline-start:0;margin-top:8px}
+  .ref-head{display:none}
+  .ref-2 .ref-row,.ref-3 .ref-row,.ref-wide .ref-row{grid-template-columns:minmax(0,1fr)}
+  .ref .rr-l{display:block;margin-top:4px;font-size:.8rem;font-weight:600;letter-spacing:normal;color:var(--faint)}
+}
+@media (max-width:640px){
+  .bar > .btn{display:none}
+}
+@media (max-width:560px){
+  .split{grid-template-columns:minmax(0,1fr)}
+  .cb pre{font-size:12.5px;padding:14px 16px 16px}
+  .cta .btn{flex:1 1 100%}
+  .door{padding:20px}
+}
+@media (max-width:480px){
+  .menu summary{width:44px;padding:0;justify-content:center}
+  .menu-t{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .codemap{gap:8px}
+  .cm{padding:14px 12px}
+  .cm-codes{gap:5px}
+  .cm-codes a{min-width:44px;padding:0 6px;font-size:.95rem}
+}
+@media (pointer:coarse){
+  .toc li a{min-height:44px}
+  .toc .toc-codes a{min-height:44px;min-width:46px}
+}
+@media (max-width:370px){
+  .lang summary svg{display:none}
+}
+
+/* ---------- Mouvement (seulement si l'utilisateur l'accepte) ---------- */
+@keyframes rise{from{opacity:0;transform:translateY(20px)}}
+@keyframes d2{50%{transform:translate(7vw,-3vw) scale(.9)}100%{transform:translate(-4vw,-6vw) scale(1.1)}}
+@keyframes d4{50%{transform:translate(8vw,3vw) scale(1.08)}100%{transform:translate(2vw,-4vw) scale(.92)}}
+@media (prefers-reduced-motion:no-preference){
+  html{scroll-behavior:smooth}
+  .b2{animation:d2 22s ease-in-out infinite alternate}
+  .b4{animation:d4 28s ease-in-out infinite alternate}
+  .b5{animation:d2 30s ease-in-out -8s infinite alternate}
+  .bar{animation:rise .9s var(--expo) both}
+  .in{animation:rise 1.1s var(--expo) both;animation-delay:calc(var(--i,0)*90ms + 60ms)}
+  @supports (animation-timeline:view()){
+    .reveal{animation:rise both var(--expo);animation-timeline:view();animation-range:entry 5% cover 22%}
+    .code-row,.cm{animation:rise both var(--expo);animation-timeline:view();animation-range:entry 0% cover 18%}
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">الانتقال إلى المحتوى</a>
+
+<header class="top">
+  <div class="wrap bar">
+    <a class="brand" href="{{url_accueil}}" dir="ltr" aria-label="Address Validator، الصفحة الرئيسية">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>
+      Address Validator
+    </a>
+    <nav class="nav" aria-label="التنقل الرئيسي">
+      <a href="{{url_pricing}}">الأسعار</a>
+      <a href="{{url_guide}}" aria-current="page">الدليل</a>
+      <a href="{{url_validate_form}}">اختبر عنوانًا</a>
+      <a href="{{url_compte}}">حساب العميل</a>
+    </nav>
+    <details class="lang" name="entete">
+      <summary><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6.3"/><path d="M1.7 8h12.6M8 1.7c1.9 2 2.8 4.1 2.8 6.3S9.9 12.3 8 14.3C6.1 12.3 5.2 10.2 5.2 8S6.1 3.7 8 1.7z"/></svg><span class="sr">اللغة: العربية</span><span aria-hidden="true">ع</span></summary>
+      <ul class="lang-panel">
+        <li><a href="{{lien_fr}}" hreflang="fr" lang="fr">Français</a></li>
+        <li><a href="{{lien_en}}" hreflang="en" lang="en">English</a></li>
+        <li><a href="{{lien_zh}}" hreflang="zh" lang="zh">中文</a></li>
+        <li><a href="{{lien_hi}}" hreflang="hi" lang="hi">हिन्दी</a></li>
+        <li><a href="{{lien_es}}" hreflang="es" lang="es">Español</a></li>
+        <li><a href="{{lien_ar}}" hreflang="ar" lang="ar" aria-current="page">العربية</a></li>
+      </ul>
+    </details>
+    <a class="btn btn-ink btn-sm" href="{{url_signup}}">أنشئ حسابًا <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+    <details class="menu" name="entete">
+      <summary><i aria-hidden="true"></i><span class="menu-t">القائمة</span></summary>
+      <nav class="menu-panel" aria-label="التنقل على الجوال">
+        <a href="{{url_pricing}}">الأسعار</a>
+        <a href="{{url_guide}}" aria-current="page">الدليل</a>
+        <a href="{{url_validate_form}}">اختبر عنوانًا</a>
+        <a href="{{url_compte}}">حساب العميل</a>
+        <a class="btn btn-ink" href="{{url_signup}}">أنشئ حسابًا</a>
+      </nav>
+    </details>
+  </div>
+</header>
+
+<main id="contenu">
+
+<section class="phead" aria-labelledby="titre">
+  <div class="band" aria-hidden="true"><i class="b4"></i><i class="b2"></i><i class="b5"></i></div>
+  <div class="guides" aria-hidden="true"></div>
+  <div class="wrap phead-in">
+    <p class="pill in" style="--i:0"><b>التوثيق</b>دمج واجهة API لخدمة Address Validator</p>
+    <h1 id="titre" class="in" style="--i:1">دليل التكامل</h1>
+    <p class="lead in" style="--i:2">من مفتاح API إلى بيئة الإنتاج: المصادقة، وعقد الواجهة، ورموز الاستجابة، وذاكرة التخزين المؤقت والحصص. ثم أربع حالات عملية: الاستدعاء المباشر، واستيراد CSV، وShopify، وWooCommerce.</p>
+    <ul class="quick in" style="--i:3" aria-label="الأساسيات">
+      <li dir="ltr"><span class="verb">POST</span>/validate</li>
+      <li dir="ltr">X-API-Key</li>
+      <li dir="ltr">X-PAYMENT · {{prix_x402}} USDC</li>
+      <li dir="ltr">application/json</li>
+    </ul>
+  </div>
+</section>
+
+<div class="wrap doc">
+
+  <nav class="toc" aria-label="في هذه الصفحة">
+    <p class="toc-h">في هذه الصفحة</p>
+    <ol>
+      <li><a href="#en-une-minute">في دقيقة واحدة</a></li>
+      <li><a href="#authentification">المصادقة</a></li>
+      <li><a href="#contrat">عقد الواجهة</a></li>
+      <li class="toc-sub"><a href="#requete">الطلب</a></li>
+      <li class="toc-sub"><a href="#reponse">الرد والحقول</a></li>
+      <li class="toc-sub"><a href="#en-tetes">ترويسات الرد</a></li>
+      <li class="toc-li-codes"><a href="#codes">رموز الاستجابة</a>
+        <ul class="toc-codes" aria-label="انتقل إلى رمز">
+          <li><a class="f-ok" href="#code-200">200</a></li>
+          <li><a class="f-fix" href="#code-401">401</a></li>
+          <li><a class="f-lim" href="#code-402">402</a></li>
+          <li><a class="f-fix" href="#code-403">403</a></li>
+          <li><a class="f-fix" href="#code-422">422</a></li>
+          <li><a class="f-lim" href="#code-429">429</a></li>
+          <li><a class="f-srv" href="#code-500">500</a></li>
+          <li><a class="f-srv" href="#code-503">503</a></li>
+        </ul>
+      </li>
+      <li><a href="#cache-et-quotas">التخزين المؤقت والحصص</a></li>
+      <li><a href="#cas-pratiques">حالات عملية</a></li>
+      <li class="toc-sub"><a href="#appel-direct">الاستدعاء المباشر</a></li>
+      <li class="toc-sub"><a href="#import-csv">استيراد CSV</a></li>
+      <li class="toc-sub"><a href="#shopify">Shopify</a></li>
+      <li class="toc-sub"><a href="#woocommerce">WooCommerce</a></li>
+      <li><a href="#agents">الدفع لكل استدعاء</a></li>
+      <li><a href="#limites">الحدود</a></li>
+    </ol>
+  </nav>
+
+  <div class="content">
+
+    <!-- 1. En une minute -->
+    <section class="dsec" id="en-une-minute" aria-labelledby="h-minute">
+      <p class="eyebrow">البداية</p>
+      <h2 id="h-minute">في دقيقة واحدة</h2>
+      <ol class="steps">
+        <li><strong>احصل على مفتاح.</strong> <a href="{{url_signup}}">أنشئ حسابًا</a>: {{jours_essai}} يومًا و{{validations_essai}} عملية تحقق مجانًا، دون بطاقة بنكية. يظهر المفتاح (<code dir="ltr">sk_live_…</code>) <strong>مرة واحدة فقط</strong>. بعد ذلك، يمكن إعادة إنشائه من <a href="{{url_compte}}">حساب العميل</a>.</li>
+        <li><strong>استدعِ <code dir="ltr">POST /validate</code></strong> مع المفتاح في الترويسة <code dir="ltr" class="nw">X-API-Key</code>.</li>
+        <li><strong>اقرأ النتيجة</strong>: العنوان بصيغة موحّدة، وقابلية التسليم، والإحداثيات، والقيمة <code dir="ltr">cache_key</code>.</li>
+      </ol>
+      <figure class="cb" dir="ltr">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="verb">POST</span><span class="cb-path">/validate</span><span class="cb-lang">curl</span></figcaption>
+        <pre tabindex="0"><code dir="ltr"><span class="v">curl</span> -sS {{base}}/validate \
+  -H <span class="s">"X-API-Key: sk_live_<bdi class="ar">مفتاحك</bdi>"</span> \
+  -H <span class="s">"content-type: application/json"</span> \
+  -d <span class="s">'{"address": {"street": "1 Rue de Paris", "city": "Saint-Denis", "state": "RE", "zip": "97400", "country": "RE"}}'</span></code></pre>
+      </figure>
+      <p class="cb-note">في كل الأمثلة، استبدل <code dir="ltr">sk_live_<bdi class="ar">مفتاحك</bdi></code> بمفتاحك.</p>
+      <p>ليس لديك حساب بعد؟ <a href="{{url_validate_form}}">اختبر عنوانًا مجانًا</a>: الصفحة لا تحفظ شيئًا، وتعرض لك بالضبط ما تعيده واجهة API.</p>
+    </section>
+
+    <!-- 2. S'authentifier -->
+    <section class="dsec" id="authentification" aria-labelledby="h-auth">
+      <p class="eyebrow">الوصول</p>
+      <h2 id="h-auth">المصادقة</h2>
+      <p>مدخلان، ورد واحد. لا يتغير إلا الترويسة المرسلة وطريقة الدفع.</p>
+      <div class="auth">
+        <article class="door">
+          <p class="kicker">اشتراك</p>
+          <h3>متجر</h3>
+          <dl>
+            <div><dt>ما ترسله</dt><dd><code dir="ltr" class="nw">X-API-Key: sk_live_…</code>، وهو المفتاح الذي ظهر عند التسجيل، أو الذي أُعيد إنشاؤه في حساب العميل.</dd></div>
+            <div><dt>ما تدفعه</dt><dd>الحصة الشهرية لباقتك. <strong>لا شيء</strong> يُحصَّل عند الاستدعاء.</dd></div>
+          </dl>
+        </article>
+        <article class="door door-dev dark">
+          <p class="kicker">الدفع لكل استدعاء · x402</p>
+          <h3>وكيل مستقل</h3>
+          <dl>
+            <div><dt>ما ترسله</dt><dd><code dir="ltr" class="nw">X-PAYMENT</code>: تفويض EIP-3009 موقَّع، يُبنى من متن الرد <code dir="ltr">402</code> (الحقل <code dir="ltr">accepts</code>).</dd></div>
+            <div><dt>ما تدفعه</dt><dd><strong class="lat" dir="ltr">{{prix_x402}}&nbsp;USDC</strong> لكل عملية تحقق محصَّلة.</dd></div>
+          </dl>
+        </article>
+      </div>
+      <div class="note"><strong>الأولوية للمفتاح.</strong> إذا أُرسلت الترويستان معًا، يحسم الاشتراك الأمر: الاستدعاء المشمول بحساب <strong>لا يُحصَّل أبدًا</strong> بعملة USDC. وكل رد يذكر طريقة دفعه في <code dir="ltr" class="nw">X-Payment-Mode</code>.</div>
+      <p>لا تضع المفتاح أبدًا في مستودع git أو في ملف مشترك أو في عنوان URL. مكانه متغير بيئة أو مدير أسرار، ولا ينتقل إلا عبر <code dir="ltr">https</code>. المفتاح المسرَّب يُعاد إنشاؤه بنقرة: يتوقف القديم عن العمل فورًا.</p>
+    </section>
+
+    <!-- 3. Le contrat -->
+    <section class="dsec" id="contrat" aria-labelledby="h-contrat">
+      <p class="eyebrow">مرجع</p>
+      <h2 id="h-contrat">عقد الواجهة</h2>
+      <h3 class="sub" id="requete">الطلب</h3>
+      <p><code dir="ltr">POST {{base}}/validate</code>، متن بصيغة JSON، والترويسة <code dir="ltr" class="nw">content-type: application/json</code>.</p>
+      <figure class="cb" dir="ltr">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="cb-path cb-t" dir="rtl">متن الطلب</span><span class="cb-lang">JSON</span></figcaption>
+        <pre tabindex="0"><code dir="ltr">{<span class="k">"address"</span>: {
+   <span class="k">"street"</span>: <span class="s">"1 Rue de Paris"</span>,   <span class="c">// <bdi class="ar">إلزامي</bdi></span>
+   <span class="k">"city"</span>: <span class="s">"Saint-Denis"</span>,        <span class="c">// <bdi class="ar">إلزامي</bdi></span>
+   <span class="k">"state"</span>: <span class="s">"RE"</span>,                <span class="c">// <span class="ar" dir="rtl">إلزامي (المنطقة أو الولاية)</span></span>
+   <span class="k">"zip"</span>: <span class="s">"97400"</span>,               <span class="c">// <bdi class="ar">إلزامي</bdi></span>
+   <span class="k">"country"</span>: <span class="s">"RE"</span>               <span class="c">// <span class="ar" dir="rtl">اختياري، والقيمة الافتراضية <bdi dir="ltr">"US"</bdi> (رمز ISO من حرفين)</span></span>
+}}</code></pre>
+      </figure>
+
+      <h3 class="sub" id="reponse">الرد <code dir="ltr">200</code></h3>
+      <figure class="cb" dir="ltr">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="cb-path">200 OK</span><span class="cb-lang">JSON</span></figcaption>
+        <pre tabindex="0"><code dir="ltr">{
+  <span class="k">"result"</span>: {
+    <span class="k">"validated"</span>: <span class="v">true</span>,
+    <span class="k">"standardized"</span>: {<span class="k">"line1"</span>: <span class="s">"1 RUE DE PARIS"</span>, <span class="k">"line2"</span>: <span class="s">""</span>, <span class="k">"city"</span>: <span class="s">"SAINT-DENIS"</span>,
+                     <span class="k">"state"</span>: <span class="s">"RE"</span>, <span class="k">"zip"</span>: <span class="s">"97400"</span>, <span class="k">"country"</span>: <span class="s">"RE"</span>},
+    <span class="k">"latitude"</span>: <span class="n">-20.8823</span>, <span class="k">"longitude"</span>: <span class="n">55.4504</span>,
+    <span class="k">"deliverability"</span>: <span class="s">"residential"</span>,
+    <span class="k">"confidence"</span>: <span class="n">0.99</span>,
+    <span class="k">"degraded"</span>: <span class="v">false</span>,
+    <span class="k">"cache_key"</span>: <span class="s">"9b7a..."</span>
+  },
+  <span class="k">"price_paid"</span>: <span class="n">0.0</span>,
+  <span class="k">"transaction_id"</span>: <span class="v">null</span>
+}</code></pre>
+      </figure>
+      <dl class="ref ref-2">
+        <div class="ref-head" aria-hidden="true"><span>الحقل</span><span>ما يعنيه</span></div>
+        <div class="ref-row"><dt><code dir="ltr">validated</code></dt><dd>تعرّف المزوّد على العنوان. <strong>القيمة <code dir="ltr">false</code> ليست حكمًا في كل الأحوال</strong>: اقرأ <code dir="ltr">degraded</code> قبل أن تستنتج شيئًا.</dd></div>
+        <div class="ref-row"><dt><code dir="ltr">deliverability</code></dt><dd><code dir="ltr">residential</code> أو <code dir="ltr">commercial</code> أو <code dir="ltr">unknown</code> أو <code dir="ltr">invalid</code>: رمز المزوّد، مترجمًا بلغة واضحة.</dd></div>
+        <div class="ref-row"><dt><code dir="ltr">confidence</code></dt><dd>مؤشر بين 0 و1: <strong>مؤشر، لا ضمان</strong>. اختر عتبتك حسب نسبة المرتجعات التي تقبلها.</dd></div>
+        <div class="ref-row"><dt><code dir="ltr">degraded</code></dt><dd><code dir="ltr">true</code>: لم يستجب المزوّد (عطل، أو تجاوز المهلة، أو قاطع دائرة مفتوح). الرد <strong>لا يقول شيئًا</strong> عن العنوان. لا تسجّله أبدًا على أنه «عنوان غير صالح».</dd></div>
+        <div class="ref-row"><dt><code dir="ltr">price_paid</code></dt><dd><code dir="ltr">0.0</code> لاستدعاء مشمول باشتراك؛ والسعر بعملة USDC لاستدعاء مدفوع.</dd></div>
+        <div class="ref-row"><dt><code dir="ltr">cache_key</code></dt><dd>اسم مستعار للعنوان (SHA-256). يُستخدم لذاكرة التخزين المؤقت ولأي طلب حذف. احتفظ به: لا يحتوي على العنوان.</dd></div>
+      </dl>
+
+      <h3 class="sub" id="en-tetes">ترويسات الرد</h3>
+      <p>هذه هي الترويسات التي يضعها المسار فعلًا. لا نعِد بغيرها.</p>
+      <dl class="ref ref-2">
+        <div class="ref-head" aria-hidden="true"><span>الترويسة</span><span>المحتوى</span></div>
+        <div class="ref-row"><dt><code dir="ltr" class="nw">X-Payment-Mode</code></dt><dd><code dir="ltr">api_key</code> أو <code dir="ltr">x402</code>: طريقة دفع الاستدعاء.</dd></div>
+        <div class="ref-row"><dt><code dir="ltr" class="nw">X-Plan</code></dt><dd><code dir="ltr">trial</code> أو <code dir="ltr">starter</code> أو <code dir="ltr">pro</code> أو <code dir="ltr">enterprise</code>. في وضع المفتاح فقط.</dd></div>
+        <div class="ref-row"><dt><code dir="ltr" class="nw">X-Quota-Remaining</code></dt><dd>عمليات التحقق المتبقية <strong>هذا الشهر</strong>. إذا غابت فالباقة غير محدودة: غيابها يعني «دون سقف».</dd></div>
+      </dl>
+    </section>
+
+    <!-- 4. Codes de retour (détail fort) -->
+    <section class="dsec" id="codes" aria-labelledby="h-codes">
+      <p class="eyebrow">مرجع</p>
+      <h2 id="h-codes">رموز الاستجابة، وما يجب فعله</h2>
+      <p>ثمانية رموز ممكنة على <code dir="ltr">/validate</code>. حالات الرفض الثلاث في وضع المفتاح (401 و402 و403) منفصلة عن قصد: عالج كل واحدة منها بطريقتها.</p>
+
+      <div class="codemap">
+        <div class="cm f-ok">
+          <p class="cm-h">تمّ التنفيذ</p>
+          <p class="cm-codes"><a class="cmc" href="#code-200" aria-label="الرمز 200">200</a></p>
+          <p class="cm-d">اقرأ النتيجة.</p>
+        </div>
+        <div class="cm f-fix">
+          <p class="cm-h">يُصحَّح من جهتك</p>
+          <p class="cm-codes"><a class="cmc" href="#code-401" aria-label="الرمز 401">401</a><a class="cmc" href="#code-403" aria-label="الرمز 403">403</a><a class="cmc" href="#code-422" aria-label="الرمز 422">422</a></p>
+          <p class="cm-d">إعادة المحاولة دون تغيير شيء لا تفيد.</p>
+        </div>
+        <div class="cm f-lim">
+          <p class="cm-h">حدّ أو دفع</p>
+          <p class="cm-codes"><a class="cmc" href="#code-402" aria-label="الرمز 402">402</a><a class="cmc" href="#code-429" aria-label="الرمز 429">429</a></p>
+          <p class="cm-d">ليس عطلًا: المتن أو <code dir="ltr" class="nw">Retry-After</code> يقول ما يجب فعله.</p>
+        </div>
+        <div class="cm f-srv">
+          <p class="cm-h">عطل من جهة الخدمة</p>
+          <p class="cm-codes"><a class="cmc" href="#code-500" aria-label="الرمز 500">500</a><a class="cmc" href="#code-503" aria-label="الرمز 503">503</a></p>
+          <p class="cm-d">أعد المحاولة. ليس طلب دفع أبدًا.</p>
+        </div>
+      </div>
+
+      <div class="codes-head" aria-hidden="true"><span>الرمز والحالة</span><span>ما تفعله</span><span>إعادة المحاولة؟</span></div>
+      <ol class="codes">
+        <li class="code-row f-ok" id="code-200">
+          <div class="cr-id"><h3><span class="sc">200</span><span class="cr-t">تمّت عملية التحقق</span></h3><p class="cr-fam">نجاح</p></div>
+          <div class="cr-do"><p>اقرأ <code dir="ltr">result</code>. احتفظ بالقيمة <code dir="ltr">cache_key</code>: إنها الاسم المستعار لهذا العنوان، وتُستخدم لطلب الحذف.</p></div>
+          <p class="cr-retry"><span class="rt rt-none">لا حاجة إلى إعادة المحاولة</span></p>
+        </li>
+        <li class="code-row f-fix" id="code-401">
+          <div class="cr-id"><h3><span class="sc">401</span><span class="cr-t">مفتاح API غير معروف</span></h3><p class="cr-fam">يُصحَّح من جهتك</p></div>
+          <div class="cr-do"><p>المفتاح ناقص، أو ملغى (أُعيد إنشاؤه)، أو مخصص لخدمة أخرى. صحّح متغير البيئة. <strong>لا تُعِد المحاولة في حلقة.</strong></p></div>
+          <p class="cr-retry"><span class="rt rt-no">لا: صحّح المفتاح</span></p>
+        </li>
+        <li class="code-row f-lim" id="code-402">
+          <div class="cr-id"><h3><span class="sc">402</span><span class="cr-t">استُهلكت حصة الشهر، أو لا يوجد دفع صالح</span></h3><p class="cr-fam">حدّ أو دفع</p></div>
+          <div class="cr-do"><p>اقرأ متن الرد: يحدد أيّ الحالتين تنطبق. الرمز 402 الخاص بالحصة ليس عطلًا.</p></div>
+          <p class="cr-retry"><span class="rt">حسب المتن</span></p>
+          <div class="split">
+            <div><code dir="ltr" class="sb">{"reason": "quota_atteint"}</code>بلغت سقف الاستخدام. <strong>هذا ليس عطلًا.</strong> يبدأ العدّاد من جديد في اليوم الأول من الشهر (UTC).</div>
+            <div><code dir="ltr" class="sb">{"x402Version": {{x402_version}}}</code>الدفع مفقود لهذا الاستدعاء. السعر موجود في الحقل <code dir="ltr">accepts</code>.</div>
+          </div>
+        </li>
+        <li class="code-row f-fix" id="code-403">
+          <div class="cr-id"><h3><span class="sc">403</span><span class="cr-t">حساب منتهي الصلاحية</span></h3><p class="cr-fam">يُصحَّح من جهتك</p></div>
+          <div class="cr-do"><p>انتهت التجربة المجانية وبقي الحساب على باقة التجربة. انتقل إلى <a href="{{url_pricing}}">باقة مدفوعة</a>: لا يُخصم أي مبلغ تلقائيًا.</p></div>
+          <p class="cr-retry"><span class="rt rt-no">لا: غيّر الباقة</span></p>
+        </li>
+        <li class="code-row f-fix" id="code-422">
+          <div class="cr-id"><h3><span class="sc">422</span><span class="cr-t">طلب غير سليم الصياغة</span></h3><p class="cr-fam">يُصحَّح من جهتك</p></div>
+          <div class="cr-do"><p>حقل مفقود أو فارغ. الحقول <code dir="ltr">street</code> و<code dir="ltr">city</code> و<code dir="ltr">state</code> و<code dir="ltr">zip</code> إلزامية؛ والقيمة الافتراضية للحقل <code dir="ltr">country</code> هي <code dir="ltr">US</code>.</p></div>
+          <p class="cr-retry"><span class="rt rt-no">بعد التصحيح</span></p>
+        </li>
+        <li class="code-row f-lim" id="code-429">
+          <div class="cr-id"><h3><span class="sc">429</span><span class="cr-t">بلغت الحد الأقصى للتجارب المجانية</span></h3><p class="cr-fam">حدّ</p></div>
+          <div class="cr-do"><p>يخص <code dir="ltr" class="nw">/validate-form</code>، أي التجربة دون حساب، لا الواجهة المدفوعة. انتظر المهلة المعلنة في <code dir="ltr" class="nw">Retry-After</code>، أو <a href="{{url_signup}}">أنشئ حسابًا</a>.</p></div>
+          <p class="cr-retry"><span class="rt">بعد <code dir="ltr" class="nw">Retry-After</code></span></p>
+        </li>
+        <li class="code-row f-srv" id="code-500">
+          <div class="cr-id"><h3><span class="sc">500</span><span class="cr-t">حُصِّل الدفع، لكن تعذّر الوصول إلى السجل</span></h3><p class="cr-fam">عطل من جهة الخدمة</p></div>
+          <div class="cr-do"><p><strong>ترفض</strong> الخدمة تقديم عملية تحقق لا تستطيع تسجيلها. أعد المحاولة. إن كان الاستدعاء مدفوعًا، فاذكر <code dir="ltr">transaction_id</code>: تتم المطابقة يدويًا.</p></div>
+          <p class="cr-retry"><span class="rt">نعم، مع حفظ <code dir="ltr">transaction_id</code></span></p>
+        </li>
+        <li class="code-row f-srv" id="code-503">
+          <div class="cr-id"><h3><span class="sc">503</span><span class="cr-t">تعذّر الوصول إلى حسابات العملاء أو قاعدة البيانات</span></h3><p class="cr-fam">عطل من جهة الخدمة</p></div>
+          <div class="cr-do"><p>تعذّر التحقق من المفتاح (وهذا <strong>ليس</strong> رفضًا)، أو أن قاعدة البيانات لا تستجيب. أعد المحاولة بعد بضع دقائق: لم يُستهلك شيء.</p><p class="never">الرمز 503 ليس طلب دفع أبدًا.</p></div>
+          <p class="cr-retry"><span class="rt">نعم، بعد بضع دقائق</span></p>
+        </li>
+      </ol>
+    </section>
+
+    <!-- 5. Cache et quotas -->
+    <section class="dsec" id="cache-et-quotas" aria-labelledby="h-cache">
+      <p class="eyebrow">الفوترة</p>
+      <h2 id="h-cache">ما لا تدفعه مرتين، وما له سقف</h2>
+      <dl class="ref ref-3">
+        <div class="ref-head" aria-hidden="true"><span>الموضوع</span><span>ما يحدث</span><span>ما تفعله</span></div>
+        <div class="ref-row"><dt>التخزين المؤقت (حكم)</dt><dd>العنوان الموحَّد نفسه لا يُعاد الاستعلام عنه لدى المزوّد طوال <strong>{{cache_jours}} يومًا</strong>. يضمن ذلك <code dir="ltr">cache_key</code>.</dd><dd><span class="rr-l">ما تفعله</span>استدعِ دون خوف من دفع ثمن السؤال نفسه مرتين. لفرض استدعاء جديد، غيّر العنوان: الواجهة لا تخمّن.</dd></div>
+        <div class="ref-row"><dt>التخزين المؤقت (منقوص)</dt><dd>النتيجة <code dir="ltr">degraded</code> تُحفظ <strong>{{cache_minutes}} دقائق</strong>، لا {{cache_jours}} يومًا: «لم يستجب المزوّد» ليس حكمًا.</dd><dd><span class="rr-l">ما تفعله</span>تعامل مع <code dir="ltr">degraded: true</code> على أنها «أعد المحاولة لاحقًا». بعد هذه النافذة القصيرة، يحصل الاستدعاء نفسه على رد حقيقي.</dd></div>
+        <div class="ref-row"><dt>الحصة</dt><dd><strong>شهرية</strong>، على الشهر التقويمي بتوقيت <strong>UTC</strong>: تبدأ من جديد في اليوم الأول من الشهر، لا بعد 30 يومًا من أول استدعاء لك.</dd><dd><span class="rr-l">ما تفعله</span>راقب <code dir="ltr" class="nw">X-Quota-Remaining</code>. راسلنا قبل بلوغ الحد لا بعده.</dd></div>
+        <div class="ref-row"><dt>السعر لكل استدعاء</dt><dd><strong class="lat" dir="ltr">{{prix_x402}}&nbsp;USDC</strong> لكل عملية تحقق محصَّلة (وضع x402). والاستدعاء المشمول باشتراك يعرض <code dir="ltr">price_paid: 0.0</code>.</dd><dd><span class="rr-l">ما تفعله</span>الوكيل الذي يدفع يقرأ متن <code dir="ltr">402</code> (<code dir="ltr">accepts</code>): السعر مذكور فيه، ولا حاجة إلى تخمينه أبدًا.</dd></div>
+        <div class="ref-row"><dt>التجربة دون حساب</dt><dd><strong>{{essai_sans_compte}} عمليات تحقق يوميًا لكل زائر</strong> على <code dir="ltr" class="nw">/validate-form</code>.</dd><dd><span class="rr-l">ما تفعله</span>للاستخدام المنتظم، أنشئ حسابًا: {{validations_essai}} عملية تحقق مجانية، ثم باقة شهرية.</dd></div>
+      </dl>
+    </section>
+
+    <!-- 6. Cas pratiques -->
+    <section class="dsec" id="cas-pratiques" aria-labelledby="h-cas">
+      <p class="eyebrow">أمثلة</p>
+      <h2 id="h-cas">حالات عملية</h2>
+      <p>أربع طرق لربط الواجهة. كل مثال يقرأ المفتاح من متغير بيئة.</p>
+
+      <h3 class="sub" id="appel-direct">1. الاستدعاء المباشر (PowerShell)</h3>
+      <figure class="cb" dir="ltr">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="verb">POST</span><span class="cb-path">/validate</span><span class="cb-lang">PowerShell</span></figcaption>
+        <pre tabindex="0"><code dir="ltr">$cle = $env:ADDRESS_VALIDATOR_KEY
+$corps = <span class="s">'{"address":{"street":"1 Rue de Paris","city":"Saint-Denis","state":"RE","zip":"97400","country":"RE"}}'</span>
+$r = <span class="v">Invoke-WebRequest</span> -Uri {{base}}/validate -Method POST `
+     -Headers @{ <span class="s">"X-API-Key"</span> = $cle } -ContentType <span class="s">"application/json"</span> -Body $corps
+$r.StatusCode
+$r.Headers[<span class="s">"X-Payment-Mode"</span>], $r.Headers[<span class="s">"X-Plan"</span>], $r.Headers[<span class="s">"X-Quota-Remaining"</span>]
+($r.Content | <span class="v">ConvertFrom-Json</span>).result</code></pre>
+      </figure>
+
+      <h3 class="sub" id="import-csv">2. استيراد CSV (Python)</h3>
+      <figure class="cb" dir="ltr">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="cb-path">verifier_colis.py</span><span class="cb-lang">Python</span></figcaption>
+        <pre tabindex="0"><code dir="ltr"><span class="c">"""<span class="ar" dir="rtl">يتحقق من ملف CSV للعناوين ويكتب النتيجة بجانب كل سطر.</span>
+
+<span class="ar" dir="rtl">لا يُستعلَم لدى المزوّد إلا مرة واحدة لكل عنوان: يُحفَظ الرد</span>
+<span class="ar" dir="rtl">في ذاكرة التخزين المؤقت ({{cache_jours}} يومًا للحكم)، لذا فإن تشغيلًا ثانيًا</span>
+<span class="ar" dir="rtl">على الملف نفسه لا يكلّف شيئًا إضافيًا.</span>
+"""</span>
+<span class="v">import</span> csv
+<span class="v">import</span> os
+<span class="v">import</span> time
+
+<span class="v">import</span> requests
+
+CLE = os.environ[<span class="s">"ADDRESS_VALIDATOR_KEY"</span>]  <span class="c"># <span class="ar" dir="rtl">لا تضعه أبدًا في الشيفرة ولا في git</span></span>
+API = <span class="s">"{{base}}/validate"</span>
+
+<span class="v">with</span> open(<span class="s">"colis.csv"</span>, newline=<span class="s">""</span>, encoding=<span class="s">"utf-8"</span>) <span class="v">as</span> source, open(
+    <span class="s">"colis-verifies.csv"</span>, <span class="s">"w"</span>, newline=<span class="s">""</span>, encoding=<span class="s">"utf-8"</span>
+) <span class="v">as</span> cible:
+    lecteur = csv.DictReader(source)
+    champs = list(lecteur.fieldnames) + [
+        <span class="s">"validated"</span>, <span class="s">"deliverability"</span>, <span class="s">"degraded"</span>, <span class="s">"note"</span>,
+    ]
+    sortie = csv.DictWriter(cible, fieldnames=champs)
+    sortie.writeheader()
+    <span class="v">for</span> ligne <span class="v">in</span> lecteur:
+        reponse = requests.post(
+            API,
+            headers={<span class="s">"X-API-Key"</span>: CLE},
+            timeout=<span class="n">30</span>,
+            json={
+                <span class="s">"address"</span>: {
+                    <span class="s">"street"</span>: ligne[<span class="s">"adresse"</span>],
+                    <span class="s">"city"</span>: ligne[<span class="s">"ville"</span>],
+                    <span class="s">"state"</span>: ligne[<span class="s">"region"</span>],
+                    <span class="s">"zip"</span>: ligne[<span class="s">"code_postal"</span>],
+                    <span class="s">"country"</span>: ligne.get(<span class="s">"pays"</span>) <span class="v">or</span> <span class="s">"US"</span>,
+                }
+            },
+        )
+        <span class="v">if</span> reponse.status_code <span class="v">in</span> (<span class="n">500</span>, <span class="n">503</span>):
+            time.sleep(<span class="n">5</span>)  <span class="c"># <span class="ar" dir="rtl">عطل من جهة الخدمة: لم يُستهلك شيء</span></span>
+            <span class="v">continue</span>
+        <span class="v">if</span> reponse.status_code == <span class="n">429</span>:
+            time.sleep(int(reponse.headers.get(<span class="s">"Retry-After"</span>, <span class="s">"60"</span>)))
+            <span class="v">continue</span>
+        <span class="v">if</span> reponse.status_code != <span class="n">200</span>:
+            sortie.writerow({**ligne, <span class="s">"note"</span>: <span class="s">f"refus {reponse.status_code}"</span>})
+            <span class="v">continue</span>
+        resultat = reponse.json()[<span class="s">"result"</span>]
+        sortie.writerow(
+            {
+                **ligne,
+                <span class="s">"validated"</span>: resultat[<span class="s">"validated"</span>],
+                <span class="s">"deliverability"</span>: resultat[<span class="s">"deliverability"</span>],
+                <span class="s">"degraded"</span>: resultat[<span class="s">"degraded"</span>],
+                <span class="s">"note"</span>: <span class="s">"a reverifier (fournisseur injoignable)"</span>
+                <span class="v">if</span> resultat[<span class="s">"degraded"</span>]
+                <span class="v">else</span> <span class="s">""</span>,
+            }
+        )</code></pre>
+      </figure>
+      <p>ما يوضّحه المثال، ولا شيء غيره: المفتاح يأتي من متغير بيئة، والرمز <code dir="ltr">429</code> محترَم (المهلة <em>تُقرأ</em> ولا تُخمَّن)، والنتيجة <code dir="ltr">degraded</code> تُعلَّم «لإعادة التحقق» بدل تسجيلها كعنوان غير صالح.</p>
+
+      <div class="note note-warn"><strong>لا تطبيق Shopify ولا إضافة WooCommerce.</strong> لا شيء تثبّته في متجرك: الواجهة هي العقد، والاستدعاء ينطلق من خدمتك <strong>أنت</strong>. وهذا ما يتيح لك اختيار عتبة الثقة التي تناسبك.</div>
+
+      <h3 class="sub" id="shopify">3. Shopify</h3>
+      <dl class="ref ref-wide">
+        <div class="ref-head" aria-hidden="true"><span>الخطوة</span><span>ما تربطه</span></div>
+        <div class="ref-row"><dt>المُشغِّل</dt><dd>خطاف ويب <code dir="ltr">orders/create</code> (أو خطوة تجهيز الطرد لديك) يستدعي خدمتك، التي تستعلم <code dir="ltr">/validate</code> بعنوان التسليم الخاص بالطلب.</dd></div>
+        <div class="ref-row"><dt>مطابقة الحقول</dt><dd><ul class="map"><li><code dir="ltr">shipping_address.address1</code> ← <code dir="ltr">street</code> (أضف <code dir="ltr">address2</code> إلى <code dir="ltr">line2</code> من جهة النتيجة)</li><li><code dir="ltr">city</code> ← <code dir="ltr">city</code></li><li><code dir="ltr">province_code</code> ← <code dir="ltr">state</code></li><li><code dir="ltr">zip</code> ← <code dir="ltr">zip</code></li><li><code dir="ltr">country_code</code> ← <code dir="ltr">country</code></li></ul></dd></div>
+        <div class="ref-row"><dt>القرار</dt><dd><code dir="ltr">validated: false</code>: علّم الطلب في لوحة الإدارة <strong>قبل</strong> الشحن. <code dir="ltr">degraded: true</code>: لا توقف شيئًا، وأعد جدولة فحص.</dd></div>
+        <div class="ref-row"><dt>ما لا نقدّمه</dt><dd>لا يوجد تطبيق Shopify جاهز للتثبيت: الاستدعاء يأتي من خدمتك.</dd></div>
+      </dl>
+
+      <h3 class="sub" id="woocommerce">4. WooCommerce</h3>
+      <dl class="ref ref-wide">
+        <div class="ref-head" aria-hidden="true"><span>الخطوة</span><span>ما تربطه</span></div>
+        <div class="ref-row"><dt>المُشغِّل</dt><dd>الإجراء <code dir="ltr">woocommerce_checkout_order_processed</code> (طلب مدفوع)، أو مهمة cron تمر على الطلبات قيد التجهيز (<code dir="ltr">wc_get_orders( ['status' =&gt; 'processing'] )</code>).</dd></div>
+        <div class="ref-row"><dt>مطابقة الحقول</dt><dd><ul class="map"><li><code dir="ltr">$order-&gt;get_shipping_address_1()</code> ← <code dir="ltr">street</code></li><li><code dir="ltr" class="nw">$order-&gt;get_shipping_city()</code> ← <code dir="ltr">city</code></li><li><code dir="ltr" class="nw">$order-&gt;get_shipping_state()</code> ← <code dir="ltr">state</code></li><li><code dir="ltr">$order-&gt;get_shipping_postcode()</code> ← <code dir="ltr">zip</code></li><li><code dir="ltr">$order-&gt;get_shipping_country()</code> ← <code dir="ltr">country</code></li></ul></dd></div>
+        <div class="ref-row"><dt>التتبّع</dt><dd>سجّل <code dir="ltr">cache_key</code> مع الطلب: إنه المعرّف الوحيد للعنوان الصالح لطلب الحذف.</dd></div>
+        <div class="ref-row"><dt>ما لا نقدّمه</dt><dd>لا توجد إضافة WooCommerce: الاستدعاء يأتي من خدمتك.</dd></div>
+      </dl>
+      <p>في كل الحالات: استدعاء واحد لكل عنوان ولكل طلب، وليس أبدًا داخل حلقة تتجاهل رموز الاستجابة. <a href="#code-402">الرمز 402 الخاص بالحصة</a> ليس عطلًا: إنه حدّ، ويُقرأ في الرد.</p>
+    </section>
+
+    <!-- 7. Agents -->
+    <section class="dsec" id="agents" aria-labelledby="h-agents">
+      <p class="eyebrow">المطورون ووكلاء الذكاء الاصطناعي</p>
+      <h2 id="h-agents">الدفع لكل استدعاء، دون حساب</h2>
+      <p>لا يحتاج الوكيل المستقل إلى حساب ولا إلى مفتاح. كل عملية تحقق محصَّلة تكلّف <strong class="lat" dir="ltr">{{prix_x402}}&nbsp;USDC</strong>، تُدفع عبر x402 على شبكة Base.</p>
+      <ol class="flow">
+        <li><b>1</b><strong>استدعِ <code dir="ltr">POST /validate</code></strong> بالمتن المعتاد. دون دفع، يكون الرد <code dir="ltr">402</code> ويحمل متنه <code dir="ltr">{"x402Version": {{x402_version}}}</code> والحقل <code dir="ltr">accepts</code>: السعر مذكور فيه.</li>
+        <li><b>2</b><strong>وقّع التفويض.</strong> ابنِ تفويض EIP-3009 انطلاقًا من <code dir="ltr">accepts</code>، وأعد إرسال الطلب مع الترويسة <code dir="ltr" class="nw">X-PAYMENT</code>.</li>
+        <li><b>3</b><strong>اقرأ الرد.</strong> قيمة <code dir="ltr" class="nw">X-Payment-Mode</code> هي <code dir="ltr">x402</code>، ويعطي <code dir="ltr">price_paid</code> السعر بعملة USDC، و<code dir="ltr">transaction_id</code> هو المرجع الذي تذكره في حال <a href="#code-500">500</a>.</li>
+      </ol>
+      <p>لوكلائك، كل شيء قابل للاستكشاف دون دفع:</p>
+      <ul class="res">
+        <li><a href="/mcp"><span class="rp"><bdi dir="ltr">/mcp</bdi></span><span>خادم MCP، والأداة <code dir="ltr">validate_address</code>، والاستكشاف مجاني</span></a></li>
+        <li><a href="/manifest"><span class="rp"><bdi dir="ltr">/manifest</bdi></span><span>وصف x402 يقرؤه الوكيل</span></a></li>
+        <li><a href="/llms.txt"><span class="rp"><bdi dir="ltr">/llms.txt</bdi></span><span>ملخص قصير لمحركات البحث والوكلاء</span></a></li>
+        <li><a href="/AGENTS.md"><span class="rp"><bdi dir="ltr">/AGENTS.md</bdi></span><span>تعليمات لوكلائك</span></a></li>
+        <li><a href="/docs"><span class="rp"><bdi dir="ltr">/docs</bdi></span><span>توثيق تفاعلي (OpenAPI، قابل للتجربة)</span></a></li>
+      </ul>
+    </section>
+
+    <!-- 8. Limites -->
+    <section class="dsec" id="limites" aria-labelledby="h-limites">
+      <p class="eyebrow">ما يجب معرفته قبل التكامل</p>
+      <h2 id="h-limites">الحدود</h2>
+      <dl class="ref ref-wide">
+        <div class="ref-row"><dt>الولايات المتحدة <span class="st st-ok">مُحسَّن</span></dt><dd>المزوّد مُحسَّن لعناوين الولايات المتحدة: عنوان بصيغة موحّدة، وإحداثيات، وقابلية التسليم، ومؤشر ثقة.</dd></div>
+        <div class="ref-row"><dt>خارجها <span class="st st-warn">جزئي</span></dt><dd>خارج الولايات المتحدة، التحقق جزئي. الرد على عنوان في فرنسا أو في جزيرة لا&nbsp;ريونيون لا يُعد تأكيدًا كاملًا.</dd></div>
+        <div class="ref-row"><dt><code dir="ltr">degraded: true</code> <span class="st st-info">أعد التحقق</span></dt><dd>لم يستجب المزوّد. الرد لا يقول شيئًا عن العنوان: إنه ليس رفضًا. أعد المحاولة لاحقًا.</dd></div>
+        <div class="ref-row"><dt>التكاملات</dt><dd>لا تطبيق Shopify ولا إضافة WooCommerce: الاستدعاء ينطلق من خدمتك أنت.</dd></div>
+      </dl>
+      <div class="note note-ok"><strong>ما نحتفظ به، وما لا نحتفظ به.</strong> لاستدعاء مدفوع أو ضمن اشتراك: بصمة للعنوان (<code dir="ltr">cache_key</code>) والنتيجة، ولا نحتفظ أبدًا بالعنوان نفسه. للتجربة المجانية دون حساب: <strong>لا شيء</strong>، سوى عدّاد مجهول الهوية يفرض الحد الأقصى. يُقدَّم طلب الحذف باستخدام <code dir="ltr">cache_key</code>.</div>
+
+      <div class="next">
+        <h2>انتقل إلى التطبيق</h2>
+        <p>أنشئ حسابًا للحصول على مفتاحك، أو اختبر عنوانًا أولًا دون حساب.</p>
+        <div class="cta">
+          <a class="btn btn-accent" href="{{url_signup}}">أنشئ حسابًا <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+          <a class="btn btn-glass" href="{{url_pricing}}">اطّلع على الأسعار</a>
+          <a class="btn btn-glass" href="{{url_validate_form}}">اختبر عنوانًا</a>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="{{url_accueil}}" dir="ltr"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>Address Validator</a>
+        <p class="lat">Address Validator, Kder Daoud</p>
+        <a class="mail" href="mailto:{{contact}}" dir="ltr">{{contact}}</a>
+      </div>
+      <div>
+        <p class="foot-h">المتاجر</p>
+        <ul>
+          <li><a href="{{url_pricing}}">الأسعار</a></li>
+          <li><a href="{{url_guide}}">دليل التكامل</a></li>
+          <li><a href="{{url_validate_form}}">اختبر عنوانًا</a></li>
+          <li><a href="{{url_compte}}">حساب العميل</a></li>
+          <li><a href="{{url_signup}}">أنشئ حسابًا</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="foot-h">المطورون والوكلاء</p>
+        <ul>
+          <li><a href="/docs">التوثيق</a></li>
+          <li><a href="/mcp">خادم MCP</a></li>
+          <li><a href="/manifest">ملف البيان</a></li>
+          <li><a class="lat" href="/llms.txt" dir="ltr">llms.txt</a></li>
+          <li><a class="lat" href="/AGENTS.md" dir="ltr">AGENTS.md</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">الأسعار قبل الضريبة. الاستدعاء المباشر دون اشتراك: <span class="lat" dir="ltr">{{prix_x402}}&nbsp;USDC</span> لكل عملية تحقق.</p>
+  </div>
+</footer>
+</body>
+</html>

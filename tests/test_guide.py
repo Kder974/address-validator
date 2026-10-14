@@ -14,8 +14,11 @@ Ce que ces tests mesurent, et pourquoi :
     guide.
 """
 
+import re
+
 from fastapi.testclient import TestClient
 
+from app import i18n
 from app.config import get_settings
 from app.main import app
 from app.routes.guide import CODES
@@ -49,8 +52,10 @@ def test_le_guide_ne_charge_rien_et_ne_publie_aucun_secret():
     reglages = get_settings()
 
     # Autonome : rien à charger, donc rien qui puisse suivre le visiteur.
-    for interdit in ("<script", "<link", "<img", "src=", "@import", "url("):
+    for interdit in ("<script", "<img", "src=", "@import", "url("):
         assert interdit not in page.text, f"le guide charge quelque chose : {interdit}"
+    # D57 : des <link>, mais seulement les hreflang (aucune feuille, aucune police).
+    assert all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", page.text))
     # Page indexable : aucun secret ne peut y figurer.
     if reglages.api_secret_key:
         assert reglages.api_secret_key not in page.text
@@ -76,7 +81,8 @@ def test_les_faits_publies_sont_ceux_du_code():
 
     page = client.get("/guide")
 
-    assert f"{reglages.x402_price:.2f}" in page.text, "le prix publié n'est plus celui du code"
+    prix = f"{i18n.nombre('fr', reglages.x402_price)} USDC"  # 0,02 USDC : écrit en français (D57)
+    assert prix in page.text, "le prix publié n'est plus celui du code"
     assert (
         str(reglages.validate_form_rate_limit_per_day) in page.text
     ), "le plafond de l'essai gratuit n'est plus celui du code"
