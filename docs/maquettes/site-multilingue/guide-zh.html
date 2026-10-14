@@ -1,0 +1,846 @@
+<!doctype html>
+<!-- 简体中文版：结构、样式和动画与法语版一致，仅文字本地化。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>集成指南 · Address Validator</title>
+<meta name="description" content="集成 Address Validator API：API 密钥或 x402 支付、JSON 约定、状态码、缓存与额度，以及 Shopify、WooCommerce 和 CSV 导入示例。">
+<link rel="alternate" hreflang="fr" href="guide-fr.html">
+<link rel="alternate" hreflang="en" href="guide-en.html">
+<link rel="alternate" hreflang="zh" href="guide-zh.html">
+<link rel="alternate" hreflang="hi" href="guide-hi.html">
+<link rel="alternate" hreflang="es" href="guide-es.html">
+<link rel="alternate" hreflang="ar" href="guide-ar.html">
+<link rel="alternate" hreflang="x-default" href="guide-en.html">
+<style>
+:root{
+  --ink:#0b1b34;--ink-soft:#14223d;--muted:#4b5974;--faint:#66738c;
+  --line:#e2e7f0;--bg:#fff;--soft:#f5f7fb;
+  --accent:#1f3bff;--accent-deep:#1429cc;--accent-wash:#e9edff;
+  --ok:#0a7350;--ok-bg:#dff5ea;--warn:#9a5b00;--warn-bg:#fff1d6;--bad:#b42318;
+  --navy:#0b1b34;--navy-2:#0d2242;
+  --saffron:#ffc15e;--tang:#ff9455;--coral:#ff6f61;--aqua:#2fd3c1;--sky:#4ab3ff;--cobalt:#3150ff;
+  --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --expo:cubic-bezier(.16,1,.3,1);
+  --sh-lg:0 50px 100px -20px rgba(20,40,110,.26),0 30px 60px -30px rgba(0,0,0,.3);
+  --sh-md:0 13px 27px -5px rgba(20,40,110,.16),0 8px 16px -8px rgba(0,0,0,.16);
+  --sh-sm:0 2px 5px -1px rgba(20,40,110,.12),0 1px 3px -1px rgba(0,0,0,.1);
+  --g:clamp(16px,4vw,40px);
+  --nav-h:84px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1.0625rem/1.6 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:inherit}
+h1,h2,h3,p,ul,ol,dl,dd,figure{margin:0}
+h1,h2,h3{text-wrap:balance}
+p,li,dd{text-wrap:pretty}
+code,.mono{font-family:var(--mono)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:8px}
+.dark :focus-visible{outline-color:#9db2ff}
+.wrap{width:min(100% - 2*var(--g),1180px);margin-inline:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.skip{position:absolute;left:16px;top:-80px;z-index:99;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none}
+.skip:focus{top:12px}
+
+/* ---------- Boutons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;min-height:48px;padding:0 1.35rem;border:0;border-radius:999px;font:600 .97rem/1 var(--sans);letter-spacing:-.005em;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background-color .2s ease,box-shadow .35s var(--expo)}
+.btn-accent{background:var(--accent);color:#fff;box-shadow:0 1px 1px rgba(11,27,52,.14),0 8px 18px -8px rgba(31,59,255,.6)}
+.btn-accent:hover{background:var(--accent-deep)}
+.btn-glass{background:rgba(255,255,255,.74);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.btn-glass:hover{background:#fff}
+.btn-ink{background:var(--ink);color:#fff}
+.btn-ink:hover{background:#1b2f52}
+.btn-light{background:#fff;color:var(--ink)}
+.btn-light:hover{background:#e9eef7}
+.btn-sm{min-height:44px;padding:0 1.1rem;font-size:.93rem}
+.arr{width:10px;height:10px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.arr .l{opacity:0;transition:opacity .2s ease}
+.arr .h{transition:transform .35s var(--expo)}
+a:hover .arr .l,button:hover .arr .l{opacity:1}
+a:hover .arr .h,button:hover .arr .h{transform:translateX(2px)}
+.link{display:inline-flex;align-items:center;gap:.45em;min-height:44px;font-weight:600;color:var(--accent);text-decoration:none}
+.link:hover{color:var(--accent-deep)}
+
+/* ---------- En-tête ---------- */
+.top{position:sticky;top:0;z-index:50;height:var(--nav-h);padding-top:12px;pointer-events:none}
+.bar{pointer-events:auto;display:flex;align-items:center;gap:20px;height:60px;padding:0 10px 0 16px;border-radius:16px;background:rgba(255,255,255,.72);box-shadow:inset 0 0 0 1px rgba(255,255,255,.7),0 10px 30px -18px rgba(20,40,110,.45);-webkit-backdrop-filter:saturate(1.6) blur(16px);backdrop-filter:saturate(1.6) blur(16px)}
+.brand{display:inline-flex;align-items:center;gap:10px;min-height:44px;text-decoration:none;font-weight:650;font-size:1.02rem;letter-spacing:-.015em;white-space:nowrap}
+.mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:conic-gradient(from 210deg,var(--cobalt),var(--aqua),var(--saffron),var(--coral),var(--cobalt));box-shadow:inset 0 0 0 1px rgba(11,27,52,.08)}
+.mark svg{width:17px;height:17px}
+.nav{display:flex;gap:2px;margin-left:auto}
+.nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;border-radius:10px;text-decoration:none;font-weight:500;font-size:.95rem;color:var(--ink-soft)}
+.nav a:hover{background:rgba(11,27,52,.06)}
+.nav a[aria-current="page"],.menu-panel a[aria-current="page"]{color:var(--accent)}
+.menu{display:none;position:relative;margin-left:auto}
+.menu summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;background:var(--ink);color:#fff;font-weight:600;font-size:.93rem}
+.menu summary::-webkit-details-marker{display:none}
+.menu summary i{display:block;width:14px;height:8px;border-block:2px solid currentColor}
+.menu-panel{position:absolute;right:0;top:calc(100% + 10px);width:min(86vw,300px);display:grid;gap:2px;padding:8px;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.menu-panel a{display:flex;align-items:center;min-height:46px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.menu-panel a:hover{background:var(--soft)}
+.menu-panel .btn{margin-top:6px;color:#fff;justify-content:center}
+/* Sélecteur de langue */
+.lang{position:relative}
+.lang summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;padding:0 12px;border-radius:999px;font-weight:600;font-size:.9rem;color:var(--ink-soft);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12)}
+.lang summary::-webkit-details-marker{display:none}
+.lang summary:hover,.lang[open] summary{background:rgba(11,27,52,.06)}
+.lang summary svg{width:15px;height:15px;flex:none}
+.lang-panel{position:absolute;right:0;top:calc(100% + 10px);width:200px;display:grid;gap:2px;padding:8px;list-style:none;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.lang-panel a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.lang-panel a:hover{background:var(--soft)}
+.lang-panel [lang="ar"]{font-size:1.12em}
+.lang-panel [aria-current]{color:var(--accent);background:var(--accent-wash);font-weight:600}
+.lang-panel [aria-current]::after{content:"";width:9px;height:5px;margin-top:-3px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg)}
+
+/* ---------- En-tête de page (bande adoucie) ---------- */
+.phead{position:relative;margin-top:calc(-1*var(--nav-h));padding:calc(var(--nav-h) + clamp(36px,5vw,72px)) 0 clamp(44px,5vw,72px);overflow-x:clip}
+.band{position:absolute;inset:0;overflow:hidden;clip-path:polygon(0 0,100% 0,100% calc(100% - 7vw),0 100%);background:linear-gradient(102deg,#fff6ea 0%,#ffe8c6 17%,#ffd391 33%,#ffb469 47%,#ff9160 57%,#ff7766 66%,#3fd4c4 80%,#4cb2ff 91%,#3552ff 100%)}
+.band::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.86) 0%,rgba(255,255,255,.7) 46%,rgba(255,255,255,.18) 78%,rgba(255,255,255,0) 100%)}
+.band i{position:absolute;display:block;border-radius:50%}
+.b2{width:40vw;height:32vw;left:58%;top:-10%;background:radial-gradient(closest-side,rgba(47,211,193,.8),rgba(47,211,193,0))}
+.b4{width:46vw;height:34vw;left:-8%;top:10%;background:radial-gradient(closest-side,rgba(255,196,100,.7),rgba(255,196,100,0))}
+.b5{width:30vw;height:26vw;left:80%;top:4%;background:radial-gradient(closest-side,rgba(74,179,255,.85),rgba(74,179,255,0))}
+.guides{position:absolute;inset:0;width:min(100% - 2*var(--g),1180px);margin-inline:auto;pointer-events:none;background:linear-gradient(90deg,rgba(11,27,52,.075) 1px,transparent 1px) 0 0/25% 100%;box-shadow:inset -1px 0 rgba(11,27,52,.075);-webkit-mask-image:repeating-linear-gradient(180deg,#000 0 4px,transparent 4px 9px);mask-image:repeating-linear-gradient(180deg,#000 0 4px,transparent 4px 9px)}
+.phead-in{position:relative}
+.pill{display:inline-flex;align-items:center;gap:10px;padding:5px 14px 5px 5px;border-radius:999px;background:rgba(255,255,255,.78);box-shadow:inset 0 0 0 1px rgba(11,27,52,.08);font-size:.875rem;font-weight:500;color:var(--ink-soft)}
+.pill b{font:700 .72rem/1 var(--sans);letter-spacing:.06em;color:#fff;background:var(--ink);padding:6px 9px;border-radius:999px}
+h1{margin-top:22px;font-size:clamp(2.5rem,1.2rem + 3.6vw,4rem);line-height:1.03;font-weight:400;letter-spacing:-.026em;color:var(--ink)}
+.lead{margin-top:20px;max-width:36em;font-size:clamp(1.06rem,.98rem + .35vw,1.22rem);line-height:1.55;color:var(--ink-soft)}
+.quick{list-style:none;padding:0;margin-top:28px;display:flex;flex-wrap:wrap;gap:10px}
+.quick li{display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:0 12px 0 6px;border-radius:10px;background:rgba(255,255,255,.82);box-shadow:inset 0 0 0 1px rgba(11,27,52,.08),var(--sh-sm);font:600 .82rem/1 var(--mono);color:var(--ink)}
+.quick li:not(:has(.verb)){padding-left:12px}
+
+/* ---------- Badges ---------- */
+.verb{font:700 11px/1 var(--mono);color:var(--accent);background:var(--accent-wash);padding:5px 7px;border-radius:5px;letter-spacing:.02em}
+.inline{font-size:.86em;padding:.12em .4em;border-radius:6px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
+.st{display:inline-block;font:600 .72rem/1 var(--sans);letter-spacing:.04em;padding:5px 8px;border-radius:6px}
+.st-ok{color:var(--ok);background:var(--ok-bg)}
+.st-warn{color:var(--warn);background:var(--warn-bg)}
+.st-info{color:var(--accent);background:var(--accent-wash)}
+
+/* ---------- Mise en page documentation ---------- */
+.doc{display:grid;grid-template-columns:220px minmax(0,1fr);gap:clamp(40px,5vw,72px);align-items:start;padding-block:clamp(24px,3vw,40px) clamp(72px,8vw,120px)}
+.toc{position:sticky;top:calc(var(--nav-h) + 16px);max-height:calc(100vh - var(--nav-h) - 32px);overflow-y:auto;padding:4px 4px 12px 0;font-size:.92rem}
+.toc-h{font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.toc ol{list-style:none;padding:0;margin:12px 0 0;border-left:1px solid var(--line)}
+.toc li a{display:flex;align-items:center;min-height:36px;padding:4px 0 4px 16px;margin-left:-1px;border-left:2px solid transparent;color:var(--muted);text-decoration:none;line-height:1.3}
+.toc li a:hover{color:var(--ink);border-left-color:var(--ink)}
+.toc .toc-sub a{padding-left:30px;font-size:.86rem;min-height:32px}
+.toc-codes{list-style:none;display:flex;flex-wrap:wrap;gap:4px;padding:6px 0 8px 16px;margin:0}
+.toc .toc-codes a{display:inline-grid;place-items:center;min-width:44px;min-height:30px;padding:0 6px;margin:0;border:0;border-radius:6px;font:700 .76rem/1 var(--mono);color:var(--fam);background:var(--fam-bg)}
+.toc .toc-codes a:hover{box-shadow:inset 0 0 0 1.5px var(--fam);border:0}
+.content{min-width:0}
+.dsec{padding-top:clamp(44px,5vw,64px);scroll-margin-top:calc(var(--nav-h) + 8px)}
+.dsec:first-child{padding-top:8px}
+[id]{scroll-margin-top:calc(var(--nav-h) + 16px)}
+.eyebrow{font-size:.92rem;font-weight:600;color:var(--accent);letter-spacing:-.005em}
+h2{margin-top:10px;font-size:clamp(1.7rem,1.25rem + 1.4vw,2.35rem);line-height:1.12;font-weight:500;letter-spacing:-.022em}
+h3{font-size:1.18rem;line-height:1.3;font-weight:600;letter-spacing:-.018em}
+.content h3.sub{margin-top:40px}
+.prose{max-width:68ch}
+.prose p,.content > .dsec > p{max-width:68ch}
+.dsec > p:not(.eyebrow),.dsec .prose{margin-top:16px;color:var(--ink-soft)}
+.dsec p + p{margin-top:14px}
+.dsec a:not([class]){color:var(--accent);text-underline-offset:3px}
+.dsec a:not([class]):hover{color:var(--accent-deep)}
+.content p code,.content li code,.content dd code,.content dt code,.note code{font-size:.88em;padding:.1em .38em;border-radius:6px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);overflow-wrap:anywhere}
+.hr{height:1px;margin-top:clamp(44px,5vw,64px);background:var(--line)}
+
+/* Étapes */
+.steps{list-style:none;padding:0;margin-top:24px;display:grid;gap:14px;counter-reset:s;max-width:68ch}
+.steps li{position:relative;padding-left:44px;color:var(--ink-soft)}
+.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:-1px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:700 .8rem/1 var(--mono);color:var(--accent);background:var(--accent-wash)}
+.steps strong{color:var(--ink)}
+
+/* Blocs de code (thème de la carte API) */
+.cb{margin-top:20px;border-radius:12px;background:#071429;box-shadow:var(--sh-md),inset 0 0 0 1px rgba(255,255,255,.06);overflow:hidden;min-width:0}
+.cb-top{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.08);font:600 .74rem/1.2 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#a3b3cf}
+.cb-top .dots{display:flex;gap:6px;margin-right:2px}
+.cb-top .dots i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.14)}
+.cb-top .verb{background:rgba(147,197,255,.14);color:#b9d8ff;text-transform:none}
+.cb-top .cb-path{font:600 .8rem/1 var(--mono);color:#e8eef8;text-transform:none;letter-spacing:0}
+.cb-top .cb-lang{margin-left:auto}
+.cb pre{margin:0;padding:16px 18px 18px;overflow-x:auto;font:500 13px/1.72 var(--mono);font-variant-ligatures:none;color:#dbe4f3;white-space:pre;tab-size:4;scrollbar-color:rgba(255,255,255,.25) transparent}
+.cb pre:focus-visible{outline:3px solid #9db2ff;outline-offset:-3px;border-radius:0 0 12px 12px}
+.cb .k{color:#93c5ff}.cb .s{color:#ffcf9a}.cb .c{color:#93a5c3}.cb .v{color:#7ff0c4}.cb .n{color:#ffb3a6}
+.cb-note{margin-top:10px;font-size:.88rem;color:var(--muted)}
+
+/* Encadrés */
+.note{margin-top:22px;max-width:68ch;padding:16px 18px 16px 20px;border-radius:12px;background:var(--accent-wash);box-shadow:inset 3px 0 var(--accent);color:var(--ink-soft);font-size:.98rem}
+.note strong{color:var(--ink)}
+.note-warn{background:var(--warn-bg);box-shadow:inset 3px 0 #d98a00}
+.note-ok{background:var(--ok-bg);box-shadow:inset 3px 0 var(--ok)}
+
+/* Deux portes d'authentification */
+.auth{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:24px}
+.door{padding:24px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm)}
+.door-dev{background:var(--navy);color:#e8eef8;box-shadow:var(--sh-md)}
+.kicker{font:600 .78rem/1 var(--mono);letter-spacing:.02em;color:var(--accent)}
+.door-dev .kicker{color:#7ff0c4}
+.door h3{margin-top:10px}
+.door dl{margin-top:16px;display:grid;gap:14px}
+.door dt{font-size:.78rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+.door-dev dt{color:#a3b3cf}
+.door dd{margin-top:4px;font-size:.96rem;color:var(--ink-soft)}
+.door-dev dd{color:#dbe4f3}
+.door-dev dd code{background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);color:#fff}
+.door-dev strong{color:#fff}
+
+/* Références en lignes (champs, en-têtes, cache, intégrations) */
+.ref{margin-top:24px;border-top:1px solid var(--line)}
+.ref-head{display:grid;gap:8px 24px;padding:12px 0 10px;border-bottom:1px solid var(--line);font-size:.76rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.ref-row{display:grid;gap:6px 24px;padding:16px 0;border-bottom:1px solid var(--line)}
+.ref-2 .ref-head,.ref-2 .ref-row{grid-template-columns:minmax(0,190px) minmax(0,1fr)}
+.ref-3 .ref-head,.ref-3 .ref-row{grid-template-columns:minmax(0,160px) minmax(0,1fr) minmax(0,1fr)}
+.ref dt{font-weight:600;color:var(--ink);font-size:.98rem}
+.ref dt code{font-weight:600}
+.ref dd{color:var(--ink-soft);font-size:.96rem}
+.ref .rr-l{display:none}
+.map{list-style:none;padding:0;display:grid;gap:6px}
+.ref-wide .ref-head,.ref-wide .ref-row{grid-template-columns:minmax(0,210px) minmax(0,1fr)}
+
+/* ---------- Codes de retour (le détail fort) ---------- */
+.f-ok{--fam:var(--ok);--fam-bg:var(--ok-bg)}
+.f-fix{--fam:var(--bad);--fam-bg:#fde8e5}
+.f-lim{--fam:var(--warn);--fam-bg:var(--warn-bg)}
+.f-srv{--fam:var(--accent);--fam-bg:var(--accent-wash)}
+.codemap{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:28px}
+.cm{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm);border-top:3px solid var(--fam)}
+.cm-h{font-size:.92rem;font-weight:600;line-height:1.25;color:var(--ink)}
+.cm-codes{display:flex;flex-wrap:wrap;gap:6px}
+.cm-codes a{display:inline-grid;place-items:center;min-width:52px;min-height:44px;padding:0 10px;border-radius:9px;font:700 1.05rem/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fam);background:var(--fam-bg);text-decoration:none;transition:box-shadow .25s var(--expo)}
+.cm-codes a:hover{box-shadow:inset 0 0 0 2px var(--fam)}
+.cm-d{font-size:.86rem;line-height:1.45;color:var(--muted)}
+.codes-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.55fr) 184px;gap:24px;margin-top:32px;padding:0 20px 10px 23px;font-size:.76rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.codes{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+.code-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.55fr) 184px;gap:12px 24px;align-items:start;padding:18px 20px 18px 23px;border-radius:14px;background:#fff;box-shadow:inset 3px 0 var(--fam),inset 0 0 0 1px var(--line),var(--sh-sm)}
+.code-row:target{box-shadow:inset 3px 0 var(--fam),inset 0 0 0 2px var(--fam),var(--sh-md)}
+.cr-id h3{display:flex;align-items:flex-start;gap:14px;font-size:1.02rem;line-height:1.35}
+.sc{flex:none;display:inline-grid;place-items:center;min-width:64px;padding:8px 0;border-radius:9px;font:700 1.32rem/1 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:var(--fam);background:var(--fam-bg)}
+.cr-t{padding-top:3px}
+.cr-fam{margin-top:10px;margin-left:78px;font-size:.8rem;font-weight:600;color:var(--fam)}
+.cr-do{color:var(--ink-soft);font-size:.96rem}
+.cr-do p + p{margin-top:8px}
+.cr-do strong{color:var(--ink)}
+.rt{position:relative;display:inline-block;padding:7px 10px 7px 26px;border-radius:8px;font-size:.84rem;font-weight:600;line-height:1.25;color:var(--fam);background:var(--fam-bg)}
+.rt::before{content:"";position:absolute;left:10px;top:calc(7px + .625em - 4px);width:8px;height:8px;border-radius:50%;background:currentColor}
+.rt-no::before{border-radius:2px;width:9px;height:2.5px;top:calc(7px + .625em - 1px)}
+.rt-none{color:var(--muted);background:var(--soft)}
+.rt code{padding:0!important;background:none!important;box-shadow:none!important;color:inherit;font-size:.95em!important;overflow-wrap:normal!important}
+.split{grid-column:2/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:-2px}
+.split div{padding:12px 14px;border-radius:10px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);font-size:.88rem;line-height:1.45}
+.split .sb{display:block;margin-bottom:6px;padding:0!important;background:none!important;box-shadow:none!important;font-size:.82rem!important;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.never{display:inline-block;margin-top:8px;padding:3px 8px;border-radius:6px;font-size:.84rem;font-weight:600;color:var(--accent);background:var(--accent-wash)}
+
+/* Agents */
+.flow{list-style:none;padding:0;margin-top:24px;display:grid;gap:0;max-width:72ch}
+.flow li{position:relative;padding:0 0 22px 44px;color:var(--ink-soft)}
+.flow li::before{content:"";position:absolute;left:13px;top:30px;bottom:2px;width:2px;background:linear-gradient(180deg,var(--aqua),var(--cobalt));border-radius:2px;opacity:.5}
+.flow li:last-child::before{display:none}
+.flow b{position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:700 .8rem/1 var(--mono);color:#fff;background:var(--navy)}
+.flow strong{color:var(--ink)}
+.res{list-style:none;padding:0;margin-top:22px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.res a{display:flex;flex-direction:column;gap:4px;min-height:44px;height:100%;padding:14px 16px;border-radius:12px;background:#fff;box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm);text-decoration:none;color:var(--muted)!important;font-size:.9rem;line-height:1.4;transition:box-shadow .3s var(--expo)}
+.res a:hover{box-shadow:inset 0 0 0 1px var(--accent),var(--sh-md)}
+.res .rp{font:700 .95rem/1.2 var(--mono);color:var(--accent)}
+
+
+/* Fin de page */
+.next{margin-top:clamp(56px,6vw,80px);padding:clamp(24px,3vw,36px);border-radius:20px;background:linear-gradient(160deg,#fff7ec 0%,#fff 46%,#eefbf8 100%);box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm)}
+.next h2{margin-top:0;font-size:clamp(1.5rem,1.2rem + 1vw,1.9rem)}
+.next > p{margin-top:10px;color:var(--muted);max-width:52ch}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
+
+/* Pied de page */
+.foot{padding:56px 0 48px;border-top:1px solid var(--line)}
+.foot-grid{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(0,1fr));gap:36px}
+.foot-brand p{margin-top:14px;color:var(--muted);font-size:.95rem;max-width:30em}
+.foot-brand a.mail{display:inline-flex;align-items:center;min-height:44px;color:var(--accent);font-weight:600;text-decoration:none}
+.foot-brand a.mail:hover{text-decoration:underline}
+.foot-h{font-size:.85rem;font-weight:600;color:var(--ink)}
+.foot ul{list-style:none;padding:0;margin:8px 0 0}
+.foot li a{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);text-decoration:none;font-size:.95rem}
+.foot li a:hover{color:var(--ink)}
+.legal{margin-top:40px;padding-top:22px;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted)}
+
+/* ---------- Survol ---------- */
+@media (hover:hover){
+  .btn:hover{translate:0 -1px}
+  .btn{transition:background-color .2s ease,box-shadow .35s var(--expo),translate .35s var(--expo)}
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1060px){
+  .nav a{padding:0 9px;font-size:.92rem}
+  .codes-head,.code-row{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)}
+  .codes-head span:last-child{display:none}
+  .cr-retry{grid-column:2}
+  .split{grid-column:2}
+  .codemap{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:960px){
+  .nav{display:none}
+  .bar{gap:12px}
+  .menu{display:block;margin-left:0}
+  .lang{margin-left:auto}
+  .band{clip-path:polygon(0 0,100% 0,100% calc(100% - 12vw),0 100%)}
+  .band::after{background:linear-gradient(180deg,rgba(255,255,255,.8) 0%,rgba(255,255,255,.66) 60%,rgba(255,255,255,.3) 100%)}
+  .doc{grid-template-columns:minmax(0,1fr);gap:8px}
+  .toc{position:static;max-height:none;overflow:visible;padding:18px 18px 10px;border-radius:16px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line)}
+  .toc > ol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;border-left:0}
+  .toc li a{padding-left:0;margin-left:0;border-left:0;min-height:44px}
+  .toc .toc-codes a{min-height:44px;min-width:46px}
+  .toc .toc-sub{display:none}
+  .toc-codes{grid-column:1/-1;padding-left:0}
+  .toc-li-codes{grid-column:1/-1}
+  .foot-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .foot-brand{grid-column:1/-1}
+}
+@media (max-width:720px){
+  .auth,.res{grid-template-columns:minmax(0,1fr)}
+  .codes-head{display:none}
+  .codes{margin-top:20px}
+  .code-row{grid-template-columns:minmax(0,1fr);padding:16px 16px 16px 19px}
+  .cr-retry,.split{grid-column:auto}
+  .cr-fam{margin-left:0;margin-top:8px}
+  .ref-head{display:none}
+  .ref-2 .ref-row,.ref-3 .ref-row,.ref-wide .ref-row{grid-template-columns:minmax(0,1fr)}
+  .ref .rr-l{display:block;margin-top:4px;font-size:.74rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+}
+@media (max-width:640px){
+  .bar > .btn{display:none}
+}
+@media (max-width:560px){
+  .split{grid-template-columns:minmax(0,1fr)}
+  .cb pre{font-size:12.5px;padding:14px 16px 16px}
+  .cta .btn{flex:1 1 100%}
+  .door{padding:20px}
+}
+@media (max-width:480px){
+  .menu summary{width:44px;padding:0;justify-content:center}
+  .menu-t{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .codemap{gap:8px}
+  .cm{padding:14px 12px}
+  .cm-codes{gap:5px}
+  .cm-codes a{min-width:44px;padding:0 6px;font-size:.95rem}
+}
+@media (pointer:coarse){
+  .toc li a{min-height:44px}
+  .toc .toc-codes a{min-height:44px;min-width:46px}
+}
+@media (max-width:370px){
+  .lang summary svg{display:none}
+}
+
+/* ---------- Mouvement (seulement si l'utilisateur l'accepte) ---------- */
+@keyframes rise{from{opacity:0;transform:translateY(20px)}}
+@keyframes d2{50%{transform:translate(7vw,-3vw) scale(.9)}100%{transform:translate(-4vw,-6vw) scale(1.1)}}
+@keyframes d4{50%{transform:translate(8vw,3vw) scale(1.08)}100%{transform:translate(2vw,-4vw) scale(.92)}}
+@media (prefers-reduced-motion:no-preference){
+  html{scroll-behavior:smooth}
+  .b2{animation:d2 22s ease-in-out infinite alternate}
+  .b4{animation:d4 28s ease-in-out infinite alternate}
+  .b5{animation:d2 30s ease-in-out -8s infinite alternate}
+  .bar{animation:rise .9s var(--expo) both}
+  .in{animation:rise 1.1s var(--expo) both;animation-delay:calc(var(--i,0)*90ms + 60ms)}
+  @supports (animation-timeline:view()){
+    .reveal{animation:rise both var(--expo);animation-timeline:view();animation-range:entry 5% cover 22%}
+    .code-row,.cm{animation:rise both var(--expo);animation-timeline:view();animation-range:entry 0% cover 18%}
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+/* ---------- Chinois (zh-Hans) ---------- */
+.btn,.brand,.pill b,h1,.st,.toc-h,.eyebrow,h2,h3,.cb-top,.door dt,.ref-head,.codes-head,.ref .rr-l{letter-spacing:normal}
+h1{line-height:1.25;font-weight:500}
+h2{line-height:1.3}
+h3{line-height:1.4}
+.lead,.sec-lead{line-height:1.75}
+.nb{display:inline-block}
+.ns{white-space:nowrap}
+h1,h2{text-wrap:wrap}
+.lead,.dsec p,.dsec li,.dsec dd,.note,.cr-do p,.cm-d,.never{line-height:1.75}
+.eyebrow,.cm-h,.cr-fam,.toc-h,.rr-l,.kicker,.rt{letter-spacing:.02em}
+.dsec h2,.dsec h3,.cr-t{text-wrap:balance}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">跳至正文</a>
+
+<header class="top">
+  <div class="wrap bar">
+    <a class="brand" href="accueil-zh.html" aria-label="Address Validator，首页">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>
+      Address Validator
+    </a>
+    <nav class="nav" aria-label="主导航">
+      <a href="tarifs-zh.html">价格</a>
+      <a href="guide-zh.html" aria-current="page">使用指南</a>
+      <a href="test-zh.html">测试地址</a>
+      <a href="compte-zh.html">客户中心</a>
+    </nav>
+    <details class="lang" name="entete">
+      <summary><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6.3"/><path d="M1.7 8h12.6M8 1.7c1.9 2 2.8 4.1 2.8 6.3S9.9 12.3 8 14.3C6.1 12.3 5.2 10.2 5.2 8S6.1 3.7 8 1.7z"/></svg><span class="sr">语言：</span>中文</summary>
+      <ul class="lang-panel">
+        <li><a href="guide-fr.html" hreflang="fr" lang="fr">Français</a></li>
+        <li><a href="guide-en.html" hreflang="en" lang="en">English</a></li>
+        <li><a href="guide-zh.html" hreflang="zh" lang="zh" aria-current="page">中文</a></li>
+        <li><a href="guide-hi.html" hreflang="hi" lang="hi">हिन्दी</a></li>
+        <li><a href="guide-es.html" hreflang="es" lang="es">Español</a></li>
+        <li><a href="guide-ar.html" hreflang="ar" lang="ar">العربية</a></li>
+      </ul>
+    </details>
+    <a class="btn btn-ink btn-sm" href="inscription-zh.html">创建账户 <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+    <details class="menu" name="entete">
+      <summary><i aria-hidden="true"></i><span class="menu-t">菜单</span></summary>
+      <nav class="menu-panel" aria-label="移动端导航">
+        <a href="tarifs-zh.html">价格</a>
+        <a href="guide-zh.html" aria-current="page">使用指南</a>
+        <a href="test-zh.html">测试地址</a>
+        <a href="compte-zh.html">客户中心</a>
+        <a class="btn btn-ink" href="inscription-zh.html">创建账户</a>
+      </nav>
+    </details>
+  </div>
+</header>
+
+<main id="contenu">
+
+<section class="phead" aria-labelledby="titre">
+  <div class="band" aria-hidden="true"><i class="b4"></i><i class="b2"></i><i class="b5"></i></div>
+  <div class="guides" aria-hidden="true"></div>
+  <div class="wrap phead-in">
+    <p class="pill in" style="--i:0"><b>文档</b>集成 Address Validator API</p>
+    <h1 id="titre" class="in" style="--i:1"><span class="w" style="--i:1">集成指南</span></h1>
+    <p class="lead in" style="--i:2"><span class="nb">从 API 密钥到上线：</span><span class="nb">身份验证、接口约定、状态码、缓存和额度。</span><span class="nb">随后是四个实际案例：</span><span class="nb">直接调用、CSV 导入、Shopify 和 WooCommerce。</span></p>
+    <ul class="quick in" style="--i:3" aria-label="要点">
+      <li><span class="verb">POST</span>/validate</li>
+      <li>X-API-Key</li>
+      <li>X-PAYMENT · 0.02 USDC</li>
+      <li>application/json</li>
+    </ul>
+  </div>
+</section>
+
+<div class="wrap doc">
+
+  <nav class="toc" aria-label="本页目录">
+    <p class="toc-h">本页目录</p>
+    <ol>
+      <li><a href="#en-une-minute">一分钟上手</a></li>
+      <li><a href="#authentification">身份验证</a></li>
+      <li><a href="#contrat">接口约定</a></li>
+      <li class="toc-sub"><a href="#requete">请求</a></li>
+      <li class="toc-sub"><a href="#reponse">响应和字段</a></li>
+      <li class="toc-sub"><a href="#en-tetes">响应头</a></li>
+      <li class="toc-li-codes"><a href="#codes">状态码</a>
+        <ul class="toc-codes" aria-label="跳转到某个状态码">
+          <li><a class="f-ok" href="#code-200">200</a></li>
+          <li><a class="f-fix" href="#code-401">401</a></li>
+          <li><a class="f-lim" href="#code-402">402</a></li>
+          <li><a class="f-fix" href="#code-403">403</a></li>
+          <li><a class="f-fix" href="#code-422">422</a></li>
+          <li><a class="f-lim" href="#code-429">429</a></li>
+          <li><a class="f-srv" href="#code-500">500</a></li>
+          <li><a class="f-srv" href="#code-503">503</a></li>
+        </ul>
+      </li>
+      <li><a href="#cache-et-quotas">缓存与额度</a></li>
+      <li><a href="#cas-pratiques">实际案例</a></li>
+      <li class="toc-sub"><a href="#appel-direct">直接调用</a></li>
+      <li class="toc-sub"><a href="#import-csv">CSV 导入</a></li>
+      <li class="toc-sub"><a href="#shopify">Shopify</a></li>
+      <li class="toc-sub"><a href="#woocommerce">WooCommerce</a></li>
+      <li><a href="#agents">按次付费</a></li>
+      <li><a href="#limites">限制</a></li>
+    </ol>
+  </nav>
+
+  <div class="content">
+
+    <!-- 1. En une minute -->
+    <section class="dsec" id="en-une-minute" aria-labelledby="h-minute">
+      <p class="eyebrow">快速开始</p>
+      <h2 id="h-minute">一分钟上手</h2>
+      <ol class="steps">
+        <li><strong>获取密钥。</strong><a href="inscription-zh.html">创建账户</a>：免费试用 14 天，100 次验证，无需信用卡。密钥（<code>sk_live_…</code>）<strong>只显示一次</strong>。之后可在<a href="compte-zh.html">客户中心</a>重新生成。</li>
+        <li><strong>调用 <code>POST /validate</code></strong>，并把密钥放在请求头 <code>X-API-Key</code> 中。</li>
+        <li><strong>读取结果</strong>：标准化地址、可送达性、坐标，以及 <code>cache_key</code>。</li>
+      </ol>
+      <figure class="cb">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="verb">POST</span><span class="cb-path">/validate</span><span class="cb-lang">curl</span></figcaption>
+        <pre tabindex="0"><code><span class="v">curl</span> -sS BASE_URL/validate \
+  -H <span class="s">"X-API-Key: sk_live_YOUR_KEY"</span> \
+  -H <span class="s">"content-type: application/json"</span> \
+  -d <span class="s">'{"address": {"street": "1 Rue de Paris", "city": "Saint-Denis", "state": "RE", "zip": "97400", "country": "RE"}}'</span></code></pre>
+      </figure>
+      <p class="cb-note">在所有示例中，请把 <code>BASE_URL</code> 替换为 API 的公开地址，把 <code>sk_live_YOUR_KEY</code> 替换为您的密钥。</p>
+      <p>还没有账户？可以<a href="test-zh.html">免费测试一个地址</a>：该页面不写入任何数据，并会如实显示 API 的返回内容。</p>
+    </section>
+
+    <!-- 2. S'authentifier -->
+    <section class="dsec" id="authentification" aria-labelledby="h-auth">
+      <p class="eyebrow">访问方式</p>
+      <h2 id="h-auth">身份验证</h2>
+      <p>两种接入方式，同样的响应。只有发送的请求头和付费方式不同。</p>
+      <div class="auth">
+        <article class="door">
+          <p class="kicker">订阅</p>
+          <h3>网店</h3>
+          <dl>
+            <div><dt>您发送</dt><dd><code>X-API-Key: sk_live_…</code>，即注册时显示的密钥，或在客户中心重新生成的密钥。</dd></div>
+            <div><dt>您支付</dt><dd>您套餐的月度额度。调用时<strong>不会</strong>收取任何费用。</dd></div>
+          </dl>
+        </article>
+        <article class="door door-dev dark">
+          <p class="kicker">按次付费 · x402</p>
+          <h3>自主智能体</h3>
+          <dl>
+            <div><dt>您发送</dt><dd><code>X-PAYMENT</code>：根据 <code>402</code> 响应正文（<code>accepts</code> 字段）构造并签名的 EIP-3009 授权。</dd></div>
+            <div><dt>您支付</dt><dd>每次收费的验证 <strong>0.02 USDC</strong>。</dd></div>
+          </dl>
+        </article>
+      </div>
+      <div class="note"><strong>密钥优先。</strong>如果两个请求头同时发送，以订阅为准：账户已覆盖的调用<strong>绝不会</strong>收取 USDC。每个响应都会在 <code>X-Payment-Mode</code> 中说明本次调用是如何付费的。</div>
+      <p>切勿把密钥放进 git 仓库、共享文件或 URL。密钥应保存在环境变量或密钥管理工具中，并且只通过 <code>https</code> 传输。密钥一旦泄露，一键即可重新生成：旧密钥会立即失效。</p>
+    </section>
+
+    <!-- 3. Le contrat -->
+    <section class="dsec" id="contrat" aria-labelledby="h-contrat">
+      <p class="eyebrow">参考</p>
+      <h2 id="h-contrat">接口约定</h2>
+      <h3 class="sub" id="requete">请求</h3>
+      <p><code>POST BASE_URL/validate</code>，JSON 正文，请求头 <code>content-type: application/json</code>。</p>
+      <figure class="cb">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="cb-path">请求正文</span><span class="cb-lang">JSON</span></figcaption>
+        <pre tabindex="0"><code>{<span class="k">"address"</span>: {
+   <span class="k">"street"</span>: <span class="s">"1 Rue de Paris"</span>,   <span class="c">// 必填</span>
+   <span class="k">"city"</span>: <span class="s">"Saint-Denis"</span>,        <span class="c">// 必填</span>
+   <span class="k">"state"</span>: <span class="s">"RE"</span>,                <span class="c">// 必填（地区或州）</span>
+   <span class="k">"zip"</span>: <span class="s">"97400"</span>,               <span class="c">// 必填</span>
+   <span class="k">"country"</span>: <span class="s">"RE"</span>               <span class="c">// 可选，默认为 "US"（ISO 2 位字母）</span>
+}}</code></pre>
+      </figure>
+
+      <h3 class="sub" id="reponse"><code>200</code> 响应</h3>
+      <figure class="cb">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="cb-path">200 OK</span><span class="cb-lang">JSON</span></figcaption>
+        <pre tabindex="0"><code>{
+  <span class="k">"result"</span>: {
+    <span class="k">"validated"</span>: <span class="v">true</span>,
+    <span class="k">"standardized"</span>: {<span class="k">"line1"</span>: <span class="s">"1 RUE DE PARIS"</span>, <span class="k">"line2"</span>: <span class="s">""</span>, <span class="k">"city"</span>: <span class="s">"SAINT-DENIS"</span>,
+                     <span class="k">"state"</span>: <span class="s">"RE"</span>, <span class="k">"zip"</span>: <span class="s">"97400"</span>, <span class="k">"country"</span>: <span class="s">"RE"</span>},
+    <span class="k">"latitude"</span>: <span class="n">-20.8823</span>, <span class="k">"longitude"</span>: <span class="n">55.4504</span>,
+    <span class="k">"deliverability"</span>: <span class="s">"residential"</span>,
+    <span class="k">"confidence"</span>: <span class="n">0.99</span>,
+    <span class="k">"degraded"</span>: <span class="v">false</span>,
+    <span class="k">"cache_key"</span>: <span class="s">"9b7a..."</span>
+  },
+  <span class="k">"price_paid"</span>: <span class="n">0.0</span>,
+  <span class="k">"transaction_id"</span>: <span class="v">null</span>
+}</code></pre>
+      </figure>
+      <dl class="ref ref-2">
+        <div class="ref-head" aria-hidden="true"><span>字段</span><span>含义</span></div>
+        <div class="ref-row"><dt><code>validated</code></dt><dd>服务商识别了该地址。<strong><code>false</code> 并不总是最终结论</strong>：下结论之前，请先看 <code>degraded</code>。</dd></div>
+        <div class="ref-row"><dt><code>deliverability</code></dt><dd><code>residential</code>、<code>commercial</code>、<code>unknown</code> 或 <code>invalid</code>：服务商的代码，已转换为直白的取值。</dd></div>
+        <div class="ref-row"><dt><code>confidence</code></dt><dd>0 到 1 之间的数值：<strong>只是参考，不是保证</strong>。请根据您能接受的退货率来设定阈值。</dd></div>
+        <div class="ref-row"><dt><code>degraded</code></dt><dd><code>true</code>：服务商没有响应（故障、超时或熔断器已打开）。该响应<strong>不说明</strong>地址本身的任何情况。切勿把它记录为“地址无效”。</dd></div>
+        <div class="ref-row"><dt><code>price_paid</code></dt><dd>订阅已覆盖的调用为 <code>0.0</code>；按次付费的调用则为以 USDC 计的价格。</dd></div>
+        <div class="ref-row"><dt><code>cache_key</code></dt><dd>地址的假名标识（SHA-256）。用于缓存，也用于任何删除请求。请保存好它：其中不包含地址本身。</dd></div>
+      </dl>
+
+      <h3 class="sub" id="en-tetes">响应头</h3>
+      <p>以下是该接口实际返回的响应头，不承诺提供其他响应头。</p>
+      <dl class="ref ref-2">
+        <div class="ref-head" aria-hidden="true"><span>响应头</span><span>内容</span></div>
+        <div class="ref-row"><dt><code>X-Payment-Mode</code></dt><dd><code>api_key</code> 或 <code>x402</code>：本次调用的付费方式。</dd></div>
+        <div class="ref-row"><dt><code>X-Plan</code></dt><dd><code>trial</code>、<code>starter</code>、<code>pro</code> 或 <code>enterprise</code>。仅密钥模式下返回。</dd></div>
+        <div class="ref-row"><dt><code>X-Quota-Remaining</code></dt><dd><strong>本月</strong>剩余的验证次数。如果没有该响应头，表示套餐不限次数，即“无上限”。</dd></div>
+      </dl>
+    </section>
+
+    <!-- 4. Codes de retour (détail fort) -->
+    <section class="dsec" id="codes" aria-labelledby="h-codes">
+      <p class="eyebrow">参考</p>
+      <h2 id="h-codes">状态码，以及该怎么处理</h2>
+      <p><code>/validate</code> 可能返回八种状态码。密钥模式下的三种拒绝（401、402、403）是有意区分的：请分别处理。</p>
+
+      <div class="codemap">
+        <div class="cm f-ok">
+          <p class="cm-h">已完成</p>
+          <p class="cm-codes"><a class="cmc" href="#code-200" aria-label="Code 200">200</a></p>
+          <p class="cm-d">读取结果。</p>
+        </div>
+        <div class="cm f-fix">
+          <p class="cm-h">需在您这边修正</p>
+          <p class="cm-codes"><a class="cmc" href="#code-401" aria-label="Code 401">401</a><a class="cmc" href="#code-403" aria-label="Code 403">403</a><a class="cmc" href="#code-422" aria-label="Code 422">422</a></p>
+          <p class="cm-d">不做任何修改就重试，没有用。</p>
+        </div>
+        <div class="cm f-lim">
+          <p class="cm-h">限额或付款</p>
+          <p class="cm-codes"><a class="cmc" href="#code-402" aria-label="Code 402">402</a><a class="cmc" href="#code-429" aria-label="Code 429">429</a></p>
+          <p class="cm-d">不是故障：响应正文或 <code>Retry-After</code> 会告诉您该怎么做。</p>
+        </div>
+        <div class="cm f-srv">
+          <p class="cm-h">服务端故障</p>
+          <p class="cm-codes"><a class="cmc" href="#code-500" aria-label="Code 500">500</a><a class="cmc" href="#code-503" aria-label="Code 503">503</a></p>
+          <p class="cm-d">请重试。绝不是付款请求。</p>
+        </div>
+      </div>
+
+      <div class="codes-head" aria-hidden="true"><span>状态码和情况</span><span>您该怎么做</span><span>是否重试？</span></div>
+      <ol class="codes">
+        <li class="code-row f-ok" id="code-200">
+          <div class="cr-id"><h3><span class="sc">200</span><span class="cr-t">验证已完成</span></h3><p class="cr-fam">成功</p></div>
+          <div class="cr-do"><p>读取 <code>result</code>。请保存 <code>cache_key</code>：它是该地址的假名标识，可用于申请删除。</p></div>
+          <p class="cr-retry"><span class="rt rt-none">无需重试</span></p>
+        </li>
+        <li class="code-row f-fix" id="code-401">
+          <div class="cr-id"><h3><span class="sc">401</span><span class="cr-t">API 密钥未知</span></h3><p class="cr-fam">需在您这边修正</p></div>
+          <div class="cr-do"><p>密钥不完整、已被撤销（已重新生成），或属于其他服务。请修正环境变量。<strong>不要循环重试。</strong></p></div>
+          <p class="cr-retry"><span class="rt rt-no">否：请修正密钥</span></p>
+        </li>
+        <li class="code-row f-lim" id="code-402">
+          <div class="cr-id"><h3><span class="sc">402</span><span class="cr-t">本月额度已用完，或没有有效付款</span></h3><p class="cr-fam">限额或付款</p></div>
+          <div class="cr-do"><p>请读取响应正文：它会说明属于哪种情况。因额度产生的 402 不是故障。</p></div>
+          <p class="cr-retry"><span class="rt">视响应正文而定</span></p>
+          <div class="split">
+            <div><code class="sb">{"reason": "quota_atteint"}</code>已达到用量上限。<strong>这不是故障。</strong>计数器每月 1 日（UTC）重置。</div>
+            <div><code class="sb">{"x402Version": 1}</code>本次调用缺少付款。价格在 <code>accepts</code> 字段中。</div>
+          </div>
+        </li>
+        <li class="code-row f-fix" id="code-403">
+          <div class="cr-id"><h3><span class="sc">403</span><span class="cr-t">账户已过期</span></h3><p class="cr-fam">需在您这边修正</p></div>
+          <div class="cr-do"><p>免费试用已结束，账户仍停留在试用套餐。请升级到<a href="tarifs-zh.html">付费套餐</a>：不会自动扣款。</p></div>
+          <p class="cr-retry"><span class="rt rt-no">否：请更换套餐</span></p>
+        </li>
+        <li class="code-row f-fix" id="code-422">
+          <div class="cr-id"><h3><span class="sc">422</span><span class="cr-t">请求格式错误</span></h3><p class="cr-fam">需在您这边修正</p></div>
+          <div class="cr-do"><p>某个字段缺失或为空。<code>street</code>、<code>city</code>、<code>state</code> 和 <code>zip</code> 为必填；<code>country</code> 默认为 <code>US</code>。</p></div>
+          <p class="cr-retry"><span class="rt rt-no">修正后再试</span></p>
+        </li>
+        <li class="code-row f-lim" id="code-429">
+          <div class="cr-id"><h3><span class="sc">429</span><span class="cr-t">已达免费测试上限</span></h3><p class="cr-fam">限额</p></div>
+          <div class="cr-do"><p>适用于 <code>/validate-form</code>，即无需账户的测试，而不是付费 API。请等待 <code>Retry-After</code> 中给出的时间，或<a href="inscription-zh.html">创建账户</a>。</p></div>
+          <p class="cr-retry"><span class="rt"><code>Retry-After</code> 之后</span></p>
+        </li>
+        <li class="code-row f-srv" id="code-500">
+          <div class="cr-id"><h3><span class="sc">500</span><span class="cr-t">已收款，但无法访问记录库</span></h3><p class="cr-fam">服务端故障</p></div>
+          <div class="cr-do"><p>服务<strong>拒绝</strong>返回无法记录的验证结果。请重试。如果该调用已付款，请提供 <code>transaction_id</code>：我们会手动对账。</p></div>
+          <p class="cr-retry"><span class="rt">是，请保存 <code>transaction_id</code></span></p>
+        </li>
+        <li class="code-row f-srv" id="code-503">
+          <div class="cr-id"><h3><span class="sc">503</span><span class="cr-t">无法访问客户账户或数据库</span></h3><p class="cr-fam">服务端故障</p></div>
+          <div class="cr-do"><p>无法校验密钥（这<strong>不是</strong>拒绝），或数据库没有响应。请几分钟后重试：没有消耗任何额度。</p><p class="never">503 绝不是付款请求。</p></div>
+          <p class="cr-retry"><span class="rt">是，几分钟后</span></p>
+        </li>
+      </ol>
+    </section>
+
+    <!-- 5. Cache et quotas -->
+    <section class="dsec" id="cache-et-quotas" aria-labelledby="h-cache">
+      <p class="eyebrow">计费</p>
+      <h2 id="h-cache">哪些不会重复付费，哪些设有上限</h2>
+      <dl class="ref ref-3">
+        <div class="ref-head" aria-hidden="true"><span>主题</span><span>实际情况</span><span>您该怎么做</span></div>
+        <div class="ref-row"><dt>缓存（验证结论）</dt><dd>同一个标准化地址在 <strong>30 天</strong>内不会再次向服务商查询，由 <code>cache_key</code> 保证。</dd><dd><span class="rr-l">建议</span>放心调用，同一个问题不会付两次费。如需强制重新查询，请修改地址：API 不会自行猜测。</dd></div>
+        <div class="ref-row"><dt>缓存（降级）</dt><dd><code>degraded</code> 结果只缓存 <strong>5 分钟</strong>，而不是 30 天：“服务商没有响应”不是验证结论。</dd><dd><span class="rr-l">建议</span>把 <code>degraded: true</code> 当作“请稍后重试”。过了这个很短的时间窗口，同样的调用就能得到真实的响应。</dd></div>
+        <div class="ref-row"><dt>额度</dt><dd><strong>按月</strong>，按 <strong>UTC</strong> 自然月计算：每月 1 日重置，而不是从您第一次调用起满 30 天。</dd><dd><span class="rr-l">建议</span>关注 <code>X-Quota-Remaining</code>。请在达到上限之前联系我们，而不是之后。</dd></div>
+        <div class="ref-row"><dt>按次价格</dt><dd>每次收费的验证 <strong>0.02 USDC</strong>（x402 模式）。订阅已覆盖的调用会返回 <code>price_paid: 0.0</code>。</dd><dd><span class="rr-l">建议</span>需要付费的智能体读取 <code>402</code> 正文（<code>accepts</code>）：价格就在其中，无需猜测。</dd></div>
+        <div class="ref-row"><dt>无需账户的测试</dt><dd>在 <code>/validate-form</code> 上，<strong>每位访客每天 10 次验证</strong>。</dd><dd><span class="rr-l">建议</span>经常使用的话，请创建账户：免费 100 次验证，之后选择月度套餐。</dd></div>
+      </dl>
+    </section>
+
+    <!-- 6. Cas pratiques -->
+    <section class="dsec" id="cas-pratiques" aria-labelledby="h-cas">
+      <p class="eyebrow">示例</p>
+      <h2 id="h-cas">实际案例</h2>
+      <p>接入 API 的四种方式。每个示例都从环境变量中读取密钥。</p>
+
+      <h3 class="sub" id="appel-direct">1. 直接调用（PowerShell）</h3>
+      <figure class="cb">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="verb">POST</span><span class="cb-path">/validate</span><span class="cb-lang">PowerShell</span></figcaption>
+        <pre tabindex="0"><code>$cle = $env:ADDRESS_VALIDATOR_KEY
+$corps = <span class="s">'{"address":{"street":"1 Rue de Paris","city":"Saint-Denis","state":"RE","zip":"97400","country":"RE"}}'</span>
+$r = <span class="v">Invoke-WebRequest</span> -Uri BASE_URL/validate -Method POST `
+     -Headers @{ <span class="s">"X-API-Key"</span> = $cle } -ContentType <span class="s">"application/json"</span> -Body $corps
+$r.StatusCode
+$r.Headers[<span class="s">"X-Payment-Mode"</span>], $r.Headers[<span class="s">"X-Plan"</span>], $r.Headers[<span class="s">"X-Quota-Remaining"</span>]
+($r.Content | <span class="v">ConvertFrom-Json</span>).result</code></pre>
+      </figure>
+
+      <h3 class="sub" id="import-csv">2. CSV 导入（Python）</h3>
+      <figure class="cb">
+        <figcaption class="cb-top"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="cb-path">verifier_colis.py</span><span class="cb-lang">Python</span></figcaption>
+        <pre tabindex="0"><code><span class="c">"""核对地址 CSV 文件，并在旁边写入结论。
+
+每个地址只向服务商查询一次：响应会被缓存
+（结论缓存 30 天），因此对同一文件再次运行
+不会产生额外费用。
+"""</span>
+<span class="v">import</span> csv
+<span class="v">import</span> os
+<span class="v">import</span> time
+
+<span class="v">import</span> requests
+
+CLE = os.environ[<span class="s">"ADDRESS_VALIDATOR_KEY"</span>]  <span class="c"># 切勿写进代码，切勿提交到 git</span>
+API = <span class="s">"BASE_URL/validate"</span>
+
+<span class="v">with</span> open(<span class="s">"colis.csv"</span>, newline=<span class="s">""</span>, encoding=<span class="s">"utf-8"</span>) <span class="v">as</span> source, open(
+    <span class="s">"colis-verifies.csv"</span>, <span class="s">"w"</span>, newline=<span class="s">""</span>, encoding=<span class="s">"utf-8"</span>
+) <span class="v">as</span> cible:
+    lecteur = csv.DictReader(source)
+    champs = list(lecteur.fieldnames) + [
+        <span class="s">"validated"</span>, <span class="s">"deliverability"</span>, <span class="s">"degraded"</span>, <span class="s">"note"</span>,
+    ]
+    sortie = csv.DictWriter(cible, fieldnames=champs)
+    sortie.writeheader()
+    <span class="v">for</span> ligne <span class="v">in</span> lecteur:
+        reponse = requests.post(
+            API,
+            headers={<span class="s">"X-API-Key"</span>: CLE},
+            timeout=<span class="n">30</span>,
+            json={
+                <span class="s">"address"</span>: {
+                    <span class="s">"street"</span>: ligne[<span class="s">"adresse"</span>],
+                    <span class="s">"city"</span>: ligne[<span class="s">"ville"</span>],
+                    <span class="s">"state"</span>: ligne[<span class="s">"region"</span>],
+                    <span class="s">"zip"</span>: ligne[<span class="s">"code_postal"</span>],
+                    <span class="s">"country"</span>: ligne.get(<span class="s">"pays"</span>) <span class="v">or</span> <span class="s">"US"</span>,
+                }
+            },
+        )
+        <span class="v">if</span> reponse.status_code <span class="v">in</span> (<span class="n">500</span>, <span class="n">503</span>):
+            time.sleep(<span class="n">5</span>)  <span class="c"># 服务端故障：没有消耗任何额度</span>
+            <span class="v">continue</span>
+        <span class="v">if</span> reponse.status_code == <span class="n">429</span>:
+            time.sleep(int(reponse.headers.get(<span class="s">"Retry-After"</span>, <span class="s">"60"</span>)))
+            <span class="v">continue</span>
+        <span class="v">if</span> reponse.status_code != <span class="n">200</span>:
+            sortie.writerow({**ligne, <span class="s">"note"</span>: <span class="s">f"refus {reponse.status_code}"</span>})
+            <span class="v">continue</span>
+        resultat = reponse.json()[<span class="s">"result"</span>]
+        sortie.writerow(
+            {
+                **ligne,
+                <span class="s">"validated"</span>: resultat[<span class="s">"validated"</span>],
+                <span class="s">"deliverability"</span>: resultat[<span class="s">"deliverability"</span>],
+                <span class="s">"degraded"</span>: resultat[<span class="s">"degraded"</span>],
+                <span class="s">"note"</span>: <span class="s">"a reverifier (fournisseur injoignable)"</span>
+                <span class="v">if</span> resultat[<span class="s">"degraded"</span>]
+                <span class="v">else</span> <span class="s">""</span>,
+            }
+        )</code></pre>
+      </figure>
+      <p>这个示例只说明三点：密钥来自环境变量；遵守 <code>429</code>（等待时间是<em>读取</em>的，不是猜的）；<code>degraded</code> 结果会标记为“需重新验证”，而不是写成无效地址。</p>
+
+      <div class="note note-warn"><strong>没有 Shopify 应用，也没有 WooCommerce 插件。</strong>您的网店无需安装任何东西：API 就是接口约定，调用从<strong>您自己的</strong>服务发出。这样您就可以自行设定置信度阈值。</div>
+
+      <h3 class="sub" id="shopify">3. Shopify</h3>
+      <dl class="ref ref-wide">
+        <div class="ref-head" aria-hidden="true"><span>步骤</span><span>您要接入的内容</span></div>
+        <div class="ref-row"><dt>触发条件</dt><dd><code>orders/create</code> webhook（或您的包裹备货环节）调用您的服务，由您的服务带着订单的收货地址请求 <code>/validate</code>。</dd></div>
+        <div class="ref-row"><dt>字段对应关系</dt><dd><ul class="map"><li><code>shipping_address.address1</code> → <code>street</code> （把 <code>address2</code> 加到结果中的 <code>line2</code>）</li><li><code>city</code> → <code>city</code></li><li><code>province_code</code> → <code>state</code></li><li><code>zip</code> → <code>zip</code></li><li><code>country_code</code> → <code>country</code></li></ul></dd></div>
+        <div class="ref-row"><dt>处理决定</dt><dd><code>validated: false</code>：<strong>发货之前</strong>，在您的后台标记该订单。<code>degraded: true</code>：不要拦截任何订单，改期重新核验。</dd></div>
+        <div class="ref-row"><dt>我们不提供的内容</dt><dd>没有可直接安装的 Shopify 应用：调用来自您自己的服务。</dd></div>
+      </dl>
+
+      <h3 class="sub" id="woocommerce">4. WooCommerce</h3>
+      <dl class="ref ref-wide">
+        <div class="ref-head" aria-hidden="true"><span>步骤</span><span>您要接入的内容</span></div>
+        <div class="ref-row"><dt>触发条件</dt><dd><code>woocommerce_checkout_order_processed</code> 动作（订单已付款），或遍历备货中订单的定时任务（<code>wc_get_orders( ['status' =&gt; 'processing'] )</code>）。</dd></div>
+        <div class="ref-row"><dt>字段对应关系</dt><dd><ul class="map"><li><code>$order-&gt;get_shipping_address_1()</code> → <code>street</code></li><li><code>$order-&gt;get_shipping_city()</code> → <code>city</code></li><li><code>$order-&gt;get_shipping_state()</code> → <code>state</code></li><li><code>$order-&gt;get_shipping_postcode()</code> → <code>zip</code></li><li><code>$order-&gt;get_shipping_country()</code> → <code>country</code></li></ul></dd></div>
+        <div class="ref-row"><dt>可追溯性</dt><dd>请把 <code>cache_key</code> 与订单一起保存：它是申请删除时唯一有效的地址标识。</dd></div>
+        <div class="ref-row"><dt>Ce que nous ne fournissons pas</dt><dd>没有 WooCommerce 插件：调用来自您自己的服务。</dd></div>
+      </dl>
+      <p>无论哪种情况：每个地址、每个订单只调用一次，绝不要放进忽略状态码的循环里。因额度产生的 <a href="#code-402">402</a> 不是故障，而是一项限制，响应里会写明。</p>
+    </section>
+
+    <!-- 7. Agents -->
+    <section class="dsec" id="agents" aria-labelledby="h-agents">
+      <p class="eyebrow">开发者与 AI 智能体</p>
+      <h2 id="h-agents">按次付费，无需账户</h2>
+      <p>自主智能体既不需要账户，也不需要密钥。每次收费的验证为 <strong>0.02 USDC</strong>，通过 x402 在 Base 网络上支付。</p>
+      <ol class="flow">
+        <li><b>1</b><strong>调用 <code>POST /validate</code></strong>，正文与平常相同。未付款时，响应为 <code>402</code>，其正文包含 <code>{"x402Version": 1}</code> 和 <code>accepts</code> 字段：价格就在其中。</li>
+        <li><b>2</b><strong>签署授权。</strong>根据 <code>accepts</code> 构造 EIP-3009 授权，并带上请求头 <code>X-PAYMENT</code> 重新发送请求。</li>
+        <li><b>3</b><strong>读取响应。</strong><code>X-Payment-Mode</code> 为 <code>x402</code>，<code>price_paid</code> 给出以 USDC 计的价格，<code>transaction_id</code> 是遇到 <a href="#code-500">500</a> 时需要提供的凭据。</li>
+      </ol>
+      <p>您的智能体可以免费发现以下全部内容：</p>
+      <ul class="res">
+        <li><a href="/mcp"><span class="rp">/mcp</span><span>MCP 服务器，工具为 <code>validate_address</code>，可免费发现</span></a></li>
+        <li><a href="/manifest"><span class="rp">/manifest</span><span>智能体可读的 x402 说明</span></a></li>
+        <li><a href="/llms.txt"><span class="rp">/llms.txt</span><span>面向搜索引擎和智能体的简短摘要</span></a></li>
+        <li><a href="/AGENTS.md"><span class="rp">/AGENTS.md</span><span>给您的智能体的使用说明</span></a></li>
+        <li><a href="/docs"><span class="rp">/docs</span><span>交互式文档（OpenAPI，可在线试用）</span></a></li>
+      </ul>
+    </section>
+
+    <!-- 8. Limites -->
+    <section class="dsec" id="limites" aria-labelledby="h-limites">
+      <p class="eyebrow">集成之前请了解</p>
+      <h2 id="h-limites">限制</h2>
+      <dl class="ref ref-wide">
+        <div class="ref-row"><dt>美国 <span class="st st-ok">已优化</span></dt><dd>服务商针对美国地址优化：标准化地址、坐标、可送达性和置信度。</dd></div>
+        <div class="ref-row"><dt>美国以外 <span class="st st-warn">部分验证</span></dt><dd>美国以外的验证只是部分验证。法国或留尼汪地址即使有返回结果，也不代表已完整确认。</dd></div>
+        <div class="ref-row"><dt><code>degraded: true</code> <span class="st st-info">需重新验证</span></dt><dd>服务商没有响应。该响应不说明地址本身的任何情况，也不是拒绝。请稍后重试。</dd></div>
+        <div class="ref-row"><dt>集成</dt><dd>没有 Shopify 应用，也没有 WooCommerce 插件：调用从您自己的服务发出。</dd></div>
+      </dl>
+      <div class="note note-ok"><strong>我们保存什么，不保存什么。</strong>对于付费调用或订阅调用：保存地址的指纹（<code>cache_key</code>）和处理结果，绝不保存地址本身。对于无需账户的免费测试：<strong>什么都不保存</strong>，只有一个匿名计数器用来执行上限。删除请求通过 <code>cache_key</code> 提出。</div>
+
+      <div class="next">
+        <h2>开始动手</h2>
+        <p>创建账户以获取密钥，或先无需账户测试一个地址。</p>
+        <div class="cta">
+          <a class="btn btn-accent" href="inscription-zh.html">创建账户 <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+          <a class="btn btn-glass" href="tarifs-zh.html">查看价格</a>
+          <a class="btn btn-glass" href="test-zh.html">测试地址</a>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="accueil-zh.html"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>Address Validator</a>
+        <p>Address Validator，Kder Daoud</p>
+        <a class="mail" href="mailto:address-validator@kder-ai.com">address-validator@kder-ai.com</a>
+      </div>
+      <div>
+        <p class="foot-h">商店</p>
+        <ul>
+          <li><a href="tarifs-zh.html">价格</a></li>
+          <li><a href="guide-zh.html">集成指南</a></li>
+          <li><a href="test-zh.html">测试地址</a></li>
+          <li><a href="compte-zh.html">客户中心</a></li>
+          <li><a href="inscription-zh.html">创建账户</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="foot-h">开发者与智能体</p>
+        <ul>
+          <li><a href="/docs">文档</a></li>
+          <li><a href="/mcp">MCP 服务器</a></li>
+          <li><a href="/manifest">清单文件</a></li>
+          <li><a href="/llms.txt">llms.txt</a></li>
+          <li><a href="/AGENTS.md">AGENTS.md</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">价格不含税。无订阅直接调用：每次验证 0.02 USDC。</p>
+  </div>
+</footer>
+</body>
+</html>
