@@ -346,6 +346,34 @@ curl.exe -sI https://kder-ai.com/images/commercante-colis.jpg    # image/jpeg, n
 
 Vérification : `.\.venv\Scripts\python.exe scripts\decisions_check.py D57`.
 
+### 4.9 Agents IA et visites : mesurer au lieu de bloquer (D67, D68)
+
+Le service **classe** chaque appelant en six familles (`agent_ia`,
+`annuaire_mcp`, `moteur`, `outil`, `navigateur`, `inconnu`), **journalise** les
+agents IA et les annuaires MCP dans le journal JSONL de D30 — jamais les visites
+humaines — et **publie** cinq mesures (`agents`, `top_ip`, `top_agents`,
+`top_pages`, `conversion`). Aucun agent n'est bloqué : un agent qui lit
+`/pricing` est un prospect sans navigateur. La liste blanche des 25 agents IA
+publiés par leurs éditeurs est dans `docs/AGENTS-IA.md` et dans la réponse de
+`/metrics/agents`.
+
+```powershell
+curl.exe -s https://kder-ai.com/metrics/agents                        # en direct (compteurs du processus)
+.\.venv\Scripts\python.exe scripts\analyser_agents.py --since 7d      # ce qui est écrit (journal JSONL)
+.\.venv\Scripts\python.exe scripts\analyser_visites.py --since 24h    # tout le trafic (journal Nginx), 7 sections
+```
+
+`scripts/analyser_visites.py` rend sept sections — chiffres clés, temps, top
+pages, top IP, codes de statut, clients, anomalies (sondes, chemins sensibles,
+fuites). Les adresses y sont **pseudonymisées** (SHA-256 + sel, D30) sauf
+`--ip-en-clair` demandé explicitement ; une fuite est un chemin sensible servi en
+`2xx` (un `301` renvoie ailleurs, il n'expose rien). Les deux analyseurs lisent la
+**même** table de classification : l'endpoint et les rapports ne peuvent pas se
+contredire sur ce qu'est un agent.
+
+Vérification : `.\\.venv\\Scripts\\python.exe scripts\\run_tests.py tests\\test_agents_ia.py tests\\test_visites.py`.
+
+
 ## 5. Exemple d'appel payant
 
 1. Construire une preuve (le client et l'API partagent `API_SECRET_KEY`) :

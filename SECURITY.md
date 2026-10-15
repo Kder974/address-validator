@@ -169,10 +169,25 @@ réglé et s'appuie sur la chaîne comme source de vérité. Voir `README.md` §
   succès et échecs de cache, réponses dégradées, erreurs fournisseur, uptime,
   **état du disjoncteur** (`state`, `failures`, `threshold`) et **disponibilité
   du backend cache** (D24, `app/routes/metrics.py:60-80`).
+- `/metrics/agents` expose l'observabilité des appelants (D67) : requêtes par
+  classe, top agents, top pages, conversion et la **liste blanche publiée** des
+  agents IA. Il ne publie **aucune adresse en clair** : l'IP est pseudonymisée à
+  l'entrée (SHA-256 + sel, D30) et c'est le pseudonyme qui sort. La publication
+  est volontaire (un agent doit pouvoir vérifier s'il est reconnu) ; la liste des
+  agents d'entraînement n'est pas un secret.
+- Le journal JSONL de D30 (`DISCOVERY_LOG_PATH`) n'écrit que les classes
+  `agent_ia` et `annuaire_mcp` : les visites humaines sont comptées, jamais
+  journalisées. Aucune adresse validée, aucun corps de requête, aucune clé n'y
+  figure ; `DISCOVERY_LOG_RAW_IP=true` met l'IP en clair et doit rester une
+  mesure d'enquête datée (PRIVACY.md §3).
+- Les deux analyseurs (`scripts/analyser_agents.py`, `scripts/analyser_visites.py`)
+  pseudonymisent par défaut ; `--ip-en-clair` est le seul moyen de lire une
+  adresse, et il est explicite. La rétention annoncée (30 jours) est appliquée
+  par `scripts/prune_discovery_log.py`.
 - `/health` interroge réellement PostgreSQL et Redis, en parallèle et bornés à
   2 s (`app/routes/health.py`, D22) : il dit la vérité même quand tout est en
   panne.
-- **Ces deux points d'entrée sont publics** : ils divulguent l'état interne du
+- **Ces trois points d'entrée sont publics** : ils divulguent l'état interne du
   service. À restreindre côté Nginx (§6).
 - Aucun mécanisme d'alerte automatique n'existe dans le dépôt : les métriques
   nécessaires sont exposées, le branchement (Prometheus, Discord, n8n) reste à

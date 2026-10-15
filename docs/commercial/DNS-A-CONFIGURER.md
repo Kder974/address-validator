@@ -17,6 +17,27 @@ valeurs relevées dans le DNS public et de la documentation officielle Zoho.
 
 ---
 
+## 0. Où en est le domaine (relevé du 15/10/2026)
+
+`kder-ai.com` a été migré sur Zoho **monde** (`.com`), pas sur l'Europe : c'est
+l'état publié aujourd'hui, et c'est celui que `scripts/verifier_dns_kder.py`
+contrôle **par défaut** (datacenter du domaine).
+
+| Enregistrement | Valeur publiée le 15/10/2026 | État |
+|----------------|------------------------------|------|
+| `MX @` | `mx.zoho.com` 10, `mx2.zoho.com` 20, `mx3.zoho.com` 50 | ✅ en place |
+| `TXT @` | `v=spf1 include:zoho.com include:spf.brevo.com ~all` | ✅ en place |
+| `TXT @` | `zoho-verification=zb82668052.zmverify.zoho.com` | ✅ en place |
+| `TXT @` | `brevo-code:b9cabf23d325d0beaa396b99cf018d1c` | ✅ clé de domaine Brevo (publique) |
+| `TXT zmail._domainkey` | clé DKIM Zoho (234 caractères) | ✅ en place |
+| `TXT _dmarc` | `v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com` | ✅ en place |
+| `CNAME mail._domainkey` | *absent* | ❌ à créer dans Brevo — voir `DKIM-BREVO-A-CONFIGURER.md` |
+
+Les § 1 à 4 décrivent la variante **Europe** (`zoho.eu`) et gardent leur valeur de
+référence ; le § 5 donne les valeurs **monde**, celles qui servent réellement.
+
+---
+
 ## 1. État relevé du domaine (13/10/2026, avant modification)
 
 | Enregistrement | Valeur publiée aujourd'hui | À faire |
@@ -113,6 +134,10 @@ qu'il faut lire, pas un tutoriel recopié.*
   `spf.zohomail.com` **ne couvre pas** cette plage : pour un compte `zoho.eu`,
   mettre `include:zohomail.com` ferait échouer le SPF des messages envoyés par
   Zoho.
+- **Cas de `kder-ai.com`** : le compte est en fait hébergé par Zoho **monde**,
+  l'`include` attendu est donc `include:zoho.com` (§ 5 et § 0), pas `zoho.eu`.
+  Le raisonnement ci-dessus reste valable pour un compte réellement européen :
+  c'est le datacenter du compte qui décide de l'`include`, jamais l'inverse.
 - `include:spf.brevo.com` : relevé dans le TXT de `spf.brevo.com`
   (`v=spf1 ip4:185.41.28.0/22 … -all`), c'est l'`include` officiel demandé par
   Brevo ; sans lui, les emails du script partent sans SPF valide.
@@ -140,21 +165,28 @@ qu'il faut lire, pas un tutoriel recopié.*
 
 ---
 
-## 5. Variante : si la console Zoho affiche `.com` (datacenter monde)
+## 5. Datacenter monde (`.com`) — les valeurs en service
 
-Si — et seulement si — la console affiche des hôtes en `zoho.com`, remplacer les
-lignes 1 à 4 du § 3 par :
+C'est la variante retenue pour `kder-ai.com` (§ 0). Remplacer les lignes 1 à 4
+du § 3 par :
 
 | Type | Host | Value | Priority |
 |------|------|-------|----------|
 | `MX Record` | `@` | `mx.zoho.com` | `10` |
 | `MX Record` | `@` | `mx2.zoho.com` | `20` |
 | `MX Record` | `@` | `mx3.zoho.com` | `50` |
-| `TXT Record` | `@` | `v=spf1 include:zohomail.com include:spf.brevo.com ~all` | — |
+| `TXT Record` | `@` | `v=spf1 include:zoho.com include:spf.brevo.com ~all` | — |
 
-`zohomail.com` résout vers `spf.zohomail.com`, la plage d'envoi du datacenter
-monde (vérifié le 13/10/2026). Le DKIM (§ 4.3), le DMARC (§ 4.4) et la preuve de
-domaine sont **identiques** dans les deux cas.
+`include:zoho.com` est l'`include` que Zoho publie pour le datacenter monde, et
+le TXT SPF de `zoho.com` chaine lui-même `include:spf.zohomail.com` : les hôtes
+d'envoi `zohomail.com` sont donc couverts. **Ne pas écrire `include:zohomail.com`** :
+ce domaine publie bien un SPF (`v=spf1 include:spf.zohomail.com -all`, relevé le
+15/10/2026), mais ce n'est pas la valeur documentée pour un domaine, et l'exiger
+faisait déclarer « écart » un SPF pourtant correct — c'est le faux positif
+corrigé dans `scripts/verifier_dns_kder.py` le 15/10/2026.
+
+Le DKIM (§ 4.3), le DMARC (§ 4.4) et la preuve de domaine sont **identiques**
+dans les deux cas.
 
 ---
 
@@ -182,24 +214,33 @@ domaine sont **identiques** dans les deux cas.
 ## 7. Vérifier (après ~1 h)
 
 ```powershell
+# Sans option : datacenter du domaine (.com, § 5) — c'est le contrôle courant
+.venv\Scripts\python.exe scripts\verifier_dns_kder.py
+
 # DKIM : coller entre les guillemets la valeur affichée par la console Zoho
 .venv\Scripts\python.exe scripts\verifier_dns_kder.py --dkim "v=DKIM1; k=rsa; p=MIIBIjANBgkq..."
 
-# Sans la clé DKIM : tout le reste est contrôlé, le DKIM est dit NON VÉRIFIÉ
-.venv\Scripts\python.exe scripts\verifier_dns_kder.py
-
-# Si la console Zoho affiche .com (§ 5)
-.venv\Scripts\python.exe scripts\verifier_dns_kder.py --dc com
+# Variante Europe (§ 3 et § 4), pour un domaine réellement hébergé par zoho.eu
+.venv\Scripts\python.exe scripts\verifier_dns_kder.py --dc eu
 ```
 
-Sortie attendue : `✅ OK` sur les sept lignes, code de retour `0`
+Sortie attendue : `✅ OK` sur toutes les lignes, code de retour `0`
 (`✅ DNS prêts.`). Les codes sont : `0` tout est vert, `1` au moins un
 enregistrement **manquant**, `2` uniquement des **écarts**, `3` aucun outil DNS
 utilisable sur la machine.
 
+Le DKIM Brevo (`mail._domainkey`) reste annoncé **DIFFERENT** tant que le CNAME
+n'a pas été créé dans Brevo : c'est un écart de la tâche suivante, décrit dans
+`DKIM-BREVO-A-CONFIGURER.md` — il ne bloque pas les MX, le SPF, le DKIM Zoho ni
+le DMARC.
+
 ---
 
-## 8. Checklist Namecheap
+## 8. Checklist Namecheap (préparation, variante Europe)
+
+> La migration est faite sur `.com` (§ 0 et § 5) : cette checklist a servi à la
+> préparation. Ce qui reste réellement ouvert côté e-mail est décrit dans
+> `DKIM-BREVO-A-CONFIGURER.md`.
 
 - [ ] Supprimer les 5 MX `eforward*.registrar-servers.com`
 - [ ] Supprimer le TXT SPF `include:spf.efwd.registrar-servers.com`

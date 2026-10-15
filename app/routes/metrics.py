@@ -116,3 +116,23 @@ async def get_metrics():
     payload["cache_errors"] = cache_error_count()
     return payload
 
+
+@router.get("/metrics/agents")
+async def get_agent_metrics():
+    """Agents IA : qui vient, par quelle porte, et ce que cela convertit (D67).
+
+    Meme rapport que `scripts/analyser_agents.py` (les cinq mesures `agents`,
+    `top_ip`, `top_agents`, `top_pages`, `conversion`), mais la source est la
+    memoire du processus et non le journal sur disque : l'endpoint dit « depuis
+    le demarrage », le script dit « ce qui est ecrit ». Les deux se completent,
+    aucun des deux ne remplace l'autre.
+
+    Aucune adresse en clair n'est publiee : l'IP est pseudonymisee a l'entree
+    (D30, sha256 + sel) et c'est le pseudonyme qui sort ici. Une adresse
+    pseudonymisee reste une donnee d'exploitation : elle compte, elle ne
+    designe personne sans le sel, qui n'est pas publie.
+    """
+    from app import observability
+
+    return observability.agents_snapshot()
+

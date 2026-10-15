@@ -8,8 +8,13 @@ QUOI  : controle les enregistrements dont depend le courrier du domaine — les
         puis dit lesquels sont prets, manquants ou differents.
 COMMENT : interroge le DNS public avec `dig` (s'il est present) ou `nslookup`
         (Windows, macOS), et compare aux valeurs de
-        `docs/commercial/DNS-A-CONFIGURER.md`. Aucune connexion a Zoho ni a
-        Brevo : le DNS public suffit, et aucun secret n'est demande.
+        `docs/commercial/DNS-A-CONFIGURER.md`. Le datacenter controle est celui
+        que le domaine **utilise reellement**, et c'est le defaut : `kder-ai.com`
+        depend de Zoho monde (`.com`), ses MX publies sont `mx.zoho.com`.
+        `--dc eu` sert a un domaine heberge par `zoho.eu` — le mauvais choix
+        ferait signaler trois MX manquants sur un domaine correctement
+        configure. Aucune connexion a Zoho ni a Brevo : le DNS public suffit,
+        et aucun secret n'est demande.
 QUAND : apres avoir colle les enregistrements dans Namecheap (compter jusqu'a
         1 h de propagation), puis apres tout changement d'expediteur.
 OU    : scripts/verifier_dns_kder.py, lance depuis la racine du depot :
@@ -45,6 +50,13 @@ from typing import Sequence
 #: Domaine teste par defaut.
 DOMAINE_DEFAUT = "kder-ai.com"
 
+#: Datacenter Zoho teste par defaut. `kder-ai.com` est heberge par Zoho
+#: **monde** : le DNS public repond `mx.zoho.com`, jamais `mx.zoho.eu`. Se
+#: tromper de datacenter fait signaler trois MX manquants sur un domaine
+#: pourtant correct (constate le 15/10/2026) : ce defaut suit donc le domaine,
+#: `--dc eu` restant disponible pour un compte europeen.
+DC_DEFAUT = "com"
+
 #: MX attendus par datacenter : (hote, priorite). Releve du DNS Zoho le
 #: 13/10/2026 : `mx4.zoho.eu` n'existe pas, il n'y a que trois MX par region.
 MX_ATTENDUS = {
@@ -53,9 +65,17 @@ MX_ATTENDUS = {
 }
 
 #: `include` SPF a autoriser pour que Zoho puisse envoyer au nom du domaine.
-#: `zoho.eu` (et non `zohomail.com`) pour un compte europeen : `spf.zoho.eu`
-#: couvre `89.36.170.0/24`, l'adresse de `smtp.zoho.eu`.
-INCLUDE_SPF = {"eu": "include:zoho.eu", "com": "include:zohomail.com"}
+#: C'est le `include` que Zoho **publie et documente** pour chaque datacenter :
+#: `zoho.eu` en Europe (`spf.zoho.eu` couvre `89.36.170.0/24`, l'adresse de
+#: `smtp.zoho.eu`) et `zoho.com` pour le monde. Le TXT SPF de `zoho.com` chaine
+#: lui-meme `include:spf.zohomail.com`, la plage d'envoi du datacenter monde :
+#: exiger `include:zoho.com` couvre donc bien les hotes `zohomail.com`.
+#: `zohomail.com` resout aussi (`v=spf1 include:spf.zohomail.com -all`, releve
+#: le 15/10/2026) mais n'est pas la valeur publiee pour un domaine : l'exiger
+#: faisait signaler un ecart sur le SPF correct de `kder-ai.com`
+#: (`v=spf1 include:zoho.com include:spf.brevo.com ~all`) — faux positif
+#: corrige le 15/10/2026.
+INCLUDE_SPF = {"eu": "include:zoho.eu", "com": "include:zoho.com"}
 
 #: `include` SPF du relais d'envoi Brevo (releve dans le TXT `spf.brevo.com`).
 INCLUDE_BREVO = "include:spf.brevo.com"
@@ -287,7 +307,7 @@ def _presents_parmi(hotes: Sequence[str], fragments: Sequence[str]) -> list:
     return sorted(hote for hote in hotes if any(f in hote for f in fragments))
 
 
-def constats_mx(domaine: str, dc: str, serveur=None, outil=None) -> list:
+def constats_mx(domaine: str, dc: str = DC_DEFAUT, serveur=None, outil=None) -> list:
     """Les trois MX Zoho, plus les MX de registrar a supprimer."""
     trouves = mx(domaine, serveur, outil)
     constats = []
@@ -319,7 +339,7 @@ def constats_mx(domaine: str, dc: str, serveur=None, outil=None) -> list:
 
 
 def constats_spf(
-    domaine: str, dc: str, sans_brevo=False, serveur=None, outil=None
+    domaine: str, dc: str = DC_DEFAUT, sans_brevo=False, serveur=None, outil=None
 ) -> list:
     """Le TXT SPF : unique, avec les `include` Zoho et Brevo."""
     valeurs = txt(domaine, serveur, outil)
@@ -500,7 +520,7 @@ def constats_dkim_brevo(domaine: str, serveur=None, outil=None) -> list:
 
 def controler(
     domaine: str,
-    dc: str,
+    dc: str = DC_DEFAUT,
     dkim: str | None = None,
     cle_domaine: str = CLE_DOMAINE_DEFAUT,
     sans_brevo: bool = False,
@@ -554,8 +574,8 @@ def parseur() -> argparse.ArgumentParser:
     analyseur.add_argument(
         "--dc",
         choices=("eu", "com"),
-        default="eu",
-        help="datacenter Zoho : eu (defaut) ou com",
+        default=DC_DEFAUT,
+        help="datacenter Zoho : com (defaut, celui de kder-ai.com) ou eu",
     )
     analyseur.add_argument(
         "--dkim",

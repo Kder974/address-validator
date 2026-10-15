@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from app import seo
 from app.config import get_settings
 from app.database import init_db
-from app.observability import configure_logging
+from app.observability import configure_logging, record_request
 from app.web import public_headers
 from app.routes import (
     accueil,
@@ -73,6 +73,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def mesurer_appelants(request: Request, call_next):
+    """D67 : classe, compte et journalise l'appelant de chaque requete.
+
+    Un agent IA qui lit la page de tarifs est une distribution, pas une charge
+    : le bloquer coupe la decouverte, ne pas le voir laisse croire que personne
+    ne vient. Le classement coute un parcours de chaine et **ne leve jamais**
+    (une observabilite qui ferait echouer une reponse payante serait pire que
+    pas d'observabilite). Seuls les agents IA et les annuaires MCP sont ecrits
+    dans le journal JSONL de D30 : les visites humaines n'y ajouteraient que du
+    bruit.
+    """
+    reponse = await call_next(request)
+    record_request(request, reponse.status_code)
+    return reponse
 
 app.include_router(validate.router, tags=["validation"])
 app.include_router(health.router, tags=["health"])
