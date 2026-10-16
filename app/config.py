@@ -166,6 +166,14 @@ class Settings(BaseSettings):
     # après `audience_retention_days` jours.
     geoip_db_path: str = "/var/lib/address-validator/dbip-country.mmdb"
     audience_retention_days: int = 400
+    # Coûts d'exploitation (D68), en euros par mois, lus par le tableau de bord :
+    # serveur, forfait du fournisseur d'adresses, envoi de mails, et prix d'un appel
+    # au fournisseur (en dollars) quand il est facturé à l'appel. Tous à 0 = coûts
+    # non renseignés : le résultat du mois n'est pas calculé.
+    cost_server_eur: float = 0.0
+    cost_smarty_eur: float = 0.0
+    cost_smarty_per_call_usd: float = 0.0
+    cost_mail_eur: float = 0.0
 
     # Environnement
     environment: str = "development"

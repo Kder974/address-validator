@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D67, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D68, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 67
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 68
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -5894,7 +5894,63 @@ def d67() -> None:
     guard("D67" in read("DECISIONS.md"), "la decision D67 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 68)}
+def d68() -> None:
+    """Le pilotage dit vrai : encaisse reel, abonnements a facturer, resultat seulement avec des couts, page sans script."""
+    import base64
+    import tempfile
+    from datetime import datetime, timedelta
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import exploitation, i18n
+    from app.config import get_settings
+    from app.main import app
+    from app.models import ApiCall, Customer, CustomerValidation, PaymentTransaction
+    from app.routes.dashboard import _page
+
+    moment = datetime(2026, 10, 16, 12)
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp()) / 'p.sqlite'}")
+    for modele in (Customer, CustomerValidation, PaymentTransaction, ApiCall):
+        modele.__table__.create(moteur)
+    with sessionmaker(bind=moteur)() as s:
+        s.add_all([
+            PaymentTransaction(tx_hash="0xa", amount=0.02, test_mode=False, created_at=moment - timedelta(hours=1)),
+            PaymentTransaction(tx_hash="0xb", amount=9.0, test_mode=True, created_at=moment - timedelta(hours=1)),
+            Customer(email="p@example.re", password_hash="x", shop_name="<i>Boutique</i>", platform="shopify",
+                     api_key_hash="a" * 64, api_key_prefix="sk_live_ab12", plan="pro", created_at=moment - timedelta(days=1)),
+            ApiCall(endpoint="validate", status=500, duration_ms=50, created_at=moment - timedelta(minutes=5)),
+        ])
+        s.commit()
+        sans = exploitation.collecter(s, moment, "mois", get_settings())
+        avec = exploitation.collecter(s, moment, "mois", get_settings().model_copy(update={"cost_server_eur": 500.0}))
+    a = sans["argent"]
+    guard(abs(a["usdc_periode"] - 0.02) < 1e-9, f"l'encaisse compte la recette ({a['usdc_periode']} USDC)")
+    guard(a["a_facturer_eur"] == 79.0, "les abonnements ne sont pas aux prix d'accounts.OFFRES")
+    guard(a["resultat_mois_eur"] is None, "un resultat est calcule sans aucun cout renseigne")
+    revenus = 0.02 / float(i18n.TAUX["USD"]) + 79.0
+    guard(abs(avec["argent"]["resultat_mois_eur"] - (revenus - 500.0)) < 1e-6, "le resultat ne vaut pas revenus moins couts")
+    guard(any("perte" in x for x in avec["alertes"]) and any("serveur" in x for x in avec["alertes"]), "la perte ou l'erreur serveur ne levent pas d'alerte")
+
+    page = _page({"ledger": {"available": True}, "windows": {}, "recent": []}, sans, {"Base de données": True})
+    guard("<script" not in page.lower() and "http://" not in page and "https://" not in page, "le pilotage embarque un script ou une adresse externe")
+    guard("&lt;i&gt;Boutique&lt;/i&gt;" in page and "<i>Boutique</i>" not in page, "un nom de boutique n'est pas echappe")
+    guard('<meta http-equiv="refresh" content="60">' in page and "prefers-reduced-motion" in page, "pas de rafraichissement chaque minute ou animations non coupables")
+    guard(all(f'href="?p={cle}"' in page for cle in exploitation.PERIODES), "les quatre periodes ne sont pas proposees")
+
+    reglages = get_settings()
+    entete = {"Authorization": "Basic " + base64.b64encode(b"kder:porte-d68").decode(), "X-Forwarded-For": "192.0.2.168"}
+    with mock.patch.object(reglages, "dashboard_user", "kder"), mock.patch.object(reglages, "dashboard_password", "porte-d68"), \
+            mock.patch("app.routes.dashboard.collecter", side_effect=RuntimeError("base muette")):
+        reponse = TestClient(app).get("/dashboard?p=7j", headers=entete)
+    guard(reponse.status_code == 200 and "Chiffres indisponibles" in reponse.text, "une base muette n'est pas annoncee sur le pilotage")
+    guard("content-security-policy" in reponse.headers and "<script" not in reponse.text.lower(), "le pilotage perd sa CSP ou embarque un script")
+    guard("D68" in read("DECISIONS.md"), "la decision D68 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 69)}
 
 
 def catalog() -> list[tuple[str, str]]:

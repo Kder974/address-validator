@@ -1,0 +1,15 @@
+[Unit]
+Description=Mise a jour de la base des pays DB-IP Lite (suivi d'audience, D67)
+Documentation=file:/opt/address-validator/scripts/maj_geoip.sh
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/address-validator
+ExecStart=/bin/bash /opt/address-validator/scripts/maj_geoip.sh
+# Le script ecrit seulement dans /var/lib/address-validator (et /tmp, prive).
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
