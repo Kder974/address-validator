@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D70, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D71, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 70
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 71
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -5931,13 +5931,14 @@ def d68() -> None:
     guard(a["a_facturer_eur"] == 79.0, "les abonnements ne sont pas aux prix d'accounts.OFFRES")
     guard(a["resultat_mois_eur"] is None, "un resultat est calcule sans aucun cout renseigne")
     revenus = 0.02 / float(i18n.TAUX["USD"]) + 79.0
-    guard(abs(avec["argent"]["resultat_mois_eur"] - (revenus - 500.0)) < 1e-6, "le resultat ne vaut pas revenus moins couts")
+    # D71 : frais fixes au prorata du mois ecoule (15,5 jours sur 31 le 16 a midi).
+    guard(abs(avec["argent"]["resultat_mois_eur"] - (revenus - 500.0 * 15.5 / 31)) < 1e-6, "le resultat ne vaut pas revenus moins couts a ce jour")
     guard(any("perte" in x for x in avec["alertes"]) and any("serveur" in x for x in avec["alertes"]), "la perte ou l'erreur serveur ne levent pas d'alerte")
 
-    page = _page({"ledger": {"available": True}, "windows": {}, "recent": []}, sans, {"Base de données": True})
+    page = "".join(_page({"ledger": {"available": True}, "windows": {}, "recent": []}, sans, {"Base de données": True}, vue) for vue in ("ensemble", "argent", "api", "clients", "site", "registre"))
     guard("<script" not in page.lower() and "http://" not in page and "https://" not in page, "le pilotage embarque un script ou une adresse externe")
     guard("&lt;i&gt;Boutique&lt;/i&gt;" in page and "<i>Boutique</i>" not in page, "un nom de boutique n'est pas echappe")
-    guard('<meta http-equiv="refresh" content="60">' in page and "prefers-reduced-motion" in page, "pas de rafraichissement chaque minute ou animations non coupables")
+    guard('<meta http-equiv="refresh" content="30">' in page and "prefers-reduced-motion" in page, "pas de rafraichissement toutes les 30 s (D71) ou animations non coupables")
     guard(all(f'href="?p={cle}"' in page for cle in exploitation.PERIODES), "les quatre periodes ne sont pas proposees")
 
     reglages = get_settings()
@@ -5961,7 +5962,7 @@ def d69() -> None:
     from sqlalchemy.orm import sessionmaker
 
     from app import exploitation
-    from app.carte_monde import POINTS
+    from app.carte_monde import POINTS, PRECIS
     from app.config import get_settings
     from app.main import app
     from app.models import ApiCall, Customer, CustomerValidation, PageVisit, PaymentTransaction
@@ -6007,11 +6008,11 @@ def d69() -> None:
         s.commit()
         d = exploitation.collecter(s, moment, "mois", reglages)
     guard(d["site"]["total"] == 1 and dict(d["site"]["robots"]) == {"GPTBot": 1}, "les robots ne sont pas comptes a part des visites")
-    page = dashboard._page({"ledger": {"available": True}, "windows": {}, "recent": []}, d, {"Base de données": True})
+    page = "".join(dashboard._page({"ledger": {"available": True}, "windows": {}, "recent": []}, d, {"Base de données": True}, vue) for vue in ("ensemble", "argent", "api", "clients", "site", "registre"))
     guard("<script" not in page.lower() and "http://" not in page and "https://" not in page, "le pilotage v2 embarque un script ou une adresse externe")
     guard("<b>piege</b>" not in page and "&lt;b&gt;piege&lt;/b&gt;" in page, "un nom de boutique n'est pas echappe")
     guard(all(f'id="{x}"' in page for x in ("argent", "api", "clients", "site", "registre")), "une section du pilotage v2 manque")
-    guard(page.count('<circle class="d ') == sum(len(v) for v in POINTS.values()), "la carte du monde n'a pas tous ses points")
+    guard(page.count('<circle class="d ') == sum(len(v) for v in POINTS.values()) + len(PRECIS), "la carte du monde n'a pas tous ses points")
     guard("Natural Earth" in page and "DB-IP" in page, "les sources de la carte et des pays ne sont plus citees")
     guard("D69" in read("DECISIONS.md"), "la decision D69 n'est plus consignee dans DECISIONS.md")
 
@@ -6040,7 +6041,66 @@ def d70() -> None:
     guard("D70" in read("DECISIONS.md"), "la decision D70 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 71)}
+def d71() -> None:
+    """Le pilotage bouge (en direct, menu, 30 s) et dit vrai (corrections de la relecture)."""
+    import tempfile
+    from datetime import datetime, timedelta
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import audience, exploitation, pilotage_page
+    from app.config import get_settings
+    from app.main import app
+    from app.models import ApiCall, Customer, CustomerValidation, PageVisit, PaymentTransaction
+    from app.routes import dashboard, mcp
+
+    reglages = get_settings()
+    client = TestClient(app, raise_server_exceptions=False)
+    with mock.patch.object(audience, "_demarrer", lambda: None):
+        audience._FILE.clear()
+        with mock.patch.object(mcp, "_dispatch", side_effect=RuntimeError("panne")):
+            client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+        client.get("/pricing", headers={"Sec-Fetch-Site": "same-origin", "User-Agent": "Mozilla/5.0 Safari"})
+        client.get("/pricing", headers={"User-Agent": "curl/8.4.0"})
+        lignes = list(audience._FILE)
+        audience._FILE.clear()
+    appels = [l for l in lignes if isinstance(l, ApiCall)]
+    visites = [l for l in lignes if isinstance(l, PageVisit)]
+    guard([(a.endpoint, a.status) for a in appels] == [("mcp", 500)], "une route qui plante n'est pas comptee en 500")
+    guard(visites[0].referrer_host == "kder-ai.com" and visites[1].robot == "Programme", "navigation interne ou programme mal reconnus")
+
+    with mock.patch.object(reglages, "dashboard_user", "kder"), mock.patch.object(reglages, "dashboard_password", "porte-d71"):
+        guard(client.post("/dashboard/connexion", data={"user": "Frédéric", "password": "é"}, headers={"X-Forwarded-For": "192.0.2.171"}).status_code == 401, "une connexion avec un accent plante")
+
+    html = pilotage_page.liste_pays([(c, 10) for c in ("US", "FR", "DE", "GB", "CA", "IN", "BR", "ES", "IT", "NL")], "", "vide")
+    guard("10 %" in html and "14 %" not in html, "les pourcentages des pays ne portent pas sur le vrai total")
+    guard(".spark polyline{fill:none;stroke:currentColor" in pilotage_page.CSS and ".carte,.alerte" in pilotage_page.CSS, "mini-courbes sans trait, ou entrees rejouees a chaque rafraichissement")
+
+    moment = datetime(2026, 10, 16, 12)
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp()) / 'd71.sqlite'}")
+    for modele in (Customer, CustomerValidation, PaymentTransaction, ApiCall, PageVisit):
+        modele.__table__.create(moteur)
+    with sessionmaker(bind=moteur)() as s:
+        s.add_all([PageVisit(path="/", country="FR", created_at=moment - timedelta(minutes=1)),
+                   ApiCall(endpoint="validate", status=402, duration_ms=5, created_at=moment - timedelta(minutes=2)),
+                   ApiCall(endpoint="validate", status=200, mode="x402", duration_ms=100, created_at=moment - timedelta(minutes=3))])
+        s.commit()
+        d = exploitation.collecter(s, moment, "7j", reglages)
+    guard(d["api"]["taux_reussite"] == 1.0, "un refus 402 compte comme un echec")
+    guard(d["direct"]["visiteurs"] == 1 and d["direct"]["appels"] == 2 and d["direct"]["pays_actifs"] == ["FR"], "le bloc En direct ne compte pas les 5 dernieres minutes")
+    page = dashboard._page({"ledger": {"available": True}, "windows": {}, "recent": []}, d, {"Base de données": True})
+    guard("En ce moment" in page and 'class="ticker"' in page and '<meta http-equiv="refresh" content="30">' in page, "pas de bloc En direct, de bande defilante ou de rafraichissement a 30 s")
+    argent = dashboard._page({"ledger": {"available": True}, "windows": {}, "recent": []}, d, {"Base de données": True}, "argent")
+    guard('<a href="/dashboard/argent?p=7j" aria-current=page>' in argent and 'id="clients"' not in argent, "le menu ne mene pas a une page par section, ou perd la periode")
+    guard("Le suivi des visites et des appels a commencé" in page, "la page ne dit pas que le suivi est plus jeune que la periode")
+    guard("<script" not in page.lower(), "le pilotage embarque un script")
+    guard("D71" in read("DECISIONS.md"), "la decision D71 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 72)}
 
 
 def catalog() -> list[tuple[str, str]]:

@@ -130,3 +130,12 @@ def test_la_protection_commune_aux_formulaires_espace_client_compris():
     reponse = client.post("/compte/connexion", data={"email": "x@example.re", "password": "faux-mot-de-passe"},
                           headers={"Origin": "null", "Sec-Fetch-Site": "same-origin", "X-Forwarded-For": "198.18.0.40"})
     assert reponse.status_code != 403
+
+
+def test_une_page_par_section(reglages):
+    jeton = dashboard.jeton_session(reglages)
+    for chemin, libelle in (("/dashboard/argent", "Argent"), ("/dashboard/site", "Site et SEO"), ("/dashboard/registre", "Registre")):
+        page = client.get(f"{chemin}?p=7j", headers={**NAVIGATEUR, **_ip(30), "Cookie": f"{dashboard.COOKIE}={jeton}"})
+        assert page.status_code == 200 and f'<a href="{chemin}?p=7j" aria-current=page>' in page.text
+    # Sans session, chaque page renvoie à la connexion.
+    assert client.get("/dashboard/api", headers={**NAVIGATEUR, **_ip(31)}, follow_redirects=False).status_code == 303

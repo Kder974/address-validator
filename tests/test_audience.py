@@ -185,3 +185,35 @@ def test_cinq_mots_de_passe_faux_bloquent_le_tableau_de_bord(monkeypatch):
     assert client.get("/prospection", headers={**ip, "Authorization": _basic("le-bon-mot-de-passe")}).status_code == 429
     # Une autre adresse IP n'est pas bloquée.
     assert client.get("/dashboard", headers={"X-Forwarded-For": "192.0.2.78", "Authorization": _basic("le-bon-mot-de-passe")}).status_code != 429
+
+
+def test_une_route_qui_plante_est_comptee_en_500(file, monkeypatch):
+    from app.routes import mcp
+
+    def _plante(*args, **kwargs):
+        raise RuntimeError("panne")
+
+    monkeypatch.setattr(mcp, "_dispatch", _plante)
+    with pytest.raises(RuntimeError):
+        client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    [appel] = _lignes(file, ApiCall)
+    assert (appel.endpoint, appel.status) == ("mcp", 500)
+
+
+def test_navigation_interne_et_programmes(file):
+    # Sous no-referrer, la navigation interne n'a pas de Referer : Sec-Fetch-Site la reconnaît.
+    client.get("/pricing", headers={"Sec-Fetch-Site": "same-origin", "User-Agent": "Mozilla/5.0 Safari"})
+    client.get("/pricing", headers={"Sec-Fetch-Site": "none", "User-Agent": "Mozilla/5.0 Safari"})
+    client.get("/pricing", headers={"User-Agent": "curl/8.4.0"})
+    interne, directe, programme = _lignes(file, PageVisit)
+    assert interne.referrer_host == "kder-ai.com" and directe.referrer_host is None
+    assert programme.robot == "Programme" and interne.robot is None
+
+
+def test_connexion_avec_accents_ne_plante_pas(monkeypatch):
+    reglages = get_settings()
+    monkeypatch.setattr(reglages, "dashboard_user", "kder")
+    monkeypatch.setattr(reglages, "dashboard_password", "le-bon-mot-de-passe")
+    ip = {"X-Forwarded-For": "192.0.2.90"}
+    assert client.post("/dashboard/connexion", data={"user": "Frédéric", "password": "é"}, headers=ip).status_code == 401
+    assert client.get("/dashboard", headers={**ip, "Authorization": _basic("é")}).status_code == 401

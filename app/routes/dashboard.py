@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
 import hashlib
 import hmac
 import time
@@ -52,6 +53,7 @@ from app.routes.revenue import safe_revenue_stats
 from app.web import DASHBOARD_CSS
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 #: En-têtes communs aux trois réponses : une page d'exploitation (et un refus)
 #: ne doit jamais rester dans un cache intermédiaire.
@@ -94,8 +96,9 @@ def _authorized(header: str, expected_user: str, expected_password: str) -> bool
     if credentials is None:
         return False
     user, password = credentials
-    return secrets.compare_digest(user, expected_user) and secrets.compare_digest(
-        password, expected_password
+    # En octets (D71) : compare_digest refuse une chaîne non ASCII (« é ») et la page plantait en 500.
+    return secrets.compare_digest(user.encode(), expected_user.encode()) and secrets.compare_digest(
+        password.encode(), expected_password.encode()
     )
 
 
@@ -123,7 +126,7 @@ def session_valide(valeur: str | None, reglages, maintenant: float | None = None
     if not fin.isdigit() or int(fin) < (maintenant or time.time()):
         return False
     attendu = hmac.new(_cle_session(reglages), fin.encode(), hashlib.sha256).hexdigest()
-    return secrets.compare_digest(signature, attendu)
+    return secrets.compare_digest(signature.encode(), attendu.encode())
 
 
 def _veut_page(request: Request) -> bool:
@@ -179,14 +182,14 @@ def _origine(item: dict) -> str:
     return "recette, exclue" if item.get("test_mode") else "client"
 
 
-def _page(stats: dict, pilotage: dict | None = None, sante: dict | None = None) -> str:
+def _page(stats: dict, pilotage: dict | None = None, sante: dict | None = None, vue: str = "ensemble") -> str:
     """Construit la page. Aucune ressource externe, aucune donnee inventee.
 
     Avec `pilotage`, c'est le tableau de bord v2 (D69, `app/pilotage_page.py`) ;
     sans, la page du registre d'origine (D32), que les portes relisent telle quelle.
     """
     if pilotage is not None:
-        return pilotage_page.page(pilotage, sante or {}, stats)
+        return pilotage_page.page(pilotage, sante or {}, stats, vue)
     ledger = stats.get("ledger", {})
     windows = stats.get("windows", {})
     recent = stats.get("recent", [])
@@ -280,6 +283,22 @@ Pays des visites et des appels (D67) : IP Geolocation by DB-IP (db-ip.com), lice
 
 @router.get("/dashboard")
 async def dashboard(request: Request) -> Response:
+    return await _tableau(request, "ensemble")
+
+
+def _vue(vue: str):
+    async def page_vue(request: Request) -> Response:
+        return await _tableau(request, vue)
+
+    return page_vue
+
+
+# D71 : une page par section du pilotage, chemins littéraux.
+for _vue_cle, _vue_chemin, *_reste in pilotage_page.VUES[1:]:
+    router.add_api_route(_vue_chemin, _vue(_vue_cle), methods=["GET"], include_in_schema=False)
+
+
+async def _tableau(request: Request, vue: str) -> Response:
     settings = get_settings()
     if not settings.dashboard_password:
         return JSONResponse(
@@ -296,7 +315,7 @@ async def dashboard(request: Request) -> Response:
     stats = await safe_revenue_stats(include_recent=True)
     periode = request.query_params.get("p", "mois")
     pilotage, sante = await _pilotage_donnees(periode if periode in PERIODES else "mois", stats)
-    return HTMLResponse(content=_page(stats, pilotage, sante), status_code=200, headers=PAGE_HEADERS)
+    return HTMLResponse(content=_page(stats, pilotage, sante, vue), status_code=200, headers=PAGE_HEADERS)
 
 
 def _page_connexion(erreur: str = "", identifiant: str = "", statut: int = 200, entetes: dict | None = None) -> HTMLResponse:
@@ -340,7 +359,7 @@ async def connexion_envoi(request: Request) -> Response:
     # Un code copié depuis le Terminal arrive souvent avec un espace autour (D70) ;
     # les identifiants du pilotage n'en contiennent jamais.
     utilisateur, mot_de_passe = str(formulaire.get("user", "") or "").strip(), str(formulaire.get("password", "") or "").strip()
-    if secrets.compare_digest(utilisateur, reglages.dashboard_user) and secrets.compare_digest(mot_de_passe, reglages.dashboard_password):
+    if secrets.compare_digest(utilisateur.encode(), reglages.dashboard_user.encode()) and secrets.compare_digest(mot_de_passe.encode(), reglages.dashboard_password.encode()):
         reponse = RedirectResponse("/dashboard", status_code=303, headers=BASE_HEADERS)
         reponse.set_cookie(COOKIE, jeton_session(reglages), max_age=reglages.session_hours * 3600,
                            path="/", secure=True, httponly=True, samesite="strict")
@@ -375,12 +394,20 @@ async def _pilotage_donnees(periode: str, stats: dict) -> tuple[dict, dict]:
         with SessionLocal() as session:
             return collecter(session, maintenant(), periode, get_settings())
 
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from app.database import check_db
+
     try:
         donnees = await asyncio.wait_for(asyncio.to_thread(lire), timeout=5)
-    except Exception as exc:  # noqa: BLE001 - base muette : la page le dit
-        donnees = {"erreur": type(exc).__name__, "periode": periode, "moment": maintenant()}
+    except (SQLAlchemyError, OSError, asyncio.TimeoutError) as exc:
+        logger.warning("pilotage : base injoignable ou trop lente (%s)", type(exc).__name__)
+        donnees = {"erreur": "base", "periode": periode, "moment": maintenant()}
+    except Exception:  # noqa: BLE001 - un défaut de calcul ne doit pas passer pour une panne de base (D71)
+        logger.exception("pilotage : calcul des chiffres impossible")
+        donnees = {"erreur": "calcul", "periode": periode, "moment": maintenant()}
     sante = {
-        "Base de données": "erreur" not in donnees,
+        "Base de données": await asyncio.to_thread(check_db) == "ok",
         "Cache Redis": await asyncio.to_thread(_redis_ok),
         "Registre des paiements": bool(stats.get("ledger", {}).get("available")),
     }
