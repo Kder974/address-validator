@@ -337,7 +337,9 @@ async def connexion_envoi(request: Request) -> Response:
         attente = ratelimit.retry_after(cle, fenetre)
         return _page_connexion(f"Trop d'essais. Réessayez dans {max(1, (attente + 59) // 60)} min.", statut=429, entetes={"Retry-After": str(attente)})
     formulaire = await request.form()
-    utilisateur, mot_de_passe = str(formulaire.get("user", "") or ""), str(formulaire.get("password", "") or "")
+    # Un code copié depuis le Terminal arrive souvent avec un espace autour (D70) ;
+    # les identifiants du pilotage n'en contiennent jamais.
+    utilisateur, mot_de_passe = str(formulaire.get("user", "") or "").strip(), str(formulaire.get("password", "") or "").strip()
     if secrets.compare_digest(utilisateur, reglages.dashboard_user) and secrets.compare_digest(mot_de_passe, reglages.dashboard_password):
         reponse = RedirectResponse("/dashboard", status_code=303, headers=BASE_HEADERS)
         reponse.set_cookie(COOKIE, jeton_session(reglages), max_age=reglages.session_hours * 3600,

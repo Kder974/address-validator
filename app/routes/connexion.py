@@ -113,12 +113,20 @@ def jeton(request: Request) -> str:
 def origine_etrangere(request: Request) -> bool:
     """`True` si le formulaire a été posté depuis un autre site (CSRF).
 
-    Un navigateur envoie `Origin` avec chaque `POST` ; il doit nommer l'hôte que
-    ce serveur sert. Sans `Origin` (script, vieux client), rien n'est refusé ici :
-    le cookie `SameSite=Lax` ne part déjà pas d'un formulaire d'un autre site.
+    Le navigateur le dit lui-même dans `Sec-Fetch-Site` (Chrome, Edge, Firefox,
+    Safari) : `same-origin`, ou `none` pour une adresse tapée, c'est ce site ; tout
+    le reste est refusé. Sans cet en-tête, `Origin` doit nommer l'hôte servi.
+    `Origin: null` ne prouve rien : c'est ce qu'envoie un navigateur quand la page
+    impose `Referrer-Policy: no-referrer`, comme ce site et Nginx le font (D70 :
+    la première version refusait donc tous les formulaires venus d'un navigateur).
+    Sans preuve (script, vieux client), rien n'est refusé ici : le cookie
+    `SameSite` ne part déjà pas d'un formulaire d'un autre site.
     """
+    site = request.headers.get("sec-fetch-site")
+    if site is not None:
+        return site.lower() not in ("same-origin", "none")
     origine = request.headers.get("origin")
-    if origine is None:
+    if origine is None or origine == "null":
         return False
     return urlsplit(origine).netloc.lower() != request.headers.get("host", "").lower()
 
