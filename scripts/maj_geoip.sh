@@ -8,8 +8,10 @@
 #           dans le meme dossier). L'application relit le nouveau fichier toute
 #           seule : sa date fait partie de la cle du lecteur (app/audience.py).
 #   QUI   : root.
-#   QUAND : a l'installation, puis une fois par mois. Cron recommande :
-#              0 4 3 * *  /opt/address-validator/scripts/maj_geoip.sh
+#   QUAND : a l'installation, puis le 3 de chaque mois par le minuteur systemd
+#           (le serveur n'a pas cron) :
+#              cp address-validator-geoip.service address-validator-geoip.timer /etc/systemd/system/
+#              systemctl daemon-reload && systemctl enable --now address-validator-geoip.timer
 #   OU    : GEOIP_DB_PATH, par defaut /var/lib/address-validator/dbip-country.mmdb
 #
 # Sans ce fichier, le service marche : le pays vaut seulement « inconnu ».

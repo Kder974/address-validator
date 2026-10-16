@@ -1,0 +1,11 @@
+[Unit]
+Description=Base des pays DB-IP Lite, le 3 de chaque mois (D67)
+Documentation=file:/opt/address-validator/scripts/maj_geoip.sh
+
+[Timer]
+OnCalendar=*-*-03 04:00:00 UTC
+Persistent=true
+Unit=address-validator-geoip.service
+
+[Install]
+WantedBy=timers.target
