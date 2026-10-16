@@ -107,6 +107,11 @@ envoyee.
 - https://kder-ai.com/metrics : compteurs du processus (format texte).
 - https://kder-ai.com/metrics/revenue : revenu agrege sur 24 h / 7 j / 30 j, et
   disponibilite du registre de paiement.
+- https://kder-ai.com/metrics/agents : observabilite des appelants ÔÇö requetes par
+  classe (agents IA, annuaires MCP, moteurs, outils, navigateurs), agents et pages
+  les plus demandes, conversion des agents IA, et la liste blanche publiee des
+  agents IA reconnus. Aucune adresse en clair : les IP sont pseudonymisees
+  (SHA-256 + sel). Detail : https://github.com/Kder974/address-validator/blob/main/docs/AGENTS-IA.md
 - https://kder-ai.com/docs : documentation interactive.
 - https://kder-ai.com/openapi.json : contrat OpenAPI.
 - https://kder-ai.com/.well-known/security.txt : contact securite (RFC 9116).
