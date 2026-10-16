@@ -396,3 +396,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D74: only a PILOTAGE_COMPTES address receives a password link (an unknown address gets the same page and no mail), the link is built on PUBLIC_BASE_URL, stored as a hash, single-use, and opens a named session after a valid new password; the account then logs in with its email and sees "Bonjour <name>"; changing the password or removing the address from the list closes its sessions; the shared DASHBOARD_USER login still works
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D74
   EXPECT: DECISION OK D74
+- [ ] D75: free MCP discovery calls are counted apart from validation requests (card "Validations demandées" with "+ N découvertes MCP gratuites", success rate and live block on validations only), an amber banner says how long tracking has been running when it is younger than the chosen period, and a script is labelled "Programme", not "Robot Programme"
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D75
+  EXPECT: DECISION OK D75

@@ -177,7 +177,9 @@ a:focus-visible{outline:2px solid var(--c3);outline-offset:2px}
 .vide{color:var(--fa);font-size:13.5px;margin:6px 0 0}
 .tab .mono{font:12px ui-monospace,"SF Mono",monospace;color:#c9d4ff}
 
-.portee{margin:-12px 0 20px;color:var(--mu);font-size:13px}
+.portee{margin:-12px 0 14px;color:var(--mu);font-size:13px}
+.bandeau-periode{display:flex;gap:12px;align-items:flex-start;margin:0 0 20px;padding:13px 16px;border-radius:14px;border:1px solid rgba(251,191,36,.35);background:linear-gradient(90deg,rgba(251,191,36,.12),rgba(251,191,36,.03));color:#fde9b0;font-size:14px}
+.bandeau-periode .ico{color:var(--wa);margin-top:1px}.bandeau-periode b{color:#fff}
 /* D71 : ça bouge — bloc En direct, bande défilante, pays qui s'allument, menu qui suit */
 html{scroll-behavior:smooth}
 @property --ang{syntax:'<angle>';initial-value:0deg;inherits:false}
@@ -349,7 +351,7 @@ def barres_jour(valeurs: list[float]) -> str:
     l = (L - 20) / max(len(valeurs), 1)
     rects = "".join(f'<rect class="b ok" x="{10 + k * l + 2:.1f}" y="{H - 6 - (H - 16) * v / haut:.1f}" width="{max(l - 5, 1):.1f}" height="{(H - 16) * v / haut:.1f}" rx="2"><title>{e(fr(v))} appels</title></rect>'
                     for k, v in enumerate(valeurs))
-    return f'<svg class="chart" viewBox="0 0 {L} {H}" role="img" aria-label="Appels par jour"><g class="leve">{rects}</g></svg>'
+    return f'<svg class="chart" viewBox="0 0 {L} {H}" role="img" aria-label="Validations par jour"><g class="leve">{rects}</g></svg>'
 
 
 def anneau(part: float | None, couleur: str) -> str:
@@ -455,7 +457,7 @@ def bloc_direct(direct: dict, moment) -> str:
     fil = "".join(items) or '<li class="ev"><span class="det">Aucun événement pour l\'instant : le fil se remplira à la première visite.</span></li>'
     return (f'<section class="direct" aria-label="En direct"><div class="maintenant"><span class="radar"><i></i></span><div>'
             f'<p class="lbl">En ce moment</p><div class="val">{e(fr(v))}<small>{"visiteur" if v <= 1 else "visiteurs"}</small></div>'
-            f'<div class="sous">{e(pl(a, "appel", "appels"))} API · 5 dernières minutes</div></div></div>'
+            f'<div class="sous">{e(pl(a, "validation demandée", "validations demandées"))} · 5 dernières minutes</div></div></div>'
             f'<ul class="fil" aria-label="Derniers événements">{fil}</ul></section>')
 
 
@@ -564,9 +566,10 @@ def page(d: dict, sante: dict, stats: dict, vue: str = "ensemble", nom: str | No
         f'<div class="sous">≈ {e(euros(a["eur_periode"]))} · {e(pl(a["paiements_periode"], "paiement", "paiements"))} {delta(a["evolution_usdc"])}</div>{spark(a["courbe_usdc"])}</article>'
         f'<article class="carte" style="--i:2;color:#5b7cff"><p class="lbl">{ico("clients", 16)}Abonnements</p>'
         f'<div class="val" style="color:var(--tx)">{e(fr(a["a_facturer_eur"]))}<small>€ / mois</small></div><div class="sous">{e(abos)} · à facturer</div></article>'
-        f'<article class="carte" style="--i:3;color:#ff8a3d"><p class="lbl">{ico("api", 16)}Appels API · {e(libelle)}</p>'
+        f'<article class="carte" style="--i:3;color:#ff8a3d"><p class="lbl">{ico("api", 16)}Validations demandées · {e(libelle)}</p>'
         f'<div class="val" style="color:var(--tx)">{e(fr(api["total"]))}</div><div class="sous">{delta(api["evolution"])} '
-        f'{e("" if api["taux_reussite"] is None else fr(100 * api["taux_reussite"]) + " % réussis")}</div>{spark(api["courbe_appels"])}</article>'
+        f'{e("" if api["taux_reussite"] is None else fr(100 * api["taux_reussite"]) + " % réussies")}'
+        f'{e(" · + " + pl(api["decouvertes"], "découverte MCP gratuite", "découvertes MCP gratuites") if api["decouvertes"] else "")}</div>{spark(api["courbe_appels"])}</article>'
         f'<article class="carte" style="--i:4;color:#a78bfa"><p class="lbl">{ico("site", 16)}Visites · {e(libelle)}</p>'
         f'<div class="val" style="color:var(--tx)">{e(fr(si["total"]))}</div><div class="sous">{delta(si["evolution"])} {e(sous_visites)}</div>{spark(si["courbe"])}</article></section>'
     )
@@ -582,12 +585,12 @@ def page(d: dict, sante: dict, stats: dict, vue: str = "ensemble", nom: str | No
     statuts = api["statuts"]
     erreurs = statuts.get("client", 0) + statuts.get("serveur", 0)
     api_html = (f'<section class="sec" id="api"><div class="sec-h"><span class="pastille">{ico("api")}</span><h2>API</h2><p>Appels de /validate, du serveur MCP et de l\'essai gratuit</p></div>'
-                f'<div class="quad"><article class="carte"><p class="lbl">Réussite</p><div class="rings">{anneau(api["taux_reussite"], "#34d399")}<div class="sous">Appels servis sans erreur, refus sans paiement à part · {e(pl(erreurs, "erreur", "erreurs"))}</div></div></article>'
+                f'<div class="quad"><article class="carte"><p class="lbl">Réussite</p><div class="rings">{anneau(api["taux_reussite"], "#34d399")}<div class="sous">Validations servies sans erreur, refus sans paiement à part · {e(pl(erreurs, "erreur", "erreurs"))}</div></div></article>'
                 f'<article class="carte"><p class="lbl">Cache</p><div class="rings">{anneau(api["taux_cache"], "#2fd4c4")}<div class="sous">{e("Économie : " + euros(api["economie_cache_eur"]) if api["economie_cache_eur"] is not None else "Vérifications évitées au fournisseur")}</div></div></article>'
                 f'<article class="carte"><p class="lbl">{ico("horloge", 16)}Temps de réponse</p><div class="val">{e("—" if api["duree_moyenne_ms"] is None else fr(api["duree_moyenne_ms"]))}<small>ms</small></div>'
                 f'<div class="sous">{e("" if api["duree_p95_ms"] is None else "95 % des appels sous " + fr(api["duree_p95_ms"]) + " ms")}</div></article>'
                 f'<article class="carte"><p class="lbl">{ico("bouclier", 16)}Refusés sans paiement</p><div class="val">{e(fr(statuts.get("paiement", 0)))}</div><div class="sous">agents qui ont trouvé le service sans payer : vos prospects</div></article></div>'
-                f'<div class="duo" style="margin-top:20px"><article class="carte"><h3>Appels par jour</h3><p class="aide">Tous les appels, sur 30 jours.</p>{barres_jour(api["courbe_appels"])}</article>'
+                f'<div class="duo" style="margin-top:20px"><article class="carte"><h3>Validations par jour</h3><p class="aide">Demandes de validation sur 30 jours, sans les découvertes MCP gratuites.</p>{barres_jour(api["courbe_appels"])}</article>'
                 f'<article class="carte"><h3>Par où arrivent les appels</h3><p class="aide">Canal de chaque appel sur la période.</p>{barres(api["canaux"], "Aucun appel sur la période.")}</article></div>'
                 f'<div class="duo" style="margin-top:20px"><article class="carte"><h3>Pays d\'où viennent les appels</h3><p class="aide">Pays de connexion (un agent tourne souvent dans un centre de données).</p>{liste_pays(api["pays_appels"], "", "Aucun appel sur la période.")}</article>'
                 f'<article class="carte"><h3>Pays des adresses vérifiées</h3><p class="aide">Le pays écrit dans l\'adresse.</p>{liste_pays([(c, n) for c, n in api["pays_adresses"] if c != "??"], "", "Aucune adresse vérifiée sur la période.")}</article></div></section>')
@@ -622,11 +625,14 @@ def page(d: dict, sante: dict, stats: dict, vue: str = "ensemble", nom: str | No
                  f'<article class="carte"><h3>Pages les plus vues</h3><p class="aide">Toutes langues confondues.</p>{barres(si["pages"], "Pas encore de visite sur la période.")}</article></div></section>')
 
     debut, suivi = d["debut_periode"], d.get("debut_suivi")
-    portee = f'<p class="portee">Période affichée : du {debut.day} {MOIS[debut.month - 1]} à {debut:%H:%M} au {moment.day} {MOIS[moment.month - 1]} à {moment:%H:%M} UTC.'
+    portee = f'<p class="portee">Période affichée : du {debut.day} {MOIS[debut.month - 1]} à {debut:%H:%M} au {moment.day} {MOIS[moment.month - 1]} à {moment:%H:%M} UTC.</p>'
     if suivi and suivi > debut:
-        portee += (f' Le suivi des visites et des appels a commencé le {suivi.day} {MOIS[suivi.month - 1]} à {suivi:%H:%M} : '
-                   "tant qu'il est plus jeune que la période, les périodes donnent les mêmes chiffres de visites et d'appels.")
-    portee += "</p>"
+        heures = max(1, int((moment - suivi).total_seconds() // 3600))
+        age = pl(heures, "heure", "heures") if heures < 48 else pl(heures // 24, "jour", "jours")
+        # D75 : écrit en gris, personne ne le lisait ; les mêmes chiffres sur toutes les périodes passaient pour une panne.
+        portee += (f'<div class="bandeau-periode" role="note">{ico("horloge", 18)}<span><b>Le suivi des visites et des appels a démarré il y a {e(age)}</b> '
+                   f'(le {suivi.day} {MOIS[suivi.month - 1]} à {suivi:%H:%M} UTC) : il n\'y a pas encore de données plus anciennes, donc cette période '
+                   f'et toutes les plus longues montrent les mêmes visites et appels. Elles se sépareront d\'elles-mêmes avec le temps.</span></div>')
     bande = bande_defilante(d["direct"], moment)
     contenu = {
         "ensemble": f'{bloc_direct(d["direct"], moment)}{bande}<section class="alertes">{bloc_alertes}</section>{bento}',
