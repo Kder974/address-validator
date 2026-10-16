@@ -5,13 +5,27 @@
 #   Domaine: kder-ai.com
 #   Projet : /opt/address-validator
 #
-# ORDRE D'EXECUTION
-#   1. depuis la machine locale : transferer le code + le fichier .env
-#   2. sur le VPS, en root :  ADMIN_EMAIL=vous@exemple.fr bash deploy-kder-ai.sh
+# DEUX MODES
+#
+#   1. INSTALLATION COMPLETE (par defaut) : etapes 0 a 11, de la machine nue au
+#      site en HTTPS. Depuis la machine locale : transferer le code + le fichier
+#      .env ; puis, sur le VPS, en root :
+#        ADMIN_EMAIL=vous@exemple.fr bash deploy-kder-ai.sh
+#
+#   2. MISE A JOUR DU CODE SEULE (--maj) : etape 12. Ni apt, ni PostgreSQL, ni
+#      Redis, ni Nginx, ni Certbot, ni pip : une mise a jour ne peut pas casser
+#      l'infrastructure. Elle copie app/ + scripts/ + docs/ en UNE SEULE
+#      commande (jamais un demi-site entre deux transferts : c'est la panne du
+#      16/10/2026 au matin), verifie les droits du .env AVANT le redemarrage,
+#      interroge /health pendant 30 s et, s'il ne repond pas, remet le code
+#      precedent et repart toute seule. Sur le VPS, en root :
+#        bash deploy-kder-ai.sh --maj [archive.tgz]
+#      Procedure detaillee : DEPLOIEMENT_VPS.md, section 13.
 #
 # Le script est idempotent (relancable). Il refuse de continuer si un prerequis
 # manque, et n'ecrit jamais de secret dans un fichier suivi par Git.
-# Variables surchargeables : PROJET, DOMAINE, IP_ATTENDUE, ADMIN_EMAIL.
+# Variables surchargeables : PROJET, DOMAINE, IP_ATTENDUE, ADMIN_EMAIL, puis,
+# pour le mode --maj : SANTE_MAX, SOURCE, TAMPON, SAUVEGARDE.
 # =============================================================================
 set -euo pipefail
 
@@ -26,7 +40,305 @@ ko(){ echo "   [!!] $*"; }
 note(){ echo "   [--] $*"; }
 die(){ echo; echo "ARRET : $*" >&2; exit 1; }
 
+# =============================================================================
+# ETAPE 12 - MISE A JOUR DU CODE (--maj)
+#
+# Remplacer le code sans toucher a l'infrastructure, verifier la sante, revenir
+# en arriere tout seul si elle ne revient pas. Procedure : DEPLOIEMENT_VPS.md
+# section 13. Corps volontairement hors de l'installation complete (etapes 0 a
+# 11), qui reste identique ligne pour ligne : le mode --maj ne peut pas la
+# modifier.
+#
+#   bash deploy-kder-ai.sh --maj                     # source : TAMPON
+#   bash deploy-kder-ai.sh --maj /tmp/av-maj.tgz     # archive deposee par scp
+#   SOURCE=/chemin/de/code bash deploy-kder-ai.sh --maj
+#
+# Quatre garanties, dans cet ordre :
+#   1. le code arrive en UNE seule commande (tar | tar) : jamais un demi-site
+#      entre deux transferts - c'est la panne du 16/10/2026 au matin ;
+#   2. les droits du .env (root:www-data 640) sont verifies AVANT le
+#      redemarrage, et www-data doit pouvoir le lire : c'est exactement ce qui
+#      manquait ce matin-la (314 redemarrages en boucle) ;
+#   3. /health est interroge apres le redemarrage, 30 secondes au maximum ;
+#   4. si /health ne repond pas, le code d'avant est remis, le service reparti,
+#      et le script sort en erreur (code 1).
+#
+# Ce que le mode ne fait pas, volontairement : ni apt, ni base, ni Nginx, ni
+# Certbot, ni pip (une dependance nouvelle demande l'installation complete), et
+# aucun fichier n'est supprime du serveur : ceux qui sont absents du code
+# deploye sont listes, jamais effaces (decision d'operateur, pas de script).
+# =============================================================================
+
+#: Secondes accordees a /health apres un redemarrage (mesure : moins de 3 s).
+SANTE_MAX="${SANTE_MAX:-30}"
+
+attendre_sante(){
+  # Interroge /health jusqu'a SANTE_MAX secondes. Ecrit le corps de la reponse
+  # sur la sortie standard et renvoie 0 des que le service repond vraiment (le
+  # corps doit porter "status":"ok") ; renvoie 1 sinon.
+  local essai reponse=""
+  for essai in $(seq 1 "$SANTE_MAX"); do
+    reponse="$(curl -sS -m 2 http://127.0.0.1:8000/health 2>/dev/null || true)"
+    case "$reponse" in
+      *'"status":"ok"'*) printf '%s' "$reponse"; return 0 ;;
+    esac
+    sleep 1
+  done
+  printf '%s' "$reponse"
+  return 1
+}
+
+restaurer_code(){
+  # Remet le code d'avant (copie de l'etape M3) et redemarre. Ne touche ni au
+  # .env, ni a venv/, ni a la base : une mise a jour de code ne doit rien
+  # d'autre defaire. SAUVEGARDE est fixee par maj_du_code.
+  if [ ! -f "$SAUVEGARDE/.dossiers" ]; then
+    ko "sauvegarde inutilisable ($SAUVEGARDE/.dossiers absent) : retour manuel necessaire"
+    return 1
+  fi
+  local noms=() d
+  mapfile -t noms < "$SAUVEGARDE/.dossiers"
+  if ! tar -C "$SAUVEGARDE" -cf - "${noms[@]}" | tar -C "$PROJET" -xf -; then
+    ko "copie du code sauvegarde impossible"
+    return 1
+  fi
+  for d in "${noms[@]}"; do
+    chmod -R a+rX "$PROJET/$d" || true
+  done
+  systemctl restart address-validator || return 1
+  return 0
+}
+maj_du_code(){
+  ARCHIVE="${ARCHIVE:-}"
+  SOURCE="${SOURCE:-}"
+  TAMPON="${TAMPON:-/opt/address-validator-nouveau}"
+  SAUVEGARDE="${SAUVEGARDE:-/opt/address-validator-avant-$(date +%Y%m%d-%H%M%S)}"
+
+  echo "============================================================================="
+  echo " Mise a jour du code - $PROJET - $(date '+%Y-%m-%d %H:%M:%S')"
+  echo "============================================================================="
+
+  etape "M1. Controles avant de toucher au service"
+  [ -f "$PROJET/app/main.py" ] || die "$PROJET/app/main.py absent : rien a mettre a jour"
+  [ -f "$PROJET/.env" ] || die "$PROJET/.env absent"
+  [ -x "$PROJET/venv/bin/python" ] || die "$PROJET/venv/bin/python absent : deploiement initial incomplet"
+  if [ "$(systemctl is-active address-validator 2>/dev/null || true)" = "active" ]; then
+    ok "service actif avant la mise a jour"
+  else
+    ko "service NON actif avant la mise a jour : l'etat de reference est deja douteux"
+    systemctl status address-validator --no-pager | head -8 || true
+  fi
+  local sante_avant=""
+  if sante_avant="$(attendre_sante)"; then
+    ok "/health repond avant : $sante_avant"
+  else
+    ko "/health ne repond pas AVANT : un echec apres coup ne serait pas imputable au nouveau code"
+  fi
+
+  etape "M2. Code a deployer"
+  if [ -n "$ARCHIVE" ]; then
+    [ -f "$ARCHIVE" ] || die "archive introuvable : $ARCHIVE"
+    case "$TAMPON" in
+      ""|"/"|"/opt"|"$PROJET") die "TAMPON refuse (racine ou dossier du projet) : $TAMPON" ;;
+    esac
+    rm -rf "$TAMPON"
+    mkdir -p "$TAMPON"
+    tar xzf "$ARCHIVE" -C "$TAMPON" || die "extraction impossible : $ARCHIVE"
+    # Une archive faite avec un dossier de tete (tar -czf av.tgz mon-projet/) le
+    # contient : on descend dedans plutot que de refuser le transfert.
+    if [ ! -d "$TAMPON/app" ]; then
+      local SEUL
+      SEUL="$(find "$TAMPON" -maxdepth 2 -type d -name app -printf '%h\n' 2>/dev/null | head -1)"
+      [ -n "$SEUL" ] || die "archive sans dossier app/ : $ARCHIVE"
+      TAMPON="$SEUL"
+    fi
+    SOURCE="$TAMPON"
+    ok "archive deposee et extraite dans $SOURCE"
+  fi
+  [ -n "$SOURCE" ] || die "mode --maj : donnez l'archive (bash $0 --maj av.tgz) ou SOURCE=/chemin du code"
+  local d
+  for d in app scripts docs; do
+    [ -d "$SOURCE/$d" ] || die "$SOURCE/$d absent : app, scripts et docs se deploient ensemble"
+  done
+  [ -f "$SOURCE/app/main.py" ] || die "$SOURCE/app/main.py absent : transfert tronque"
+  [ -f "$SOURCE/scripts/deploy-kder-ai.sh" ] || die "$SOURCE/scripts/deploy-kder-ai.sh absent : transfert tronque"
+  # Garde-fou de volume (mesure du 16/10/2026 sur le depot) : 167 fichiers dans
+  # app/, dont 72 gabarits HTML. Un transfert tronque se voit ici, avant d'avoir
+  # touche au site.
+  local nb_app nb_gabarits
+  nb_app="$(find "$SOURCE/app" -type f | wc -l)"
+  nb_gabarits="$(find "$SOURCE/app/templates" -type f -name '*.html' | wc -l)"
+  [ "$nb_app" -ge 100 ] || die "$nb_app fichiers dans $SOURCE/app : transfert tronque (>= 100 attendu)"
+  [ "$nb_gabarits" -ge 50 ] || die "$nb_gabarits gabarits dans $SOURCE/app/templates : transfert tronque (>= 50 attendu)"
+  ok "$nb_app fichiers dans app/, dont $nb_gabarits gabarits HTML"
+  if [ -f "$SOURCE/.env" ]; then
+    ko "$SOURCE/.env present : il ne sera PAS copie (le .env ne voyage jamais avec le code)"
+  fi
+
+  etape "M3. Sauvegarde de l'etat actuel (retour arriere)"
+  local noms=() chemins=()
+  for d in app scripts docs; do
+    [ -d "$PROJET/$d" ] && noms+=("$d") && chemins+=("$PROJET/$d")
+  done
+  [ "${#noms[@]}" -ge 1 ] || die "aucun dossier de code dans $PROJET"
+  mkdir -p "$SAUVEGARDE"
+  cp -a "${chemins[@]}" "$SAUVEGARDE/"
+  ok "code d'avant conserve : $SAUVEGARDE ($(find "$SAUVEGARDE" -type f | wc -l) fichiers)"
+  printf '%s\n' "${noms[@]}" > "$SAUVEGARDE/.dossiers"
+
+  etape "M4. Copie du code (une seule commande)"
+  find "$SOURCE" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
+  if tar -C "$SOURCE" -cf - app scripts docs | tar -C "$PROJET" -xf -; then
+    ok "app/ + scripts/ + docs/ remplaces d'un seul geste"
+  else
+    ko "copie interrompue : retour a la version precedente"
+    if restaurer_code; then ok "code precedent remis, service redemarre"; fi
+    die "copie du code impossible (place disque ou droits)"
+  fi
+  for d in app scripts docs; do
+    chmod -R a+rX "$PROJET/$d" || true
+  done
+  ok "lecture accordee a www-data sur le code copie (chmod a+rX)"
+
+  etape "M5. Fichiers en trop (listes, jamais supprimes)"
+  liste="$SAUVEGARDE/fichiers-en-trop.txt"
+  : > "$liste"
+  for d in app scripts docs; do
+    ( cd "$SOURCE/$d" && find . -type f -printf '%P\n' | sort ) > "$SAUVEGARDE/.vu-source"
+    ( cd "$PROJET/$d" && find . -type f -printf '%P\n' | sort ) \
+      | grep -v -e '^__pycache__/' -e '\.pyc$' > "$SAUVEGARDE/.vu-projet" || true
+    comm -13 "$SAUVEGARDE/.vu-source" "$SAUVEGARDE/.vu-projet" | sed "s|^|$d/|" >> "$liste" || true
+  done
+  rm -f "$SAUVEGARDE/.vu-source" "$SAUVEGARDE/.vu-projet"
+  if [ -s "$liste" ]; then
+    ko "$(wc -l < "$liste") fichier(s) present(s) sur le serveur et absent(s) du code deploye :"
+    sed 's/^/      /' "$liste"
+    note "liste complete : $liste - a supprimer par vous si ce sont des restes, par exemple :"
+    note "  cd $PROJET && xargs -a $liste rm -f"
+  else
+    ok "serveur et code deploye portent les memes fichiers"
+    rm -f "$liste"
+  fi
+
+  etape "M6. Droits du .env AVANT le redemarrage"
+  droits="$(stat -c '%U:%G %a' "$PROJET/.env")"
+  if [ "$droits" = "root:www-data 640" ]; then
+    ok ".env : $droits (conforme)"
+  else
+    ko ".env : $droits au lieu de root:www-data 640 : corrige (le service tourne sous www-data)"
+    chown root:www-data "$PROJET/.env"
+    chmod 640 "$PROJET/.env"
+    ok ".env : $(stat -c '%U:%G %a' "$PROJET/.env") apres correction"
+  fi
+  if grep -q $'\r' "$PROJET/.env"; then
+    die ".env contient des CR (fins de ligne Windows) : toutes les valeurs seraient corrompues"
+  fi
+  if sudo -u www-data test -r "$PROJET/.env"; then
+    ok "www-data peut lire le .env (cause exacte de la boucle de redemarrages du 16/10/2026)"
+  else
+    die "www-data ne peut PAS lire $PROJET/.env : le service bouclerait au demarrage"
+  fi
+  nb_smtp="$(grep -c -E '^(SMTP_HOST|SMTP_PORT|SMTP_USER|SMTP_PASSWORD|SMTP_FROM)=' "$PROJET/.env" || true)"
+  if [ "$nb_smtp" -eq 5 ]; then
+    ok ".env : les 5 variables SMTP sont presentes (le mail de reinitialisation peut partir)"
+  else
+    ko ".env : $nb_smtp/5 variables SMTP : la page mot de passe oublie n'enverra rien, sans erreur (section 12)"
+  fi
+
+  etape "M7. Redemarrage et sante (${SANTE_MAX} s au maximum)"
+  if ! systemctl restart address-validator; then
+    ko "systemctl restart a refuse : le service n'a pas redemarre"
+  fi
+  local sante=""
+  if sante="$(attendre_sante)"; then
+    ok "/health repond : $sante"
+    case "$sante" in
+      *'"database":"ok"'*) ok "base PostgreSQL joignable" ;;
+      *) ko "base PostgreSQL NON joignable : $sante (le site repond, la base non)" ;;
+    esac
+    case "$sante" in
+      *'"redis":"ok"'*) ok "Redis joignable" ;;
+      *) ko "Redis NON joignable : limitation et cache en repli local (D21, D44)" ;;
+    esac
+  else
+    ko "aucune reponse de /health apres ${SANTE_MAX} s : retour a la version precedente"
+    systemctl status address-validator --no-pager | head -8 || true
+    if command -v journalctl >/dev/null 2>&1; then
+      journalctl -u address-validator -n 20 --no-pager || true
+    fi
+    etape "M8. Retour a la version precedente"
+    if restaurer_code; then
+      if sante="$(attendre_sante)"; then
+        ok "service reparti avec le code precedent : $sante"
+      else
+        ko "le service ne repond TOUJOURS PAS apres le retour en arriere : intervention manuelle"
+        ko "journal : journalctl -u address-validator -n 50 --no-pager"
+      fi
+    else
+      ko "retour en arriere impossible : restaurez a la main depuis $SAUVEGARDE"
+    fi
+    echo
+    echo "MISE-A-JOUR-KDER-AI: ECHEC (code precedent remis ; sauvegarde : $SAUVEGARDE)"
+    exit 1
+  fi
+
+  etape "M9. Controles publics et recapitulatif"
+  for d in /health /manifest / /en/pricing; do
+    printf '      %-14s -> HTTP %s\n' "$d" \
+      "$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "https://$DOMAINE$d")"
+  done
+  # Le script se met a jour lui-meme sans jamais reecrire le fichier en cours
+  # d'execution : copie vers un fichier neuf, puis mv (bash garde l'ancien inode).
+  if [ "$SOURCE/scripts/deploy-kder-ai.sh" != "$PROJET/deploy-kder-ai.sh" ] \
+     && ! cmp -s "$SOURCE/scripts/deploy-kder-ai.sh" "$PROJET/deploy-kder-ai.sh"; then
+    cp "$SOURCE/scripts/deploy-kder-ai.sh" "$PROJET/deploy-kder-ai.sh.nouveau"
+    chmod 755 "$PROJET/deploy-kder-ai.sh.nouveau"
+    mv "$PROJET/deploy-kder-ai.sh.nouveau" "$PROJET/deploy-kder-ai.sh"
+    ok "copie de travail du script mise a jour : $PROJET/deploy-kder-ai.sh"
+  fi
+  echo
+  echo "============================================================================="
+  echo " RECAPITULATIF DE LA MISE A JOUR"
+  echo "============================================================================="
+  echo " Code deploye : $SOURCE"
+  echo " Sauvegarde   : $SAUVEGARDE"
+  echo " Service      : $(systemctl is-active address-validator) - $(systemctl show -p NRestarts --value address-validator) redemarrages systemd"
+  echo " Sante locale : $sante"
+  echo " Retour arriere manuel (si besoin plus tard) :"
+  echo "   cd $SAUVEGARDE && tar -cf - app scripts docs | tar -C $PROJET -xf - && systemctl restart address-validator"
+  echo "============================================================================="
+  echo "MISE-A-JOUR-KDER-AI: TERMINEE"
+}
+# L'aide est affichee avant le controle de root : on doit pouvoir lire l'usage
+# sans ouvrir une session root (toutes les autres branches, elles, l'exigent).
+case "${1:-}" in
+  -h|--help|--aide)
+    echo "usage : bash $0                          installation complete du VPS (etapes 0 a 11)"
+    echo "        ADMIN_EMAIL=... bash $0          idem, avec l'adresse exigee par certbot"
+    echo "        bash $0 --maj [archive.tgz]      mise a jour du code seule (etape 12)"
+    echo "detail : DEPLOIEMENT_VPS.md, sections 4 a 9 (installation) et 13 (mise a jour)"
+    exit 0
+    ;;
+esac
+
 [ "$(id -u)" -eq 0 ] || die "a lancer en root (sudo -i)"
+
+# -----------------------------------------------------------------------------
+# Aiguillage : installation complete (defaut, etapes 0 a 11) ou mise a jour du
+# code seule (--maj, etape 12, definie ci-dessus).
+# -----------------------------------------------------------------------------
+case "${1:-}" in
+  "")
+    ;;
+  --maj)
+    ARCHIVE="${2:-}"
+    maj_du_code
+    exit 0
+    ;;
+  *)
+    die "argument inconnu : $1 (installation complete sans argument, ou --maj [archive.tgz])"
+    ;;
+esac
 [ -n "$ADMIN_EMAIL" ] || die "ADMIN_EMAIL non fourni (certbot l'exige) : ADMIN_EMAIL=... bash $0"
 
 echo "============================================================================="
@@ -414,7 +726,9 @@ echo " Manifest    : http${HTTP_SCHEME}://$DOMAINE/manifest"
 echo " Service     : systemctl status address-validator"
 echo " Logs        : journalctl -u address-validator -f"
 echo " Redemarrer  : systemctl restart address-validator"
-echo " Mettre a jour le code : transferer puis systemctl restart address-validator"
+echo " Mettre a jour le code : bash /opt/address-validator/deploy-kder-ai.sh --maj <archive.tgz>"
+echo "   (copie en une commande, controle du .env, test de /health, retour arriere"
+echo "    automatique : section 13 de DEPLOIEMENT_VPS.md)"
 echo " Sauvegardes : /opt/backups (quotidien a 03h00, purge a 30 jours)"
 echo "============================================================================="
 echo " POINTS DE VIGILANCE"

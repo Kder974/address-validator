@@ -508,3 +508,253 @@ entrée `status: active`, `publishedAt: 2026-10-11T17:49:24Z`, `isLatest: true`,
 `remotes[] = https://kder-ai.com/mcp`. Le `publish` a été fait depuis l'arbre plat
 de la branche `address-validator-export` (dépôt `github.com/Kder974/address-validator`,
 `server.json` servi à la racine) — donc le même contenu que celui déployé ici.
+
+---
+
+## 12. SMTP en production (16/10/2026) — le mail « mot de passe oublié »
+
+La page `/compte/mot-de-passe-oublie` (D63) n'envoie rien tant que les variables
+`SMTP_*` sont absentes : le code l'écrit au journal (`mot de passe oublie : SMTP_HOST
+vide, aucun mail envoye`) et répond **la même chose** dans tous les cas. Le 16/10/2026
+au matin, la production était exactement dans cet état : le `.env` ne portait qu'une
+ligne `CONTACT_EMAIL` (mesuré le 16/10/2026 à 07:34 UTC).
+
+### 12.1 Ce que le service lit
+
+`app/config.py` :
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `SMTP_HOST` | serveur d'envoi — **vide = aucun mail, jamais une erreur** | `""` |
+| `SMTP_PORT` | `465` = TLS implicite (`SMTP_SSL`) ; tout autre port = `SMTP` + `STARTTLS` | `587` |
+| `SMTP_USER` | login du relais (chez Brevo : `…@smtp-brevo.com`) | `""` |
+| `SMTP_PASSWORD` | clé SMTP (chez Brevo : `xsmtpsib-…`, **pas** `xkeysib-…`) | `""` |
+| `SMTP_FROM` | expéditeur affiché — vide → `CONTACT_EMAIL` | `""` |
+
+Aucune autre variable n'est lue : `SMTP_FROM_NAME`, présent dans le `.env.smtp` du
+poste, ne sert pas côté service.
+
+Sortie réseau : `ufw` a `Default: allow (outgoing)`. Mesuré le 16/10/2026 :
+`smtp-relay.brevo.com` joignable en **587** et **465**, port **25 fermé** (normal).
+
+### 12.2 Ce qui a été fait (16/10/2026, 07:50 UTC)
+
+| Étape | Commande | Résultat mesuré |
+|---|---|---|
+| Sauvegarde | `cp -p /opt/address-validator/.env /root/.env.avant-smtp-20261016` | `-rw-r----- root www-data`, 2 295 o |
+| Ajout | 5 lignes `SMTP_*` ajoutées en fin de `.env` (`SMTP_FROM_NAME` exclu) | lignes **63–67** |
+| Droits | fichier modifié sur place : aucun `chmod`, aucun `chown` | resté **`-rw-r----- root www-data`** |
+| Redémarrage | `systemctl restart address-validator` | `active`, PID 125849, `07:50:49 UTC`, `NRestarts=0` |
+| Contrôles | `/health`, `/compte/connexion`, `/compte/mot-de-passe-oublie`, `/agents` | **`200`** en local (`127.0.0.1:8000`) **et** en public |
+
+### 12.3 Comment le refaire (procédure)
+
+```bash
+# 0. Depuis le poste : les identifiants (fichier local, ignoré par git)
+scp -i ~/.ssh/address_validator_vps address-validator/.env.smtp root@87.76.197.38:/tmp/smtp_brevo.env
+ssh -i ~/.ssh/address_validator_vps root@87.76.197.38 'chmod 600 /tmp/smtp_brevo.env'
+
+# 1. Sur le serveur : sauvegarde, extraction des cinq clés, ajout en fin de fichier
+ssh -i ~/.ssh/address_validator_vps root@87.76.197.38 '
+  cp -p /opt/address-validator/.env /root/.env.avant-smtp-20261016
+  grep -E "^(SMTP_HOST|SMTP_PORT|SMTP_USER|SMTP_PASSWORD|SMTP_FROM)=" /tmp/smtp_brevo.env \
+    | sed "s/\r$//" >> /opt/address-validator/.env
+  rm -f /tmp/smtp_brevo.env
+  systemctl restart address-validator
+'
+```
+
+Trois règles, sans exception :
+
+1. **Ne jamais `chmod` ni `chown` le `.env`** : `>>` sur un fichier existant ne change
+   pas ses droits. Il doit rester `root:www-data 640` — c'est la cause exacte de la
+   boucle de redémarrages du 16/10 au matin (`PermissionError: … '.env'`, 314 essais).
+2. **Nettoyer les `\r`** (`sed "s/\r$//"`) : le `.env.smtp` du poste est en CRLF ; un
+   `\r` collé à la clé SMTP fait échouer l'authentification en `535`.
+3. **Supprimer le fichier temporaire** après usage : il porte la clé en clair.
+
+### 12.4 Comment tester — trois niveaux
+
+| Niveau | Où | Commande | Ce que ça prouve |
+|---|---|---|---|
+| 1 | poste | `.venv\Scripts\python.exe scripts\test_smtp_connection.py` | le `.env.smtp` du poste est complet ; STARTTLS + authentification (aucun mail) |
+| 2 | serveur | `venv/bin/python /tmp/test_smtp_vps.py --fichier /tmp/smtp_brevo.env --envoi` (script du dépôt : `scripts/test_smtp_vps.py`, copié par `scp`) | Brevo accepte **la clé et l'IP du serveur** ; un vrai message part |
+| 3 | serveur | appel de `app.routes.mot_de_passe.envoyer_mail(...)` dans le venv | la **chaîne applicative** (les réglages que lit la page) envoie |
+
+Mesuré le 16/10/2026, 07:48–07:52 UTC :
+
+- niveau 2 : `session ouverte et authentifiee (noop=250)`, `message de test accepte par
+  le relais` — **aucun `525`** : Brevo n'a pas de restriction d'IP sur ce compte, ou
+  l'IP `87.76.197.38` y figure déjà. Rien à changer dans *app.brevo.com → Settings →
+  Security → Authorized IP addresses* (voir `docs/commercial/GUIDE-BREVO.md`, piège 10) ;
+- niveau 3 : `smtp_host = smtp-relay.brevo.com`, `smtp_port = 587`,
+  `smtp_user = bdfa1c001@smtp-brevo.com`, mot de passe présent (90 caractères),
+  `smtp_from = address-validator@kder-ai.com`, appel terminé **sans exception** et
+  **aucune plainte** au journal : l'envoi est accepté.
+
+Contrôle final, côté humain : ouvrir la boîte Zoho et vérifier `Authentication-Results`
+(`spf=pass`, `dkim=pass`, `dmarc=pass`), comme au § 8 de `GUIDE-BREVO.md`.
+
+**Test de bout en bout par la page : impossible aujourd'hui.** La page n'envoie le lien
+que si le compte existe (`customers` = **0** ligne, `password_resets` = **0** au
+16/10/2026). Le POST sur `/compte/mot-de-passe-oublie` répond bien `200`, mais ne
+déclenche aucun envoi. Pour l'éprouver pour de vrai : créer un compte
+(`/compte/inscription`), puis demander la réinitialisation depuis ce compte.
+
+### 12.5 Retirer (rollback)
+
+```bash
+# soit restaurer la sauvegarde d'avant la modification
+ssh -i ~/.ssh/address_validator_vps root@87.76.197.38 '
+  cp -p /root/.env.avant-smtp-20261016 /opt/address-validator/.env
+  systemctl restart address-validator; systemctl is-active address-validator'
+```
+
+- Le redémarrage n'est pas urgent : un envoi qui échoue est **avalé** par le code
+  (`except (SMTPException, OSError): logger.warning`), la page ne tombe jamais.
+  Les mails cessent simplement de partir, et le journal le dit.
+- `cp -p` conserve les droits de la sauvegarde (`640 root:www-data`) : vérifier
+  `ls -la /opt/address-validator/.env` après restauration.
+- La sauvegarde `/root/.env.avant-smtp-20261016` contient les secrets du service :
+  la garder en `root` (elle l'est), et la supprimer quand elle n'est plus utile.
+
+### 12.6 Points de vigilance
+
+- **Aucune alerte si l'envoi casse.** Le service écrit un `warning` et continue :
+  personne n'est prévenu. Une surveillance sur le journal (`mot de passe oublie :
+  envoi refuse`) ou sur `/health` ne suffit pas à voir un SMTP mort — c'est le même
+  angle mort que la panne du 16/10 au matin.
+- **`525` = IP, `535` = clé.** Ne pas chercher la clé quand le serveur répond
+  `525 5.7.1 Unauthorized IP address` : c'est l'adresse IP de la machine. Deux clés
+  valides ont déjà été refusées en `525` le 13/10/2026.
+- **Le `.env` n'est pas versionné** : ce qu'il contient n'est écrit nulle part
+  ailleurs. Toute variable ajoutée à la main doit être notée ici et dans
+  `.env.example` (qui liste déjà `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
+  `SMTP_PASSWORD`, `SMTP_FROM`, lignes 114–121).
+- **Une seule boîte en jeu** : `SMTP_FROM` = `address-validator@kder-ai.com` (Zoho),
+  dominé par le SPF `include:brevo.com` mesuré le 16/10/2026. Un envoi depuis une
+  autre adresse perdrait ses signatures — voir `docs/commercial/DNS-A-CONFIGURER.md`.
+
+---
+
+## 13. Mise à jour du code : un seul geste, vérifié, réversible (16/10/2026)
+
+Le déploiement du 16/10/2026 au matin a montré la fragilité de la méthode
+manuelle : le code a été recopié **en deux temps** (`app/` d'abord, le reste
+ensuite) et le service a redémarré entre les deux, sur un arbre incomplet ;
+quelques minutes plus tard, un `.env` illisible pour `www-data` (`600 root`)
+provoquait 314 redémarrages en boucle. Deux causes distinctes, un même remède :
+l'étape 12 du script `scripts/deploy-kder-ai.sh`, mode `--maj`, qui remplace le
+code **en une seule commande**, contrôle ce qui doit l'être **avant** le
+redémarrage, mesure `/health` **après**, et revient en arrière toute seule si le
+service ne répond pas.
+
+### 13.1 La commande : deux étapes, poste puis serveur
+
+```bash
+# 1. poste Windows - fabriquer l'archive depuis le clone vitrine (copie de travail unique)
+cd C:\Users\kder_\address-validator-vitrine
+git status --short          # l'arbre doit être propre, ou ne contenir que ce que vous déployez
+tar -czf "$env:TEMP\av-maj.tgz" app scripts docs
+scp -i $env:USERPROFILE\.ssh\address_validator_vps "$env:TEMP\av-maj.tgz" root@87.76.197.38:/tmp/
+
+# 2. serveur - un seul geste, et un code retour exploitable
+ssh -i ~/.ssh/address_validator_vps root@87.76.197.38 \
+  'bash /opt/address-validator/deploy-kder-ai.sh --maj /tmp/av-maj.tgz'
+```
+
+L'archive ne contient **que** `app/`, `scripts/` et `docs/` : ni `venv/`, ni
+`.env`, ni les journaux, ni les `.exe`. Le serveur garde les siens.
+
+Deux variantes utiles : `SOURCE=/chemin/de/code bash deploy-kder-ai.sh --maj`
+(le code est déjà sur le serveur, par exemple dans
+`/opt/address-validator-nouveau`) et `bash deploy-kder-ai.sh -h` (rappel de
+l'usage). `TAMPON` et `SAUVEGARDE` sont surchargeables de la même façon.
+
+### 13.2 Les neuf étapes, et ce que chacune prouve
+
+| Étape | Ce qui est fait | Ce que ça prouve |
+|---|---|---|
+| M1 | service actif et `/health` interrogé **avant** toute écriture | l'état de référence est sain : un échec après coup est imputable au nouveau code |
+| M2 | archive extraite dans `/opt/address-validator-nouveau`, puis `app/`, `scripts/`, `docs/` exigés, `>= 100` fichiers dans `app/`, `>= 50` gabarits HTML | le transfert est complet (mesure du 16/10/2026 : 167 fichiers, 72 gabarits) |
+| M3 | `cp -a app scripts docs` dans `/opt/address-validator-avant-<horodatage>`, avec la liste des dossiers dans `.dossiers` | l'état d'avant est sur le disque, **hors** du dossier servi |
+| M4 | `tar -C <source> -cf - app scripts docs \| tar -C /opt/address-validator -xf -` | **une seule** commande écrit l'arbre : plus aucun instant où le site est à moitié remplacé |
+| M4 bis | `chmod -R a+rX` sur les trois dossiers | `www-data` lit ce qui vient d'être copié (un tar fabriqué sous Windows ne porte pas toujours les bons droits) |
+| M5 | `comm -13` compare les fichiers du serveur et ceux qui viennent d'être déployés | les restes sont **listés** dans `<sauvegarde>/fichiers-en-trop.txt`, jamais supprimés |
+| M6 | droits du `.env`, absence de CR, lecture réelle par `www-data`, 5 variables SMTP | la cause exacte de la boucle de redémarrages du matin est écartée **avant** le redémarrage |
+| M7 | `systemctl restart`, puis `/health` chaque seconde pendant 30 s ; base et Redis lus dans le corps | le service répond vraiment (`"status":"ok"`) et l'on sait si PostgreSQL et Redis sont joignables |
+| M8 | remise du code de M3, redémarrage, nouveau test de 30 s | le retour arrière est automatique, mesuré, et son résultat est annoncé |
+| M9 | codes HTTP publics de `/health`, `/manifest`, `/` et `/en/pricing`, puis synchronisation de la copie de travail du script | ce que voit un visiteur est vérifié, pas seulement la boucle locale |
+
+La sortie du script est explicite : `MISE-A-JOUR-KDER-AI: TERMINEE` (code 0) ou
+`MISE-A-JOUR-KDER-AI: ECHEC` (code 1), avec le chemin de la sauvegarde. De quoi
+enchaîner un appelant (agent de supervision, tâche n8n) sans analyser le texte.
+
+### 13.3 Le `.env` : la règle du 16/10/2026
+
+`/opt/address-validator/.env` doit rester **`-rw-r----- root:www-data`** (640).
+
+- Le service tourne sous `www-data` (`address-validator.service`, `User=www-data`) :
+  un `.env` en `600 root` le rend illisible, `PermissionError` au démarrage,
+  `Restart=always` → boucle (314 redémarrages mesurés le 16/10/2026).
+- M6 **corrige** les droits s'ils ont dérivé, puis vérifie la lecture réelle
+  avec `sudo -u www-data test -r` : un `chmod` seul ne prouve rien.
+- Le mode `--maj` **n'écrit jamais** dans le `.env` : il ne l'ajoute pas à
+  l'archive, ne l'écrase pas, n'y ajoute aucune variable. Une variable nouvelle
+  s'ajoute à la main en fin de fichier (§12.3) et se note dans `.env.example`.
+- Le script refuse de continuer si le `.env` porte des CR : un `\r` collé à la
+  clé SMTP fait échouer l'authentification en `535` (§12.3, règle 2).
+
+### 13.4 Retour arrière : déclencheur, portée, limites
+
+Déclencheur unique : aucune réponse de `/health` conforme à `"status":"ok"` dans
+les 30 secondes qui suivent le redémarrage. S'y ajoutent, par construction, la
+copie interrompue (M4 : le retour arrière est lancé sans attendre) et un
+`systemctl restart` refusé (le service ne répond alors pas : M8 suit).
+
+Portée : `app/`, `scripts/`, `docs/` — les trois dossiers copiés, et rien
+d'autre. Le `.env`, `venv/`, la base PostgreSQL, Redis, Nginx et le certificat ne
+sont **jamais** touchés par une mise à jour de code : il n'y a rien à remettre en
+état de ce côté. Une **suppression** de fichier est bien annulée (la sauvegarde
+est une copie complète de l'arbre d'avant), mais un fichier **ajouté** par la
+nouvelle version reste sur le disque après un retour arrière : c'est un des
+« fichiers en trop » que M5 signale, à retirer à la main.
+
+Retour arrière manuel, plus tard (la commande exacte est imprimée dans le
+récapitulatif du script) :
+
+```bash
+cd /opt/address-validator-avant-<horodatage> \
+  && tar -cf - app scripts docs | tar -C /opt/address-validator -xf - \
+  && systemctl restart address-validator
+```
+
+### 13.5 Ce que la mise à jour ne fait pas
+
+Le mode `--maj` n'installe rien et ne supprime rien : c'est un choix. Un script
+de mise à jour ne doit pas pouvoir défaire PostgreSQL, Nginx ou Certbot par
+accident.
+
+| Situation | Ce qu'il faut faire |
+|---|---|
+| `requirements.txt` change (dépendance nouvelle, montée de version) | installation complète (`ADMIN_EMAIL=... bash deploy-kder-ai.sh`), ou `venv/bin/pip install -r requirements.txt` à la main puis `--maj` |
+| variable nouvelle dans `.env` (ex. les `SMTP_*` du §12) | l'ajouter à la main en fin de fichier, **sans** `chmod` ni `chown` (§12.3), puis `systemctl restart` (ou `--maj`) |
+| migration de base à appliquer | `venv/bin/python scripts/<migration>.py` **avant** `--maj` (voir §11.2 pour `migrate_test_mode.py`) |
+| Nginx, certificat, pare-feu, unité systemd | modification manuelle, documentée §6 à §9 : `--maj` n'y touche pas |
+| fichier supprimé du dépôt | il reste sur le serveur : il apparaît dans `fichiers-en-trop.txt` (M5), à retirer à la main |
+| `venv/` ou le service absents, disque plein | `--maj` s'arrête en M1 ou M4 et le dit : reprendre par l'installation complète |
+
+### 13.6 Vérifier après coup
+
+```bash
+systemctl is-active address-validator
+curl -s http://127.0.0.1:8000/health
+ls -la /opt/address-validator/.env          # root www-data 640
+ls -d /opt/address-validator-avant-*        # une sauvegarde par mise a jour
+journalctl -u address-validator -n 50 --no-pager
+```
+
+Garder une ou deux sauvegardes, retirer les plus anciennes : elles contiennent le
+code, jamais les secrets (le `.env` n'y est pas copié). Un dossier
+`/opt/address-validator-nouveau` peut rester entre deux mises à jour : il est
+écrasé par l'extraction suivante.
