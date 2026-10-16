@@ -381,3 +381,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D69: a browser without a session is sent to the /dashboard/connexion page while a script keeps the Basic challenge; the right credentials set a __Host- cookie (HttpOnly, Secure, SameSite=Strict) that opens the dashboard, a tampered, expired or pre-password-change cookie does not, five wrong passwords lock the IP even for the right password, a foreign form is refused and logout clears the cookie; the v2 page shows the site and SEO section with the dot world map, the journey and the registry, has no script and no external address and escapes names and referrers
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D69
   EXPECT: DECISION OK D69
+- [ ] D70: a real browser form (Origin: null with Sec-Fetch-Site: same-origin, as Chrome sends under no-referrer) is accepted by the dashboard login and the client login, a browser saying cross-site or same-site is refused even with a matching Origin, a foreign Origin is refused, and spaces around the dashboard credentials are ignored
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D70
+  EXPECT: DECISION OK D70

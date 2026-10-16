@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D69, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D70, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 69
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 70
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -6016,7 +6016,31 @@ def d69() -> None:
     guard("D69" in read("DECISIONS.md"), "la decision D69 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 70)}
+def d70() -> None:
+    """Un vrai navigateur passe les formulaires ; un autre site, non."""
+    from fastapi.testclient import TestClient
+
+    from app.config import get_settings
+    from app.main import app
+
+    reglages = get_settings()
+    client = TestClient(app)
+    chrome = {"Origin": "null", "Sec-Fetch-Site": "same-origin"}
+    with mock.patch.object(reglages, "dashboard_user", "kder"), mock.patch.object(reglages, "dashboard_password", "porte-d70-secret"):
+        def essai(entetes, user="kder", mdp="porte-d70-secret", ip="192.0.2.70"):
+            return client.post("/dashboard/connexion", data={"user": user, "password": mdp}, headers={"X-Forwarded-For": ip, **entetes}, follow_redirects=False).status_code
+
+        guard(essai(chrome) == 303, "un formulaire de Chrome (Origin: null, Sec-Fetch-Site: same-origin) est refuse au pilotage")
+        guard(essai(chrome, " kder ", " porte-d70-secret ", "192.0.2.71") == 303, "les espaces autour du code ne sont pas ignores")
+        guard(essai({"Origin": "https://kder-ai.com", "Sec-Fetch-Site": "cross-site"}, ip="192.0.2.72") == 403, "un navigateur qui dit cross-site est accepte")
+        guard(essai({"Origin": "https://pirate.example"}, ip="192.0.2.73") == 403, "une Origin etrangere est acceptee")
+    client_reponse = client.post("/compte/connexion", data={"email": "x@example.re", "password": "faux-mot-de-passe"}, headers={"X-Forwarded-For": "192.0.2.74", **chrome})
+    guard(client_reponse.status_code != 403, "un vrai navigateur est encore refuse a la connexion de l'espace client")
+    guard("sec-fetch-site" in read("app/routes/connexion.py"), "la protection ne lit plus Sec-Fetch-Site")
+    guard("D70" in read("DECISIONS.md"), "la decision D70 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 71)}
 
 
 def catalog() -> list[tuple[str, str]]:

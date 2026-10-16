@@ -97,3 +97,36 @@ def test_ferme_sans_mot_de_passe(monkeypatch):
     monkeypatch.setattr(get_settings(), "dashboard_password", "")
     assert client.get("/dashboard/connexion").status_code == 503
     assert client.post("/dashboard/connexion", data={"user": "kder", "password": ""}).status_code == 503
+
+
+def test_un_vrai_navigateur_n_est_pas_pris_pour_un_autre_site(reglages):
+    # Chrome, sous `Referrer-Policy: no-referrer`, envoie `Origin: null` et `Sec-Fetch-Site: same-origin`.
+    chrome = {"Origin": "null", "Sec-Fetch-Site": "same-origin"}
+    assert _connexion(_ip(6), **chrome).status_code == 303
+    # Un code collé avec des espaces autour passe aussi.
+    assert _connexion(_ip(7), user=" kder ", password=" mot-de-passe-du-pilotage ", **chrome).status_code == 303
+    # Le navigateur dit « autre site » : refusé, même avec une bonne Origin et le bon mot de passe.
+    assert _connexion(_ip(8), Origin="https://kder-ai.com", **{"Sec-Fetch-Site": "cross-site"}).status_code == 403
+    assert _connexion(_ip(8), **{"Sec-Fetch-Site": "same-site"}).status_code == 403
+    # Vieux navigateur sans Sec-Fetch-Site : Origin null ne prouve rien, la page vérifie le mot de passe.
+    assert _connexion(_ip(9), Origin="null").status_code == 303
+
+
+def test_la_protection_commune_aux_formulaires_espace_client_compris():
+    from starlette.requests import Request
+
+    from app.routes.connexion import origine_etrangere
+
+    def requete(**entetes):
+        return Request({"type": "http", "headers": [(k.lower().replace("_", "-").encode(), v.encode()) for k, v in {"host": "kder-ai.com", **entetes}.items()]})
+
+    assert not origine_etrangere(requete(origin="null", sec_fetch_site="same-origin"))
+    assert not origine_etrangere(requete(sec_fetch_site="none"))
+    assert origine_etrangere(requete(origin="https://kder-ai.com", sec_fetch_site="cross-site"))
+    assert not origine_etrangere(requete(origin="https://kder-ai.com"))
+    assert origine_etrangere(requete(origin="https://pirate.example"))
+    assert not origine_etrangere(requete(origin="null")) and not origine_etrangere(requete())
+    # L'espace client (D62) passe par la même fonction : un vrai navigateur y est accepté.
+    reponse = client.post("/compte/connexion", data={"email": "x@example.re", "password": "faux-mot-de-passe"},
+                          headers={"Origin": "null", "Sec-Fetch-Site": "same-origin", "X-Forwarded-For": "198.18.0.40"})
+    assert reponse.status_code != 403
