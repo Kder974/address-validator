@@ -393,3 +393,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D73: the visit report reads the Nginx combined log into the seven sections, flags as a leak only a sensitive path served in 2xx (a 301 exposes nothing) and pseudonymises IPs by default
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D73
   EXPECT: DECISION OK D73
+- [ ] D74: only a PILOTAGE_COMPTES address receives a password link (an unknown address gets the same page and no mail), the link is built on PUBLIC_BASE_URL, stored as a hash, single-use, and opens a named session after a valid new password; the account then logs in with its email and sees "Bonjour <name>"; changing the password or removing the address from the list closes its sessions; the shared DASHBOARD_USER login still works
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D74
+  EXPECT: DECISION OK D74

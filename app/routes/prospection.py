@@ -43,7 +43,7 @@ from fastapi import APIRouter, Body, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from app.config import get_settings
-from app.routes.dashboard import BASE_HEADERS, refus_acces
+from app.routes.dashboard import BASE_HEADERS, pilotage_ouvert, refus_acces
 
 router = APIRouter()
 
@@ -321,7 +321,7 @@ def _garde(request: Request) -> Response | None:
     la commande à lancer).
     """
     settings = get_settings()
-    if not settings.dashboard_password:
+    if not pilotage_ouvert(settings):
         return _refus(
             "DASHBOARD_PASSWORD absent : /prospection est fermé par défaut (même règle "
             "que /dashboard, D32)."

@@ -170,6 +170,10 @@ class Settings(BaseSettings):
     # serveur, forfait du fournisseur d'adresses, envoi de mails, et prix d'un appel
     # au fournisseur (en dollars) quand il est facturé à l'appel. Tous à 0 = coûts
     # non renseignés : le résultat du mois n'est pas calculé.
+    # Comptes du tableau de bord (D74) : « Nom=email » séparés par des virgules, par exemple
+    # « Fzed=fzed@exemple.re, Kder=kder@exemple.re ». Seules ces adresses peuvent recevoir un
+    # lien pour créer leur mot de passe. Vide = seul l'identifiant partagé DASHBOARD_USER marche.
+    pilotage_comptes: str = ""
     cost_server_eur: float = 0.0
     cost_smarty_eur: float = 0.0
     cost_smarty_per_call_usd: float = 0.0

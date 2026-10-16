@@ -157,6 +157,27 @@ CREATE TABLE IF NOT EXISTS api_calls (
 );
 CREATE INDEX IF NOT EXISTS idx_api_calls_created_at ON api_calls(created_at);
 CREATE INDEX IF NOT EXISTS idx_api_calls_customer ON api_calls(customer_id);
+
+-- D74 : comptes du tableau de bord d'exploitation. Seules les adresses de PILOTAGE_COMPTES
+-- en ont un ; le mot de passe n'existe qu'en empreinte bcrypt, choisi par la personne via un
+-- lien recu par mail (empreinte SHA-256 du jeton, 30 minutes, une seule fois).
+CREATE TABLE IF NOT EXISTS operators (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(60) NOT NULL,
+    password_hash VARCHAR(255),
+    password_changed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS operator_tokens (
+    id SERIAL PRIMARY KEY,
+    operator_id INTEGER NOT NULL REFERENCES operators(id),
+    token_hash VARCHAR(64) UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_operator_tokens_operator ON operator_tokens(operator_id);
 """
 
 

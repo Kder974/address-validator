@@ -158,3 +158,29 @@ class ApiCall(Base):
     amount_usdc = Column(Float)
     customer_id = Column(Integer, index=True)
     created_at = Column(DateTime, server_default=func.current_timestamp(), index=True)
+
+
+class Operator(Base):
+    """Un compte du tableau de bord d'exploitation (D74) : email autorisé, nom, empreinte bcrypt."""
+
+    __tablename__ = "operators"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    name = Column(String(60), nullable=False)
+    password_hash = Column(String(255))
+    password_changed_at = Column(DateTime)
+    created_at = Column(DateTime, server_default=func.current_timestamp())
+
+
+class OperatorToken(Base):
+    """Un lien « créer ou changer mon mot de passe » du tableau de bord (D74) : empreinte seule, une fois."""
+
+    __tablename__ = "operator_tokens"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    operator_id = Column(Integer, ForeignKey("operators.id"), nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, server_default=func.current_timestamp())
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime)
