@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D68, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D69, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 68
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 69
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -5908,12 +5908,12 @@ def d68() -> None:
     from app import exploitation, i18n
     from app.config import get_settings
     from app.main import app
-    from app.models import ApiCall, Customer, CustomerValidation, PaymentTransaction
+    from app.models import ApiCall, Customer, CustomerValidation, PageVisit, PaymentTransaction
     from app.routes.dashboard import _page
 
     moment = datetime(2026, 10, 16, 12)
     moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp()) / 'p.sqlite'}")
-    for modele in (Customer, CustomerValidation, PaymentTransaction, ApiCall):
+    for modele in (Customer, CustomerValidation, PaymentTransaction, ApiCall, PageVisit):
         modele.__table__.create(moteur)
     with sessionmaker(bind=moteur)() as s:
         s.add_all([
@@ -5950,7 +5950,73 @@ def d68() -> None:
     guard("D68" in read("DECISIONS.md"), "la decision D68 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 69)}
+def d69() -> None:
+    """La page de connexion remplace la fenetre grise sans rien ceder, et le pilotage v2 dit vrai."""
+    import tempfile
+    from datetime import datetime, timedelta
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import exploitation
+    from app.carte_monde import POINTS
+    from app.config import get_settings
+    from app.main import app
+    from app.models import ApiCall, Customer, CustomerValidation, PageVisit, PaymentTransaction
+    from app.routes import dashboard
+
+    reglages = get_settings()
+    client = TestClient(app)
+    html_nav = {"Accept": "text/html"}
+    with mock.patch.object(reglages, "dashboard_user", "kder"), mock.patch.object(reglages, "dashboard_password", "porte-d69-secret"):
+        ip = {"X-Forwarded-For": "192.0.2.169"}
+        nav = client.get("/dashboard", headers={**html_nav, **ip}, follow_redirects=False)
+        guard(nav.status_code == 303 and nav.headers.get("location") == "/dashboard/connexion", "un navigateur sans session n'est pas renvoye vers la page de connexion")
+        guard(client.get("/dashboard", headers=ip).status_code == 401, "un script ne recoit plus le defi Basic")
+        bon = client.post("/dashboard/connexion", data={"user": "kder", "password": "porte-d69-secret"}, headers=ip, follow_redirects=False)
+        cookie = bon.headers.get("set-cookie", "")
+        guard(bon.status_code == 303 and all(x.lower() in cookie.lower() for x in ("__Host-av_pilotage=", "HttpOnly", "Secure", "SameSite=strict")), f"le cookie de session n'a pas les bons attributs : {cookie!r}")
+        jeton = cookie.split("=", 1)[1].split(";", 1)[0]
+        page = client.get("/dashboard", headers={**html_nav, **ip, "Cookie": f"{dashboard.COOKIE}={jeton}"})
+        guard(page.status_code == 200 and "<script" not in page.text.lower(), "la session n'ouvre pas le tableau de bord, ou il embarque un script")
+        fin, _, signature = jeton.partition(".")
+        guard(not dashboard.session_valide(f"{int(fin) + 99}.{signature}", reglages), "un cookie retouche est accepte")
+        guard(not dashboard.session_valide(jeton, reglages, maintenant=int(fin) + 1), "un cookie echu est accepte")
+        with mock.patch.object(reglages, "dashboard_password", "autre-mot-de-passe"):
+            guard(not dashboard.session_valide(jeton, reglages), "un changement de mot de passe ne ferme pas les sessions")
+        guard(client.post("/dashboard/connexion", data={"user": "kder", "password": "porte-d69-secret"}, headers={**ip, "Origin": "https://pirate.example"}, follow_redirects=False).status_code == 403, "un formulaire d'un autre site est accepte")
+        ip2 = {"X-Forwarded-For": "192.0.2.170"}
+        for _ in range(reglages.login_max_failures):
+            client.post("/dashboard/connexion", data={"user": "kder", "password": "faux"}, headers=ip2)
+        guard(client.post("/dashboard/connexion", data={"user": "kder", "password": "porte-d69-secret"}, headers=ip2, follow_redirects=False).status_code == 429, "cinq echecs ne bloquent pas la page de connexion")
+        sortie = client.post("/dashboard/deconnexion", headers=ip, follow_redirects=False)
+        guard(sortie.status_code == 303 and dashboard.COOKIE in sortie.headers.get("set-cookie", ""), "la deconnexion n'efface pas le cookie")
+
+    # Le dessin v2 : site et SEO, carte, parcours, registre ; rien d'execute, tout echappe.
+    moment = datetime(2026, 10, 16, 12)
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp()) / 'v2.sqlite'}")
+    for modele in (Customer, CustomerValidation, PaymentTransaction, ApiCall, PageVisit):
+        modele.__table__.create(moteur)
+    with sessionmaker(bind=moteur)() as s:
+        s.add_all([PageVisit(path="/", country="FR", referrer_host="<b>piege</b>.example", created_at=moment - timedelta(hours=1)),
+                   PageVisit(path="/", robot="GPTBot", created_at=moment - timedelta(hours=1)),
+                   Customer(email="v2@example.re", password_hash="x", shop_name="<b>piege</b>", platform="shopify",
+                            api_key_hash="b" * 64, api_key_prefix="sk_live_ab12", plan="trial", created_at=moment - timedelta(days=1))])
+        s.commit()
+        d = exploitation.collecter(s, moment, "mois", reglages)
+    guard(d["site"]["total"] == 1 and dict(d["site"]["robots"]) == {"GPTBot": 1}, "les robots ne sont pas comptes a part des visites")
+    page = dashboard._page({"ledger": {"available": True}, "windows": {}, "recent": []}, d, {"Base de données": True})
+    guard("<script" not in page.lower() and "http://" not in page and "https://" not in page, "le pilotage v2 embarque un script ou une adresse externe")
+    guard("<b>piege</b>" not in page and "&lt;b&gt;piege&lt;/b&gt;" in page, "un nom de boutique n'est pas echappe")
+    guard(all(f'id="{x}"' in page for x in ("argent", "api", "clients", "site", "registre")), "une section du pilotage v2 manque")
+    guard(page.count('<circle class="d ') == sum(len(v) for v in POINTS.values()), "la carte du monde n'a pas tous ses points")
+    guard("Natural Earth" in page and "DB-IP" in page, "les sources de la carte et des pays ne sont plus citees")
+    guard("D69" in read("DECISIONS.md"), "la decision D69 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 70)}
 
 
 def catalog() -> list[tuple[str, str]]:

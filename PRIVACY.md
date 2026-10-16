@@ -121,8 +121,11 @@ entrée, il faut la **clé de cache**, délivrée dans chaque réponse
 
 ## 6. Cookies, traceurs, mineurs, évolution
 
-- **Un seul cookie, strictement nécessaire** (D62) : `__Host-av_session`, posé
-  quand un client se connecte à son espace. Il ne contient qu'un jeton aléatoire
+- **Un seul cookie côté clients, strictement nécessaire** (D62) : `__Host-av_session`, posé
+  quand un client se connecte à son espace. (Depuis D69, l'exploitant a le sien,
+  `__Host-av_pilotage`, posé par la page de connexion du tableau de bord : une
+  échéance et une signature HMAC, rien d'autre, `HttpOnly`, `Secure`,
+  `SameSite=Strict`, 12 heures au plus ; il ne concerne que l'exploitant.) Il ne contient qu'un jeton aléatoire
   (la base n'en garde que l'empreinte), il est `HttpOnly`, `Secure`,
   `SameSite=Lax`, dure 12 heures au plus et s'efface à la déconnexion. C'est un
   cookie d'authentification demandé par le client lui-même : il n'appelle pas de
