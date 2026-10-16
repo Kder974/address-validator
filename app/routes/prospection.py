@@ -43,7 +43,7 @@ from fastapi import APIRouter, Body, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from app.config import get_settings
-from app.routes.dashboard import BASE_HEADERS, UNAUTHORIZED_HEADERS, _authorized
+from app.routes.dashboard import BASE_HEADERS, refus_acces
 
 router = APIRouter()
 
@@ -326,17 +326,9 @@ def _garde(request: Request) -> Response | None:
             "DASHBOARD_PASSWORD absent : /prospection est fermé par défaut (même règle "
             "que /dashboard, D32)."
         )
-    if not _authorized(
-        request.headers.get("authorization", ""),
-        settings.dashboard_user,
-        settings.dashboard_password,
-    ):
-        return Response(
-            status_code=401,
-            content="Authentification requise.",
-            media_type="text/plain; charset=utf-8",
-            headers=UNAUTHORIZED_HEADERS,
-        )
+    refus = refus_acces(request)
+    if refus is not None:
+        return refus
     if not _chemin_base().is_file():
         return _refus(str(_ouvrir_error()))
     return None

@@ -126,6 +126,37 @@ CREATE INDEX IF NOT EXISTS idx_customer_validations_customer
     ON customer_validations(customer_id);
 CREATE INDEX IF NOT EXISTS idx_customer_validations_created_at
     ON customer_validations(created_at);
+
+-- D67 : suivi d'audience et d'usage, lu par le tableau de bord d'exploitation.
+-- Ni adresse IP, ni adresse postale, ni cookie : le pays est deduit de l'IP sur
+-- le serveur (base DB-IP) puis l'IP est oubliee. Purge apres
+-- AUDIENCE_RETENTION_DAYS jours (app/audience.py).
+CREATE TABLE IF NOT EXISTS page_visits (
+    id SERIAL PRIMARY KEY,
+    path VARCHAR(120) NOT NULL,
+    country VARCHAR(2),
+    referrer_host VARCHAR(100),
+    robot VARCHAR(30),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_page_visits_created_at ON page_visits(created_at);
+CREATE TABLE IF NOT EXISTS api_calls (
+    id SERIAL PRIMARY KEY,
+    endpoint VARCHAR(20) NOT NULL,
+    method VARCHAR(40),
+    mode VARCHAR(10),
+    status INTEGER NOT NULL,
+    duration_ms INTEGER NOT NULL,
+    country VARCHAR(2),
+    address_country VARCHAR(2),
+    cache_hit BOOLEAN,
+    degraded BOOLEAN,
+    amount_usdc FLOAT,
+    customer_id INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_api_calls_created_at ON api_calls(created_at);
+CREATE INDEX IF NOT EXISTS idx_api_calls_customer ON api_calls(customer_id);
 """
 
 

@@ -22,7 +22,11 @@ publiques : une seule feuille, donc aucune derive possible entre
 l'exploitation et le site commercial.
 
 L'authentification est le couple `DASHBOARD_USER` / `DASHBOARD_PASSWORD` du
-`.env`, comparé en temps constant (`secrets.compare_digest`).
+`.env`, comparé en temps constant (`secrets.compare_digest`). Depuis D67, comme
+l'espace client (D62) : `LOGIN_MAX_FAILURES` mots de passe faux depuis une même
+adresse IP bloquent `LOGIN_LOCK_MINUTES` minutes (`429` + `Retry-After`), sur
+`/dashboard` et `/prospection` ensemble. Une requête sans identifiants (le premier
+passage d'un navigateur) n'est pas un échec.
 """
 
 from __future__ import annotations
@@ -34,7 +38,9 @@ import secrets
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 
+from app import ratelimit
 from app.config import get_settings
+from app.observability import client_ip
 from app.routes.revenue import safe_revenue_stats
 from app.web import DASHBOARD_CSS
 
@@ -83,6 +89,36 @@ def _authorized(header: str, expected_user: str, expected_password: str) -> bool
     user, password = credentials
     return secrets.compare_digest(user, expected_user) and secrets.compare_digest(
         password, expected_password
+    )
+
+
+def refus_acces(request: Request) -> Response | None:
+    """`None` si l'identifiant et le mot de passe sont bons ; sinon le refus.
+
+    `401` avec le défi Basic, ou `429` quand l'adresse IP a épuisé ses essais.
+    L'appelant a déjà vérifié qu'un mot de passe est configuré (fermé par défaut).
+    """
+    reglages = get_settings()
+    fenetre = reglages.login_lock_minutes * 60
+    cle = f"exploitation:ip:{client_ip(request)}"
+    if ratelimit.blocked(cle, reglages.login_max_failures, fenetre):
+        attente = ratelimit.retry_after(cle, fenetre)
+        return Response(
+            status_code=429,
+            content=f"Trop de mots de passe faux. Réessayez dans {max(1, (attente + 59) // 60)} min.",
+            media_type="text/plain; charset=utf-8",
+            headers={**BASE_HEADERS, "Retry-After": str(attente)},
+        )
+    entete = request.headers.get("authorization", "")
+    if _authorized(entete, reglages.dashboard_user, reglages.dashboard_password):
+        return None
+    if entete:
+        ratelimit.allow(cle, reglages.login_max_failures, fenetre)
+    return Response(
+        status_code=401,
+        content="Authentification requise.",
+        media_type="text/plain; charset=utf-8",
+        headers=UNAUTHORIZED_HEADERS,
     )
 
 
@@ -186,7 +222,8 @@ source {html.escape(str(stats.get("source")))}</p>
 {table}
 <footer>Protégé par HTTP Basic Auth (DASHBOARD_USER / DASHBOARD_PASSWORD).
 Aucune ressource externe. Les adresses IP ne figurent pas ici : cf. /metrics/revenue.
-Les essais de recette (D40) sont exclus du revenu réel et comptés à part.</footer>
+Les essais de recette (D40) sont exclus du revenu réel et comptés à part.
+Pays des visites et des appels (D67) : IP Geolocation by DB-IP (db-ip.com), licence CC BY 4.0.</footer>
 </body>
 </html>
 """
@@ -204,16 +241,8 @@ async def dashboard(request: Request) -> Response:
                 "detail": "DASHBOARD_PASSWORD absent : /dashboard est fermé par défaut (D32).",
             },
         )
-    if not _authorized(
-        request.headers.get("authorization", ""),
-        settings.dashboard_user,
-        settings.dashboard_password,
-    ):
-        return Response(
-            status_code=401,
-            content="Authentification requise.",
-            media_type="text/plain; charset=utf-8",
-            headers=UNAUTHORIZED_HEADERS,
-        )
+    refus = refus_acces(request)
+    if refus is not None:
+        return refus
     stats = await safe_revenue_stats(include_recent=True)
     return HTMLResponse(content=_page(stats), status_code=200, headers=PAGE_HEADERS)

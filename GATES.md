@@ -372,3 +372,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D66: /agents and /compare answer in six languages, public and indexable with their SEO block and in the sitemap, no unfilled field and no script outside the block; the service figures they show (x402 price and USDC units, MCP server URL, plan prices, quotas, trial) follow the configuration and none is written in their templates; every competitor price has its source as a plain domain and the page says when another service is the better choice; no template links to /mcp any more, the MCP server link leads to /agents
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D66
   EXPECT: DECISION OK D66
+- [ ] D67: every public page visit and every /validate, /mcp and free-trial call leaves one tracking row (page or route, country from the local DB-IP file, referrer domain, robot family, real status, duration, MCP method) and no IP, postal address or full User-Agent is stored; a missing country database gives an unknown country, never an error; a database failure drops the batch without breaking a page; rows older than AUDIENCE_RETENTION_DAYS are purged; five wrong passwords from one IP lock /dashboard and /prospection with a 429 even for the right password
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D67
+  EXPECT: DECISION OK D67

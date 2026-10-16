@@ -117,3 +117,44 @@ class CustomerValidation(Base):
     cache_key = Column(String(64), index=True)
     validated = Column(Boolean, nullable=False)
     created_at = Column(DateTime, server_default=func.current_timestamp(), index=True)
+
+
+class PageVisit(Base):
+    """Une visite d'une page publique (D67) : la page, le pays, le site d'origine.
+
+    Ni adresse IP, ni cookie, ni `User-Agent` complet : le pays est lu dans la base
+    DB-IP du serveur puis l'IP est oubliée ; pour un robot, seule sa famille reste.
+    """
+
+    __tablename__ = "page_visits"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    path = Column(String(120), nullable=False)
+    country = Column(String(2))
+    referrer_host = Column(String(100))
+    robot = Column(String(30))
+    created_at = Column(DateTime, server_default=func.current_timestamp(), index=True)
+
+
+class ApiCall(Base):
+    """Un appel de l'API, du serveur MCP ou de l'essai gratuit (D67).
+
+    `amount_usdc` n'est rempli que pour un paiement réel inscrit au registre (hors
+    recette, D40) ; `address_country` ne garde que le code pays de l'adresse.
+    """
+
+    __tablename__ = "api_calls"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    endpoint = Column(String(20), nullable=False)
+    method = Column(String(40))
+    mode = Column(String(10))
+    status = Column(Integer, nullable=False)
+    duration_ms = Column(Integer, nullable=False)
+    country = Column(String(2))
+    address_country = Column(String(2))
+    cache_hit = Column(Boolean)
+    degraded = Column(Boolean)
+    amount_usdc = Column(Float)
+    customer_id = Column(Integer, index=True)
+    created_at = Column(DateTime, server_default=func.current_timestamp(), index=True)

@@ -160,6 +160,12 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = ""
+    # Suivi d'audience et d'usage (D67). Base des pays DB-IP Lite (CC BY 4.0), tenue
+    # à jour chaque mois par `scripts/maj_geoip.sh` : fichier absent = pays inconnu,
+    # jamais une erreur. Les lignes de `page_visits` et `api_calls` sont purgées
+    # après `audience_retention_days` jours.
+    geoip_db_path: str = "/var/lib/address-validator/dbip-country.mmdb"
+    audience_retention_days: int = 400
 
     # Environnement
     environment: str = "development"

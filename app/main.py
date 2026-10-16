@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import seo
+from app import audience, seo
 from app.config import get_settings
 from app.database import init_db
 from app.observability import configure_logging
@@ -127,6 +127,11 @@ async def adresse_unique(request: Request, call_next):
         suite = f"?{request.url.query}" if request.url.query else ""
         return RedirectResponse(f"{base}{request.url.path}{suite}", status_code=301)
     return await call_next(request)
+
+
+# D67 : une ligne par visite d'une page publique et par appel d'API (pays, durée,
+# statut), écrite par lots hors du chemin de la réponse. Ni IP, ni cookie.
+app.middleware("http")(audience.suivre)
 
 
 class _Images(StaticFiles):

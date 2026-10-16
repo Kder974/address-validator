@@ -55,7 +55,7 @@ from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
-from app import accounts
+from app import accounts, audience
 from app.cache import get_cached_result, store_in_cache
 from app.config import get_settings
 from app.database import SessionLocal
@@ -136,13 +136,18 @@ def perform_validation(raw: dict) -> tuple[dict, str]:
     """
     key = cache_key(raw)
     cached = get_cached_result(key)
+    # D67 : le tableau de bord compte les appels au fournisseur (ce qui coûte) et
+    # les pays des adresses ; seul le code pays de l'adresse est noté.
+    audience.noter(address_country=raw.get("country"))
     if cached is not None:
         metrics.incr("cache_hits")
+        audience.noter(cache_hit=True, degraded=bool(cached.get("degraded")))
         return cached, key
 
     metrics.incr("cache_misses")
     result = validate_full(raw)
     store_in_cache(key, result)
+    audience.noter(cache_hit=False, degraded=bool(result.get("degraded")))
     if result.get("degraded"):
         metrics.incr("provider_errors")
         metrics.incr("degraded_results")
@@ -220,6 +225,7 @@ def serve_with_api_key(raw: dict, response: Response, cle: str):
     ferait mentir le revenu publié (D40).
     """
     metrics.incr("api_key_requests")
+    audience.noter(mode="cle")
     try:
         with _session() as session:
             client, motif = accounts.authorize_api_key(session, cle)
@@ -239,6 +245,7 @@ def serve_with_api_key(raw: dict, response: Response, cle: str):
                 )
                 return _refus_api_key(motif, cle, statut)
 
+            audience.noter(customer_id=client.id)
             result, key = perform_validation(raw)
             accounts.record_validation(session, client.id, key, result["validated"])
             statut = accounts.plan_status(session, client)
@@ -350,6 +357,8 @@ async def validate_address(request: Request, body: ValidationRequest, response: 
             },
         )
 
+    # D67 : le revenu par pays ne compte que l'encaissé réel (hors recette, D40).
+    audience.noter(mode=decision.protocol, amount_usdc=None if settings.test_mode or not ledger_key else settings.x402_price)
     if decision.response_header:
         response.headers[PAYMENT_RESPONSE_HEADER] = decision.response_header
     # D45 : tout appel payé dit *comment* il l'a été. Sans cela, un client ne peut
