@@ -182,14 +182,14 @@ def _origine(item: dict) -> str:
     return "recette, exclue" if item.get("test_mode") else "client"
 
 
-def _page(stats: dict, pilotage: dict | None = None, sante: dict | None = None) -> str:
+def _page(stats: dict, pilotage: dict | None = None, sante: dict | None = None, vue: str = "ensemble") -> str:
     """Construit la page. Aucune ressource externe, aucune donnee inventee.
 
     Avec `pilotage`, c'est le tableau de bord v2 (D69, `app/pilotage_page.py`) ;
     sans, la page du registre d'origine (D32), que les portes relisent telle quelle.
     """
     if pilotage is not None:
-        return pilotage_page.page(pilotage, sante or {}, stats)
+        return pilotage_page.page(pilotage, sante or {}, stats, vue)
     ledger = stats.get("ledger", {})
     windows = stats.get("windows", {})
     recent = stats.get("recent", [])
@@ -283,6 +283,22 @@ Pays des visites et des appels (D67) : IP Geolocation by DB-IP (db-ip.com), lice
 
 @router.get("/dashboard")
 async def dashboard(request: Request) -> Response:
+    return await _tableau(request, "ensemble")
+
+
+def _vue(vue: str):
+    async def page_vue(request: Request) -> Response:
+        return await _tableau(request, vue)
+
+    return page_vue
+
+
+# D71 : une page par section du pilotage, chemins littéraux.
+for _vue_cle, _vue_chemin, *_reste in pilotage_page.VUES[1:]:
+    router.add_api_route(_vue_chemin, _vue(_vue_cle), methods=["GET"], include_in_schema=False)
+
+
+async def _tableau(request: Request, vue: str) -> Response:
     settings = get_settings()
     if not settings.dashboard_password:
         return JSONResponse(
@@ -299,7 +315,7 @@ async def dashboard(request: Request) -> Response:
     stats = await safe_revenue_stats(include_recent=True)
     periode = request.query_params.get("p", "mois")
     pilotage, sante = await _pilotage_donnees(periode if periode in PERIODES else "mois", stats)
-    return HTMLResponse(content=_page(stats, pilotage, sante), status_code=200, headers=PAGE_HEADERS)
+    return HTMLResponse(content=_page(stats, pilotage, sante, vue), status_code=200, headers=PAGE_HEADERS)
 
 
 def _page_connexion(erreur: str = "", identifiant: str = "", statut: int = 200, entetes: dict | None = None) -> HTMLResponse:

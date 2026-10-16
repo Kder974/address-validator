@@ -5,7 +5,7 @@ des abonnements, des appels et des visites, puis les sections Argent, API, Clien
 du monde en points, sources, robots, pages) et le registre des paiements. Tout vient de
 `app/exploitation.py` ; **aucun chiffre n'est écrit ici**. Depuis D71, un bloc « En direct » (visiteurs et
 appels des 5 dernières minutes, fil des 10 derniers événements, bande défilante), des pays qui envoient
-une onde sur la carte, un point qui pulse au bout des courbes, un menu qui suit le clic, et un
+une onde sur la carte, un point qui pulse au bout des courbes, une page par section (`/dashboard/argent`, `/dashboard/api`…, la période suit), et un
 rafraîchissement toutes les 30 secondes. Les évolutions (« +18 % ») ne s'affichent
 que si la période précédente a des données. Aucun script (CSP de D32) : animations en CSS seul,
 coupées par `prefers-reduced-motion` ; chaque valeur affichée est échappée.
@@ -215,11 +215,7 @@ body::after{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;
 @keyframes ping{from{transform:scale(.6);opacity:1}to{transform:scale(3.4);opacity:0}}
 .bout{fill:#2fd4c4;filter:drop-shadow(0 0 6px #2fd4c4)}
 .bout-halo{fill:none;stroke:#2fd4c4;stroke-width:2;transform-box:fill-box;transform-origin:center;animation:ping 2.2s ease-out infinite}
-.app:has(.sec:target) .nav a[href="#vue"]{color:var(--mu);background:none}
-.app:has(.sec:target) .nav a[href="#vue"]::before{display:none}
-.app:has(#argent:target) .nav a[href="#argent"],.app:has(#api:target) .nav a[href="#api"],.app:has(#clients:target) .nav a[href="#clients"],.app:has(#site:target) .nav a[href="#site"],.app:has(#registre:target) .nav a[href="#registre"]{color:var(--tx);background:linear-gradient(90deg,rgba(91,124,255,.18),rgba(91,124,255,0))}
-.app:has(#argent:target) .nav a[href="#argent"]::before,.app:has(#api:target) .nav a[href="#api"]::before,.app:has(#clients:target) .nav a[href="#clients"]::before,.app:has(#site:target) .nav a[href="#site"]::before,.app:has(#registre:target) .nav a[href="#registre"]::before{content:"";position:absolute;left:-18px;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:linear-gradient(var(--c2),var(--c3));box-shadow:0 0 12px var(--c3)}
-@media (max-width:860px){.side{position:sticky;top:0;z-index:20}.direct{grid-template-columns:minmax(0,1fr)}.app:has(.sec:target) .nav a::before{display:none}}
+@media (max-width:860px){.side{position:sticky;top:0;z-index:20}.direct{grid-template-columns:minmax(0,1fr)}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 
 /* D71 : la page se recharge toutes les 30 s ; les entrées ne se rejouent plus, seule l'ambiance bouge */
@@ -450,19 +446,24 @@ def _il_y_a(moment, quand) -> str:
 def bloc_direct(direct: dict, moment) -> str:
     """En ce moment (5 dernières minutes) et le fil des 10 derniers événements, plus la bande défilante."""
     v, a = direct["visiteurs"], direct["appels"]
-    items, bande = [], []
+    items = []
     for k, (quand, genre, libelle, detail, code) in enumerate(direct["evenements"]):
         neuf = " neuf" if k == 0 and quand and (moment - quand).total_seconds() < 60 else ""
         lieu = pays(code) if code else "pays inconnu"
         items.append(f'<li class="ev g-{genre}{neuf}" style="--i:{k}"><span class="pt"></span><b>{e(libelle)}</b>'
                      f'<span class="det">{e(lieu)} · {e(detail)}</span><time>{e(_il_y_a(moment, quand))}</time></li>')
-        bande.append(f'<span class="tk g-{genre}"><i></i><b>{e(libelle)}</b> {e(lieu)} · {e(_il_y_a(moment, quand))}</span>')
     fil = "".join(items) or '<li class="ev"><span class="det">Aucun événement pour l\'instant : le fil se remplira à la première visite.</span></li>'
-    defile = f'<div class="ticker" aria-hidden="true"><div class="defile">{"".join(bande) * 2}</div></div>' if bande else ""
     return (f'<section class="direct" aria-label="En direct"><div class="maintenant"><span class="radar"><i></i></span><div>'
             f'<p class="lbl">En ce moment</p><div class="val">{e(fr(v))}<small>{"visiteur" if v <= 1 else "visiteurs"}</small></div>'
             f'<div class="sous">{e(pl(a, "appel", "appels"))} API · 5 dernières minutes</div></div></div>'
-            f'<ul class="fil" aria-label="Derniers événements">{fil}</ul></section>{defile}')
+            f'<ul class="fil" aria-label="Derniers événements">{fil}</ul></section>')
+
+
+def bande_defilante(direct: dict, moment) -> str:
+    """Les derniers événements qui défilent en continu, sur toutes les pages du pilotage."""
+    bande = [f'<span class="tk g-{genre}"><i></i><b>{e(libelle)}</b> {e(pays(code) if code else "pays inconnu")} · {e(_il_y_a(moment, quand))}</span>'
+             for quand, genre, libelle, _detail, code in direct["evenements"]]
+    return f'<div class="ticker" aria-hidden="true"><div class="defile">{"".join(bande) * 2}</div></div>' if bande else ""
 
 
 def registre(stats: dict) -> str:
@@ -483,15 +484,26 @@ def registre(stats: dict) -> str:
             f'<article class="carte"><h3>Dernières transactions</h3>{tableau(lignes, "Aucune transaction enregistrée.")}</article></div></section>')
 
 
-def page(d: dict, sante: dict, stats: dict) -> str:
-    """La page complète. `d` vient de `exploitation.collecter` (ou porte `erreur`)."""
+#: Les pages du pilotage : clé, adresse, icône, libellé du menu, titre de la page.
+VUES = (
+    ("ensemble", "/dashboard", "vue", "Vue d'ensemble", "Bonjour, voici <span>votre activité</span>."),
+    ("argent", "/dashboard/argent", "argent", "Argent", "<span>Argent</span> : ce que rapporte le service."),
+    ("api", "/dashboard/api", "api", "API", "<span>API</span> : les appels, en détail."),
+    ("clients", "/dashboard/clients", "clients", "Clients", "<span>Clients</span> : du visiteur au payant."),
+    ("site", "/dashboard/site", "site", "Site et SEO", "<span>Site et SEO</span> : d'où viennent les visiteurs."),
+    ("registre", "/dashboard/registre", "registre", "Registre", "<span>Registre</span> des paiements."),
+)
+
+
+def page(d: dict, sante: dict, stats: dict, vue: str = "ensemble") -> str:
+    """Une page du pilotage. `d` vient de `exploitation.collecter` (ou porte `erreur`)."""
+    vue = vue if vue in {v[0] for v in VUES} else "ensemble"
     moment = d.get("moment")
     entete_date = f"{JOURS[moment.weekday()]} {moment.day} {MOIS[moment.month - 1]} {moment.year} · {moment:%H:%M} UTC".upper() if moment else ""
     periode = d.get("periode", "mois")
     libelle = PERIODES[periode][0]
-    nav = "".join(f'<a href="#{a}"{" aria-current=page" if a == "vue" else ""}>{ico(i)}{t}</a>' for a, i, t in (
-        ("vue", "vue", "Vue d'ensemble"), ("argent", "argent", "Argent"), ("api", "api", "API"),
-        ("clients", "clients", "Clients"), ("site", "site", "Site et SEO"), ("registre", "registre", "Registre")))
+    nav = "".join(f'<a href="{chemin}?p={periode}"{" aria-current=page" if cle == vue else ""}>{ico(i)}{t}</a>'
+                  for cle, chemin, i, t, _titre in VUES)
     periodes = "".join(f'<a href="?p={cle}"{" aria-current=page" if cle == periode else ""}>{e(lib)}</a>' for cle, (lib, _) in PERIODES.items())
     alertes = d.get("alertes", [])
     en_panne = [nom for nom, ok in sante.items() if not ok]
@@ -502,7 +514,8 @@ def page(d: dict, sante: dict, stats: dict) -> str:
             f'<nav class="nav" aria-label="Sections">{nav}</nav><div class="bas">'
             f'<div class="etat {etat[0]}"><i></i><div>{e(etat[1])}<small>{e(etat[2])}</small></div></div>'
             f'<form class="nav" method="post" action="/dashboard/deconnexion"><button type="submit">{ico("sortie")}Se déconnecter</button></form></div></aside>')
-    haut = (f'<header class="top" id="vue"><div><p class="sur">{e(entete_date)}</p><h1>Bonjour, voici <span>votre activité</span>.</h1></div>'
+    titre_page = next(titre for cle, _c, _i, _t, titre in VUES if cle == vue)
+    haut = (f'<header class="top" id="vue"><div><p class="sur">{e(entete_date)}</p><h1>{titre_page}</h1></div>'
             f'<div class="outils"><nav class="seg" aria-label="Période">{periodes}</nav><span class="live"><i></i>En direct · {e(f"{moment:%H:%M:%S}" if moment else "")} UTC · toutes les 30 s</span></div></header>')
     if "erreur" in d:
         raison = ("la base de données ne répond pas" if d["erreur"] == "base" else
@@ -519,18 +532,20 @@ def page(d: dict, sante: dict, stats: dict) -> str:
     jours_mois = calendar.monthrange(moment.year, moment.month)[1]
     taux = float(i18n.TAUX["USD"])
     courbe_eur = [v / taux for v in a["courbe_usdc"]]
-    resultat = a["resultat_mois_eur"]
+    # La grande carte suit la période choisie (D71) ; la prévision reste celle de la fin du mois.
+    resultat = a["resultat_periode_eur"]
     if resultat is not None:
-        classe, titre, valeur = ("heros" if resultat >= 0 else "heros perte"), "Résultat du mois", signe(resultat)
-        details = (f'<div>Revenus<b>{e(euros(a["revenus_mois_eur"]))}</b></div><div>Coûts<b>{e(euros(a["couts_mois_eur"]))}</b></div>'
+        classe, titre, valeur = ("heros" if resultat >= 0 else "heros perte"), f"Résultat · {libelle}", signe(resultat)
+        details = (f'<div>Revenus<b>{e(euros(a["revenus_periode_eur"]))}</b></div><div>Coûts<b>{e(euros(a["couts_periode_eur"]))}</b></div>'
                    f'<div>Prévision fin de mois<b>{e(signe(a["prevision_resultat_eur"]))}</b></div>')
-        total = (a["revenus_mois_eur"] or 0) + (a["couts_mois_eur"] or 0) or 1
-        jauge = f'<div class="jauge"><span class="r" style="width:{100 * a["revenus_mois_eur"] / total:.0f}%"></span><span class="c" style="width:{100 * a["couts_mois_eur"] / total:.0f}%"></span></div>'
-        note = ""
-        cout_jour = a["couts_mois_eur"] / jours_mois if a["couts_mois_eur"] else None
+        total = (a["revenus_periode_eur"] or 0) + (a["couts_periode_eur"] or 0) or 1
+        jauge = f'<div class="jauge"><span class="r" style="width:{100 * a["revenus_periode_eur"] / total:.0f}%"></span><span class="c" style="width:{100 * a["couts_periode_eur"] / total:.0f}%"></span></div>'
+        note = '<p class="vide">Abonnements et frais fixes comptés au prorata de la période.</p>'
+        jours_periode = max((moment - d["debut_periode"]).total_seconds() / 86400, 1 / 24)
+        cout_jour = a["couts_periode_eur"] / jours_periode if a["couts_periode_eur"] else None
     else:
-        classe, titre, valeur = "heros neutre", "Revenus du mois", euros(a["revenus_mois_eur"])
-        details = (f'<div>Encaissé (agents)<b>{e(euros(a["usdc_mois"] / taux))}</b></div><div>Abonnements<b>{e(euros(a["a_facturer_eur"]))}</b></div>'
+        classe, titre, valeur = "heros neutre", f"Revenus · {libelle}", euros(a["revenus_periode_eur"])
+        details = (f'<div>Encaissé (agents)<b>{e(euros(a["eur_periode"]))}</b></div><div>Abonnements (au prorata)<b>{e(euros(a["abonnements_periode_eur"]))}</b></div>'
                    f'<div>Prévision fin de mois<b>{e(euros(a["prevision_revenus_eur"]))}</b></div>')
         jauge, cout_jour = "", None
         note = '<p class="vide">Le résultat (revenus moins coûts) s\'affichera dès que les coûts seront renseignés (COST_* dans .env).</p>'
@@ -609,7 +624,13 @@ def page(d: dict, sante: dict, stats: dict) -> str:
         portee += (f' Le suivi des visites et des appels a commencé le {suivi.day} {MOIS[suivi.month - 1]} à {suivi:%H:%M} : '
                    "tant qu'il est plus jeune que la période, les périodes donnent les mêmes chiffres de visites et d'appels.")
     portee += "</p>"
-    corps = f'{portee}{bloc_direct(d["direct"], moment)}<section class="alertes">{bloc_alertes}</section>{bento}{argent}{api_html}{clients_html}{site_html}{registre(stats)}'
+    bande = bande_defilante(d["direct"], moment)
+    contenu = {
+        "ensemble": f'{bloc_direct(d["direct"], moment)}{bande}<section class="alertes">{bloc_alertes}</section>{bento}',
+        "argent": bande + argent, "api": bande + api_html, "clients": bande + clients_html,
+        "site": bande + site_html, "registre": bande + registre(stats),
+    }[vue]
+    corps = f'{portee}{contenu}'
     return _document(cote + f"<main>{haut}{corps}{_pied()}</main>")
 
 
