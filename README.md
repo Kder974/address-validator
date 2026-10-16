@@ -97,7 +97,8 @@ Toutes les valeurs viennent de l'environnement ou de `.env` (pydantic-settings,
 | `x402_require_settlement` | `X402_REQUIRE_SETTLEMENT` | `true` | **ne rendre le service qu'apres encaissement** (`false` = jamais en production) |
 | `public_base_url` / `mcp_public_url` | `PUBLIC_BASE_URL` / `MCP_PUBLIC_URL` | `https://kder-ai.com` / `.../mcp` | URLs publiees dans `accepts[].resource`, la carte MCP et les annuaires |
 | `discovery_log_*` | `DISCOVERY_LOG_ENABLED`, `DISCOVERY_LOG_PATH`, `DISCOVERY_LOG_RAW_IP`, `DISCOVERY_LOG_SALT`, `DISCOVERY_LOG_RETENTION_DAYS` | journal actif, chemin vide (journald), IP pseudonymisee, 30 j | journal des refus `402` et retention appliquee (`PRIVACY.md` 3) |
-| `dashboard_user` / `dashboard_password` | `DASHBOARD_USER` / `DASHBOARD_PASSWORD` | `kder` / vide | `/dashboard` - vide = endpoint **ferme** (`503`) |
+| `dashboard_user` / `dashboard_password` | `DASHBOARD_USER` / `DASHBOARD_PASSWORD` | `kder` / vide | `/dashboard` - vide = endpoint **ferme** (`503`) ; `LOGIN_MAX_FAILURES` mots de passe faux par IP bloquent `LOGIN_LOCK_MINUTES` min (D67) |
+| `geoip_db_path` / `audience_retention_days` | `GEOIP_DB_PATH` / `AUDIENCE_RETENTION_DAYS` | `/var/lib/address-validator/dbip-country.mmdb` / `400` | suivi d'audience (D67) : base des pays DB-IP Lite posée par `scripts/maj_geoip.sh` (absente = pays inconnu) ; conservation des lignes `page_visits` et `api_calls` |
 | `test_mode` / `test_mode_cutoff_utc` | `TEST_MODE` / `TEST_MODE_CUTOFF_UTC` | `false` / `2026-10-11T12:00:00+00:00` | une transaction marquée `test_mode` est un essai de recette : exclue de `real_*`, comptée dans `test_*` et `total_*` (D40) |
 | `environment` / `log_level` | `ENVIRONMENT` / `LOG_LEVEL` | `development` / `INFO` | contexte et verbosité |
 
@@ -110,7 +111,7 @@ Toutes les valeurs viennent de l'environnement ou de `.env` (pydantic-settings,
 | `GET` | `/health` | état réel de PostgreSQL et Redis, borné à 2 s | `app/routes/health.py` |
 | `GET` | `/metrics` | compteurs, état du disjoncteur, état du cache | `app/routes/metrics.py` |
 | `GET` | `/metrics/revenue` | revenu agrégé 24 h / 7 j / 30 j — `real_*` hors recette, `total_*` registre entier (D40) — et disponibilité du registre | `app/routes/revenue.py` |
-| `GET` | `/dashboard` | tableau de bord d'exploitation — **privé** (Basic Auth ; `503` si `DASHBOARD_PASSWORD` est absent) | `app/routes/dashboard.py` |
+| `GET` | `/dashboard` | tableau de bord d'exploitation — **privé** (Basic Auth ; `503` si `DASHBOARD_PASSWORD` est absent ; 5 mots de passe faux par IP bloquent 15 min, D67) ; depuis D67, chaque visite d'une page publique et chaque appel d'API laissent une ligne de suivi (pays, origine, durée, statut ; ni IP ni cookie) | `app/routes/dashboard.py`, `app/audience.py` |
 | `GET` | `/prospection` | CRM de prospection (liste, filtres, marquage, export) — **privé**, même garde que `/dashboard` (`503` si le mot de passe est absent ou si `PROSPECTION_DB` n'existe pas) | `app/routes/prospection.py`, `prospection/README.md` |
 | `GET` | `/pricing` | page publique de l'offre commerciale (D43) — **publique**, indexable, cachée 5 min ; aucune ressource externe, feuille de style partagée avec `/dashboard` (`app/web.py`) | `app/routes/pricing.py` |
 | `GET` `POST` | `/signup` | inscription self-service (D44) — **publique** ; mot de passe bcrypt, clé API `sk_live_` affichée **une fois**, 5 inscriptions par IP et par heure | `app/routes/signup.py`, `app/accounts.py` |

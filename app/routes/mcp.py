@@ -48,6 +48,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 
+from app import audience
 from app.config import get_settings
 from app.observability import log_unpaid_attempt
 from app.payment import (
@@ -234,6 +235,7 @@ async def _call_tool(request: Request, request_id: Any, params: dict[str, Any]) 
             status=500,
         )
 
+    audience.noter(mode=decision.protocol, amount_usdc=None if settings.test_mode or not decision.transaction else settings.x402_price)
     payload = build_response(result, key, decision.transaction).model_dump()
     return _result(
         request_id,
@@ -258,6 +260,9 @@ async def _dispatch(request: Request, message: dict[str, Any]) -> Response | Non
 
     method = str(message["method"])
     request_id = message.get("id")
+    # D67 : découvrir (initialize, tools/list) et appeler l'outil se comptent à part.
+    # ponytail: dans un lot JSON-RPC, seule la dernière méthode reste sur la ligne.
+    audience.noter(method=method[:40])
     params = message.get("params") or {}
     if not isinstance(params, dict):
         return _error(request_id, INVALID_PARAMS, "params doit etre un objet JSON")

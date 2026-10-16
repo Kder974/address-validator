@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D66, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D67, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 66
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 67
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -5809,7 +5809,92 @@ def d66() -> None:
     guard("D66" in read("DECISIONS.md"), "la decision D66 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 67)}
+def d67() -> None:
+    """Le suivi d'audience compte sans rien garder de la personne, et le tableau de bord se ferme aux essais."""
+    import base64
+    import tempfile
+    from datetime import datetime, timedelta
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import sessionmaker
+
+    from app import audience
+    from app.config import get_settings
+    from app.main import app
+    from app.models import ApiCall, PageVisit
+
+    reglages = get_settings()
+    client = TestClient(app)
+    for modele in (PageVisit, ApiCall):
+        colonnes = {c.name for c in modele.__table__.columns}
+        guard(not any("ip" == c or c.endswith("_ip") or "agent" in c for c in colonnes), f"{modele.__tablename__} garde une IP ou un User-Agent : {colonnes}")
+        guard(f"CREATE TABLE IF NOT EXISTS {modele.__tablename__}" in read("app/database.py"), f"{modele.__tablename__} absente du DDL")
+
+    class _Base:
+        def get(self, ip):
+            return {"country": {"iso_code": "fr"}} if ip == "203.0.113.9" else None
+
+    fichier = Path(tempfile.mkdtemp()) / "pays.mmdb"
+    fichier.write_bytes(b"x")
+    with mock.patch.object(reglages, "geoip_db_path", str(fichier)), \
+            mock.patch.object(audience, "_lecteur", lambda chemin, version: _Base()), \
+            mock.patch.object(audience, "_demarrer", lambda: None):
+        audience._FILE.clear()
+        client.get("/en/agents", headers={"X-Forwarded-For": "203.0.113.9", "Referer": "https://www.bing.com/search?q=x", "User-Agent": "GPTBot/1.1"})
+        client.get("/health")
+        client.post("/validate", json={"address": {"street": "1 Main St", "city": "Austin", "state": "TX", "zip": "78701"}}, headers={"X-Forwarded-For": "203.0.113.9"})
+        client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+        lignes = list(audience._FILE)
+        audience._FILE.clear()
+    visites = [l for l in lignes if isinstance(l, PageVisit)]
+    appels = [l for l in lignes if isinstance(l, ApiCall)]
+    guard(len(visites) == 1 and (visites[0].path, visites[0].country, visites[0].referrer_host, visites[0].robot) == ("/en/agents", "FR", "bing.com", "GPTBot"), "la visite n'est pas comptee comme annonce (page, pays, origine, robot)")
+    guard([(a.endpoint, a.status) for a in appels] == [("validate", 402), ("mcp", 200)] and appels[1].method == "tools/list", f"les appels ne gardent pas leur statut reel : {[(a.endpoint, a.status) for a in appels]}")
+    guard(appels[0].country == "FR" and appels[0].amount_usdc is None, "un 402 n'a pas son pays, ou porte un montant")
+
+    with mock.patch.object(reglages, "geoip_db_path", "/nulle/part.mmdb"):
+        guard(audience.pays("203.0.113.9") is None, "sans base des pays, le pays n'est pas inconnu")
+
+    # Une base en panne fait perdre le lot, jamais la page ; la purge suit la conservation annoncee.
+    def _panne():
+        raise RuntimeError("base injoignable")
+
+    audience._FILE.append(PageVisit(path="/", created_at=audience._maintenant()))
+    guard(audience.vider(_panne) == 0 and not audience._FILE, "une base en panne bloque la file du suivi")
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp()) / 'a.sqlite'}")
+    PageVisit.__table__.create(moteur)
+    ApiCall.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+    maintenant = datetime(2026, 10, 16, 12)
+    with fabrique() as session:
+        session.add_all([PageVisit(path="/vieux", created_at=maintenant - timedelta(days=reglages.audience_retention_days + 1)),
+                         PageVisit(path="/recent", created_at=maintenant)])
+        session.commit()
+    guard(audience.purger(fabrique, maintenant), "la purge du suivi echoue")
+    with fabrique() as session:
+        guard([v.path for v in session.scalars(select(PageVisit))] == ["/recent"], "la purge ne respecte pas AUDIENCE_RETENTION_DAYS")
+
+    # Cinq mots de passe faux ferment le tableau de bord, meme au bon mot de passe.
+    def _basic(mot):
+        return "Basic " + base64.b64encode(f"kder:{mot}".encode()).decode()
+
+    with mock.patch.object(reglages, "dashboard_user", "kder"), mock.patch.object(reglages, "dashboard_password", "bon-mot-de-passe-porte"):
+        ip = {"X-Forwarded-For": "192.0.2.167"}
+        for _ in range(reglages.login_max_failures):
+            client.get("/dashboard", headers={**ip, "Authorization": _basic("faux")})
+        bloque = client.get("/dashboard", headers={**ip, "Authorization": _basic("bon-mot-de-passe-porte")})
+        guard(bloque.status_code == 429 and "retry-after" in bloque.headers, f"/dashboard n'est pas bloque apres {reglages.login_max_failures} echecs ({bloque.status_code})")
+        guard(client.get("/prospection", headers={**ip, "Authorization": _basic("bon-mot-de-passe-porte")}).status_code == 429, "/prospection n'est pas bloque avec /dashboard")
+
+    guard("maxminddb==" in read("requirements.txt") and Path(ROOT, "scripts", "maj_geoip.sh").is_file(), "maxminddb ou scripts/maj_geoip.sh manquent")
+    guard("DB-IP" in read("app/routes/dashboard.py"), "l'attribution DB-IP exigee par la licence manque au tableau de bord")
+    guard("page_visits" in read("PRIVACY.md") and "AUDIENCE_RETENTION_DAYS" in read("PRIVACY.md"), "PRIVACY.md ne decrit pas le suivi d'audience")
+    guard("D67" in read("DECISIONS.md"), "la decision D67 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 68)}
 
 
 def catalog() -> list[tuple[str, str]]:

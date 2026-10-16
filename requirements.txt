@@ -53,3 +53,10 @@ bcrypt==5.0.0
 # commerciale (`/signup`, puis `/validate-form`) en dependent, donc le paquet est
 # declare ici plutot que decouvert en production.
 python-multipart==0.0.32
+
+# --- Suivi d'audience (D67, tableau de bord d'exploitation) ------------------
+# Lecture de la base des pays DB-IP Lite (format MMDB) installee sur le serveur
+# par `scripts/maj_geoip.sh` : l'adresse IP ne quitte pas le serveur. Le paquet
+# est importe a la demande (`app/audience.py`) : absent, le pays vaut « inconnu »
+# et aucune page ne casse.
+maxminddb==3.2.0

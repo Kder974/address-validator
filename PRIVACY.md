@@ -21,6 +21,7 @@ reste à la charge de l'exploitant.
 | Lien « mot de passe oublié » (D63) : **empreinte** SHA-256 du jeton envoyé par mail, compte, création, échéance, date d'usage. Le jeton ne vit que dans le mail du client | produit à la demande du client | `app/accounts.py`, `app/routes/mot_de_passe.py` |
 | Compteurs d'échecs de connexion (D62) : par IP et par **empreinte** de l'email visé, jamais l'email en clair | produits par un mot de passe faux | `app/routes/connexion.py`, `app/ratelimit.py` |
 | Essai gratuit public (D46) : l'adresse validée n'est **pas** conservée et la réponse est `no-store` ; seule une fenêtre de plafond anonyme par IP est tenue (Redis, ou la mémoire du processus) | produite par l'API | `app/routes/validate_form.py`, `app/ratelimit.py` |
+| Suivi d'audience (D67) : pour chaque visite d'une page publique, la page, le **pays** de connexion, le nom de domaine du site d'origine (lu dans `Referer`) et, pour un robot, sa famille (Googlebot, GPTBot…) ; pour chaque appel de `/validate`, `/mcp` ou de l'essai gratuit, la route, la méthode MCP, le mode de paiement, le statut, la durée, le pays de connexion, le **code pays** de l'adresse (deux lettres), cache, résultat dégradé, montant encaissé et compte. Le pays est déduit de l'IP **sur le serveur** (base DB-IP, aucun tiers appelé), puis l'IP est oubliée : ni IP, ni adresse postale, ni `User-Agent` complet, ni cookie | produit par l'API | `app/audience.py`, `app/models.py` |
 
 L'appel **payant** (`POST /validate`) ne traite aucun identifiant de personne :
 pas de nom, pas d'e-mail, pas de cookie, pas d'identifiant d'appareil. Depuis
@@ -40,6 +41,7 @@ adresse en clair.
 | Facturer à la requête (0,02 USDC) | `tx_hash`, montant | exécution du contrat (1-b) |
 | Éviter de payer deux fois le même appel fournisseur | clé SHA-256 + résultat | intérêt légitime : maîtrise des coûts (1-f) |
 | Superviser la disponibilité et les pannes | compteurs agrégés | intérêt légitime : sécurité du service (1-f) |
+| Piloter le service : visites, pays, origines, appels, temps de réponse, revenu par pays (tableau de bord d'exploitation, D67) | lignes de suivi d'audience, sans IP ni adresse | intérêt légitime : mesure d'audience et pilotage (1-f) |
 | Mesurer si le service est **trouvé**, et qualifier les tentatives non payées | métadonnées de requête, IP pseudonymisée | intérêt légitime : sécurité et mesure d'usage (1-f) |
 
 Aucun profilage, aucune décision automatisée produisant un effet juridique,
@@ -58,7 +60,9 @@ aucune revente, aucune publicité, aucune donnée transmise à des régies.
 | PostgreSQL `password_resets` (D63) | empreinte du jeton du lien, compte, création, échéance, usage | **30 minutes** de validité (`PASSWORD_RESET_MINUTES`), une seule fois ; une ligne échue est purgée à la demande suivante, les autres liens du compte sont effacés quand le mot de passe change | `app/accounts.py` (`create_password_reset`, `finish_password_reset`) |
 | Demandes de mot de passe oublié (D63) | compteur par IP (`rl:reset:ip:<ip>`) et par empreinte d'email (`rl:reset:compte:<sha256>`) | **1 heure** (TTL Redis ou mémoire du processus) | `app/routes/mot_de_passe.py`, `app/ratelimit.py` |
 | Échecs de connexion (D62) | compteur par IP (`rl:login:ip:<ip>`) et par empreinte d'email (`rl:login:compte:<sha256>`) : ni email, ni mot de passe | **15 minutes** (`LOGIN_LOCK_MINUTES`, TTL Redis ou mémoire du processus) | `app/routes/connexion.py`, `app/ratelimit.py` |
-| Essai gratuit (D46), base de données | **rien** : aucune ligne en base, ni adresse, ni résultat | — | `app/routes/validate_form.py` |
+| Essai gratuit (D46), base de données | ni adresse, ni résultat ; depuis D67, une ligne de suivi par essai (table `api_calls`, ci-dessous) | — | `app/routes/validate_form.py`, `app/audience.py` |
+| PostgreSQL `page_visits` et `api_calls` (D67) | lignes du suivi d'audience décrites au §1 : ni IP, ni adresse postale, ni cookie | **400 jours** (`AUDIENCE_RETENTION_DAYS`) — purge appliquée une fois par jour par le service | `app/audience.py` (`purger`) |
+| Base des pays (D67) | fichier DB-IP Lite (CC BY 4.0) sur le serveur, lu localement : aucune donnée envoyée | remplacée chaque mois par `scripts/maj_geoip.sh` | `app/audience.py` (`pays`) |
 | Journal de découverte (JSONL) | métadonnées des requêtes refusées en `402` : horodatage, endpoint, prix, `User-Agent`, `Referer`, IP **pseudonymisée** (sha256 + sel) | **30 jours** — purge appliquée par `scripts/daily_report.sh`, pas seulement annoncée | `app/observability.py:142-158`, `app/config.py:47-65` |
 | Journaux applicatifs | avertissements d'échecs non bloquants | selon le journal de journald (non défini dans le code) | `app/payment.py:148-149` |
 
@@ -123,7 +127,8 @@ entrée, il faut la **clé de cache**, délivrée dans chaque réponse
   `SameSite=Lax`, dure 12 heures au plus et s'efface à la déconnexion. C'est un
   cookie d'authentification demandé par le client lui-même : il n'appelle pas de
   bandeau de consentement. Aucun autre cookie n'est posé, ni sur l'API ni sur les
-  pages publiques.
+  pages publiques : la mesure d'audience (D67) se fait côté serveur, sans cookie
+  ni identifiant de visiteur, donc sans bandeau de consentement.
 - **Aucun traceur, aucun pixel, aucun script tiers** : l'API
   renvoie du JSON, et les pages HTML publiques (`/pricing`, `/signup`,
   `/validate-form`) ainsi que l'espace client (`/compte`) sont **autonomes** :
