@@ -384,3 +384,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D70: a real browser form (Origin: null with Sec-Fetch-Site: same-origin, as Chrome sends under no-referrer) is accepted by the dashboard login and the client login, a browser saying cross-site or same-site is refused even with a matching Origin, a foreign Origin is refused, and spaces around the dashboard credentials are ignored
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D70
   EXPECT: DECISION OK D70
+- [ ] D71: the dashboard shows the live block (visitors and calls of the last 5 minutes, latest events, scrolling ticker), the clicked menu entry lights up, the page refreshes every 30 s without replaying entrance animations and says when tracking is younger than the period; sparklines have a stroke; an accented login gives 401, not 500; a crashing tracked route is recorded as 500; in-site navigation is recognised through Sec-Fetch-Site and scripts are counted apart from visitors; country percentages use the real total; the success rate excludes 402 refusals
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D71
+  EXPECT: DECISION OK D71

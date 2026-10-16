@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
 import hashlib
 import hmac
 import time
@@ -52,6 +53,7 @@ from app.routes.revenue import safe_revenue_stats
 from app.web import DASHBOARD_CSS
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 #: En-têtes communs aux trois réponses : une page d'exploitation (et un refus)
 #: ne doit jamais rester dans un cache intermédiaire.
@@ -94,8 +96,9 @@ def _authorized(header: str, expected_user: str, expected_password: str) -> bool
     if credentials is None:
         return False
     user, password = credentials
-    return secrets.compare_digest(user, expected_user) and secrets.compare_digest(
-        password, expected_password
+    # En octets (D71) : compare_digest refuse une chaîne non ASCII (« é ») et la page plantait en 500.
+    return secrets.compare_digest(user.encode(), expected_user.encode()) and secrets.compare_digest(
+        password.encode(), expected_password.encode()
     )
 
 
@@ -123,7 +126,7 @@ def session_valide(valeur: str | None, reglages, maintenant: float | None = None
     if not fin.isdigit() or int(fin) < (maintenant or time.time()):
         return False
     attendu = hmac.new(_cle_session(reglages), fin.encode(), hashlib.sha256).hexdigest()
-    return secrets.compare_digest(signature, attendu)
+    return secrets.compare_digest(signature.encode(), attendu.encode())
 
 
 def _veut_page(request: Request) -> bool:
@@ -340,7 +343,7 @@ async def connexion_envoi(request: Request) -> Response:
     # Un code copié depuis le Terminal arrive souvent avec un espace autour (D70) ;
     # les identifiants du pilotage n'en contiennent jamais.
     utilisateur, mot_de_passe = str(formulaire.get("user", "") or "").strip(), str(formulaire.get("password", "") or "").strip()
-    if secrets.compare_digest(utilisateur, reglages.dashboard_user) and secrets.compare_digest(mot_de_passe, reglages.dashboard_password):
+    if secrets.compare_digest(utilisateur.encode(), reglages.dashboard_user.encode()) and secrets.compare_digest(mot_de_passe.encode(), reglages.dashboard_password.encode()):
         reponse = RedirectResponse("/dashboard", status_code=303, headers=BASE_HEADERS)
         reponse.set_cookie(COOKIE, jeton_session(reglages), max_age=reglages.session_hours * 3600,
                            path="/", secure=True, httponly=True, samesite="strict")
@@ -375,12 +378,20 @@ async def _pilotage_donnees(periode: str, stats: dict) -> tuple[dict, dict]:
         with SessionLocal() as session:
             return collecter(session, maintenant(), periode, get_settings())
 
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from app.database import check_db
+
     try:
         donnees = await asyncio.wait_for(asyncio.to_thread(lire), timeout=5)
-    except Exception as exc:  # noqa: BLE001 - base muette : la page le dit
-        donnees = {"erreur": type(exc).__name__, "periode": periode, "moment": maintenant()}
+    except (SQLAlchemyError, OSError, asyncio.TimeoutError) as exc:
+        logger.warning("pilotage : base injoignable ou trop lente (%s)", type(exc).__name__)
+        donnees = {"erreur": "base", "periode": periode, "moment": maintenant()}
+    except Exception:  # noqa: BLE001 - un défaut de calcul ne doit pas passer pour une panne de base (D71)
+        logger.exception("pilotage : calcul des chiffres impossible")
+        donnees = {"erreur": "calcul", "periode": periode, "moment": maintenant()}
     sante = {
-        "Base de données": "erreur" not in donnees,
+        "Base de données": await asyncio.to_thread(check_db) == "ok",
         "Cache Redis": await asyncio.to_thread(_redis_ok),
         "Registre des paiements": bool(stats.get("ledger", {}).get("available")),
     }

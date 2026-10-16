@@ -181,3 +181,13 @@ def facilitator(monkeypatch):
     x402.reset_nonce_cache()
     yield calls
     x402.reset_nonce_cache()
+
+
+@pytest.fixture(autouse=True)
+def _suivi_sans_fil(monkeypatch):
+    """D71 : aucun test ne lance le vrai fil d'écriture du suivi (il écrirait et purgerait sur DATABASE_URL)."""
+    from app import audience
+
+    monkeypatch.setattr(audience, "_demarrer", lambda: None)
+    yield
+    audience._FILE.clear()

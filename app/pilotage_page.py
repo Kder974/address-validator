@@ -3,7 +3,10 @@
 Barre latérale (sections, état, déconnexion), grande carte du résultat du mois, cartes de l'encaissé,
 des abonnements, des appels et des visites, puis les sections Argent, API, Clients, Site et SEO (carte
 du monde en points, sources, robots, pages) et le registre des paiements. Tout vient de
-`app/exploitation.py` ; **aucun chiffre n'est écrit ici**. Les évolutions (« +18 % ») ne s'affichent
+`app/exploitation.py` ; **aucun chiffre n'est écrit ici**. Depuis D71, un bloc « En direct » (visiteurs et
+appels des 5 dernières minutes, fil des 10 derniers événements, bande défilante), des pays qui envoient
+une onde sur la carte, un point qui pulse au bout des courbes, un menu qui suit le clic, et un
+rafraîchissement toutes les 30 secondes. Les évolutions (« +18 % ») ne s'affichent
 que si la période précédente a des données. Aucun script (CSP de D32) : animations en CSS seul,
 coupées par `prefers-reduced-motion` ; chaque valeur affichée est échappée.
 """
@@ -15,7 +18,7 @@ import html
 import math
 
 from app import accounts, i18n
-from app.carte_monde import HAUTEUR, LARGEUR, POINTS
+from app.carte_monde import HAUTEUR, LARGEUR, POINTS, PRECIS
 from app.exploitation import PERIODES
 
 CSS = """
@@ -73,7 +76,7 @@ h1 span{background:linear-gradient(90deg,var(--c1),#ff6fb0 35%,var(--c2) 65%,var
 .delta{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;font-size:12.5px;font-weight:600}
 .delta.up{background:rgba(52,211,153,.12);color:var(--ok)}.delta.dn{background:rgba(251,113,133,.12);color:var(--ko)}
 .spark{display:block;width:100%;height:44px;margin-top:14px}
-.spark polyline{fill:none;stroke-width:2;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 6px currentColor);animation:revele 1.6s ease-out both}
+.spark polyline{fill:none;stroke:currentColor;stroke-width:2;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 6px currentColor);animation:revele 1.6s ease-out both}
 @keyframes revele{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
 /* grille bento */
 .bento{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px}
@@ -173,6 +176,57 @@ a:focus-visible{outline:2px solid var(--c3);outline-offset:2px}
 .heros.perte .val{background:linear-gradient(180deg,#ffe4e8,var(--ko));-webkit-background-clip:text;background-clip:text;filter:drop-shadow(0 0 22px rgba(251,113,133,.35))}
 .vide{color:var(--fa);font-size:13.5px;margin:6px 0 0}
 .tab .mono{font:12px ui-monospace,"SF Mono",monospace;color:#c9d4ff}
+
+.portee{margin:-12px 0 20px;color:var(--mu);font-size:13px}
+/* D71 : ça bouge — bloc En direct, bande défilante, pays qui s'allument, menu qui suit */
+html{scroll-behavior:smooth}
+@property --ang{syntax:'<angle>';initial-value:0deg;inherits:false}
+.heros::after{background:conic-gradient(from var(--ang),var(--c1),transparent 25%,transparent 50%,var(--c3) 75%,transparent);animation:tourne-bord 8s linear infinite}
+@keyframes tourne-bord{to{--ang:360deg}}
+body::after{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;background:radial-gradient(40% 30% at 20% 30%,rgba(91,124,255,.10),transparent 70%),radial-gradient(35% 28% at 80% 70%,rgba(47,212,196,.08),transparent 70%);animation:aurore 24s ease-in-out infinite alternate}
+@keyframes aurore{to{transform:translate3d(6%,-4%,0) rotate(8deg)}}
+.direct{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:20px;margin-bottom:18px}
+.maintenant{display:flex;align-items:center;gap:18px;padding:24px;border-radius:var(--r);border:1px solid rgba(52,211,153,.25);background:linear-gradient(160deg,rgba(52,211,153,.10),rgba(10,19,38,.8));animation:entre .6s both}
+.radar{position:relative;width:58px;height:58px;flex:none;border-radius:50%;background:radial-gradient(circle,rgba(52,211,153,.35),rgba(52,211,153,.05) 60%,transparent 70%)}
+.radar::before,.radar::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid rgba(52,211,153,.6);animation:onde-radar 2.4s ease-out infinite}
+.radar::after{animation-delay:1.2s}
+.radar i{position:absolute;inset:22px;border-radius:50%;background:var(--ok);box-shadow:0 0 14px var(--ok)}
+@keyframes onde-radar{from{transform:scale(.4);opacity:1}to{transform:scale(1.6);opacity:0}}
+.maintenant .val{margin:4px 0 0}
+.fil{position:relative;display:grid;gap:2px;max-height:262px;overflow:hidden;margin:0;padding:14px 20px;list-style:none;border-radius:var(--r);border:1px solid var(--ln);background:linear-gradient(180deg,rgba(16,28,56,.78),rgba(10,19,38,.78))}
+.fil::after{content:"";position:absolute;left:0;right:0;bottom:0;height:42px;background:linear-gradient(transparent,rgba(10,19,38,.95));pointer-events:none}
+.ev{display:grid;grid-template-columns:10px auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(120,150,255,.06);font-size:13.5px;animation:glisse .6s cubic-bezier(.2,.75,.25,1) both;animation-delay:calc(var(--i)*70ms)}
+.ev .pt{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+.ev b{color:var(--tx);font-weight:600;white-space:nowrap}
+.ev .det{overflow:hidden;color:var(--mu);text-overflow:ellipsis;white-space:nowrap}
+.ev time{color:var(--fa);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ev.neuf{animation:glisse .6s both,eclair 2.4s ease-out .6s}
+@keyframes glisse{from{opacity:0;transform:translateX(-12px)}}
+@keyframes eclair{0%{background:rgba(47,212,196,.16)}100%{background:transparent}}
+.g-visite{color:#a78bfa}.g-robot{color:#8b9bc0}.g-argent{color:#34d399}.g-ok{color:#5b7cff}.g-essai{color:#2fd4c4}.g-pay{color:#fbbf24}.g-mcp{color:#ff8a3d}.g-ko{color:#fb7185}
+.ticker{overflow:hidden;margin:0 0 24px;border-block:1px solid var(--ln);-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+.defile{display:flex;gap:40px;width:max-content;padding:10px 0;animation:defile 50s linear infinite}
+.ticker:hover .defile{animation-play-state:paused}
+@keyframes defile{to{transform:translateX(-50%)}}
+.tk{display:inline-flex;align-items:center;gap:8px;color:var(--mu);font-size:13px;white-space:nowrap}
+.tk i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+.tk b{color:var(--tx);font-weight:600}
+.ping{fill:none;stroke:#9ff7ee;stroke-width:2;transform-box:fill-box;transform-origin:center;animation:ping 2s ease-out infinite}
+@keyframes ping{from{transform:scale(.6);opacity:1}to{transform:scale(3.4);opacity:0}}
+.bout{fill:#2fd4c4;filter:drop-shadow(0 0 6px #2fd4c4)}
+.bout-halo{fill:none;stroke:#2fd4c4;stroke-width:2;transform-box:fill-box;transform-origin:center;animation:ping 2.2s ease-out infinite}
+.app:has(.sec:target) .nav a[href="#vue"]{color:var(--mu);background:none}
+.app:has(.sec:target) .nav a[href="#vue"]::before{display:none}
+.app:has(#argent:target) .nav a[href="#argent"],.app:has(#api:target) .nav a[href="#api"],.app:has(#clients:target) .nav a[href="#clients"],.app:has(#site:target) .nav a[href="#site"],.app:has(#registre:target) .nav a[href="#registre"]{color:var(--tx);background:linear-gradient(90deg,rgba(91,124,255,.18),rgba(91,124,255,0))}
+.app:has(#argent:target) .nav a[href="#argent"]::before,.app:has(#api:target) .nav a[href="#api"]::before,.app:has(#clients:target) .nav a[href="#clients"]::before,.app:has(#site:target) .nav a[href="#site"]::before,.app:has(#registre:target) .nav a[href="#registre"]::before{content:"";position:absolute;left:-18px;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:linear-gradient(var(--c2),var(--c3));box-shadow:0 0 12px var(--c3)}
+@media (max-width:860px){.side{position:sticky;top:0;z-index:20}.direct{grid-template-columns:minmax(0,1fr)}.app:has(.sec:target) .nav a::before{display:none}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+/* D71 : la page se recharge toutes les 30 s ; les entrées ne se rejouent plus, seule l'ambiance bouge */
+.carte,.alerte,.pays li,.trace,.leve,.jauge span,.ring-val,.etape .bar,.trk span,.mini span,.spark polyline,.ev,.maintenant{animation:none}
+.ev.neuf{animation:eclair 2.4s ease-out}
+.tab td{overflow-wrap:anywhere}
+@media (max-width:860px){.side .bas{display:flex;align-items:center;gap:10px;width:100%;margin-top:6px}.side .bas .etat{flex:1;padding:8px 10px}.side .bas .etat small{display:none}.side .bas .nav{width:auto}}
 """
 
 #: Noms des pays les plus probables ; les autres gardent leur code.
@@ -210,7 +264,12 @@ I = {
     "cadenas": '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
 }
 JOURS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
+MOIS_COURTS = ("janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc.")
 MOIS = ("janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre")
+
+
+def pl(n: float, un: str, plusieurs: str) -> str:
+    return f"{fr(n)} {un if abs(n) <= 1 else plusieurs}"
 
 
 def e(valeur) -> str:
@@ -257,7 +316,7 @@ def _date_courte(debut, k: int) -> str:
     from datetime import timedelta
 
     jour = debut + timedelta(days=k)
-    return f"{jour.day} {MOIS[jour.month - 1][:4].rstrip('.')}."
+    return f"{jour.day} {MOIS_COURTS[jour.month - 1]}"
 
 
 def courbe(nom: str, valeurs: list[float], moment, cout_jour: float | None = None, unite: str = "€", axes: bool = True) -> str:
@@ -278,13 +337,14 @@ def courbe(nom: str, valeurs: list[float], moment, cout_jour: float | None = Non
         axe += "".join(f'<text x="{x(k):.1f}" y="{H - 6}" text-anchor="middle">{e(_date_courte(debut, k))}</text>' for k in range(0, n, 7))
     pts = " ".join(f"{x(k):.1f},{y(v):.1f}" for k, v in enumerate(valeurs))
     cout = f'<polyline points="{g},{y(cout_jour):.1f} {L - 8},{y(cout_jour):.1f}" class="serie cout"/>' if cout_jour else ""
+    bout = (f'<circle class="bout-halo" cx="{x(n - 1):.1f}" cy="{y(valeurs[-1]):.1f}" r="5"/><circle class="bout" cx="{x(n - 1):.1f}" cy="{y(valeurs[-1]):.1f}" r="4"/>') if axes and valeurs else ""
     survol = "".join(f'<circle class="pt" cx="{x(k):.1f}" cy="{y(v):.1f}" r="9"><title>{e(_date_courte(debut, k))} : {e(fr(v, 2))} {e(unite)}</title></circle>' for k, v in enumerate(valeurs)) if axes else ""
     return (f'<svg class="chart" viewBox="0 0 {L} {H}" role="img" aria-label="{e(nom)}"><defs>'
             f'<linearGradient id="a-{nom}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2fd4c4" stop-opacity=".35"/><stop offset="1" stop-color="#2fd4c4" stop-opacity="0"/></linearGradient>'
             f'<linearGradient id="t-{nom}" x1="0" x2="1"><stop offset="0" stop-color="#5b7cff"/><stop offset="1" stop-color="#2fd4c4"/></linearGradient>'
             f'<filter id="l-{nom}" x="-10%" y="-30%" width="120%" height="160%"><feGaussianBlur stdDeviation="4" result="f"/><feMerge><feMergeNode in="f"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>'
             f'<g class="axes">{axe}</g><g class="trace"><polygon points="{g},{H - b} {pts} {L - 8},{H - b}" fill="url(#a-{nom})"/>'
-            f'<polyline points="{pts}" class="serie" stroke="url(#t-{nom})" filter="url(#l-{nom})"/>{cout}</g>{survol}</svg>')
+            f'<polyline points="{pts}" class="serie" stroke="url(#t-{nom})" filter="url(#l-{nom})"/>{cout}</g>{bout}{survol}</svg>')
 
 
 def barres_jour(valeurs: list[float]) -> str:
@@ -301,10 +361,11 @@ def anneau(part: float | None, couleur: str) -> str:
     p = part or 0
     texte = "—" if part is None else f"{fr(p * 100)}<small>%</small>"
     return (f'<div class="ring"><svg viewBox="0 0 80 80" aria-hidden="true"><circle cx="40" cy="40" r="34" class="ring-fond"/>'
-            f'<circle cx="40" cy="40" r="34" class="ring-val" style="stroke:{couleur};stroke-dasharray:{c * p:.1f} {c:.1f}"/></svg><span>{texte}</span></div>')
+            + (f'<circle cx="40" cy="40" r="34" class="ring-val" style="stroke:{couleur};stroke-dasharray:{c * p:.1f} {c:.1f}"/>' if p > 0 else "")
+            + f'</svg><span>{texte}</span></div>')
 
 
-def carte_monde(visites: list[tuple[str, int]]) -> str:
+def carte_monde(visites: list[tuple[str, int]], actifs: tuple[str, ...] | list[str] = ()) -> str:
     compte = {code: n for code, n in visites if code != "??"}
     maxi = max(compte.values() or [0]) or 1
     tete = sorted(compte, key=compte.get, reverse=True)[:3]
@@ -317,14 +378,30 @@ def carte_monde(visites: list[tuple[str, int]]) -> str:
             cx, cy = divmod(cell, 100)
             classe = f"d n{niveau}" + (" top" if code in tete and n else "")
             points.append(f'<circle class="{classe}" cx="{cx * 10 + 5}" cy="{cy * 10 + 5}" r="{4.2 if code == "RE" else 3.6}" style="--k:{(cx * 7 + cy * 13) % 40}">{titre}</circle>')
+    for code, (gx, gy) in PRECIS.items():
+        n = compte.get(code, 0)
+        niveau = 0 if not n else 1 + min(3, int(4 * math.sqrt(n / maxi)))
+        titre = f"<title>{e(pays(code))} : {e(fr(n))} visite{'s' if n > 1 else ''}</title>" if n else ""
+        points.append(f'<circle class="d n{niveau}{" top" if code in tete and n else ""}" cx="{gx * 10:.1f}" cy="{gy * 10:.1f}" r="2.6" style="--k:{int(gx * 7 + gy * 13) % 40}">{titre}</circle>')
+    for code in actifs:
+        if POINTS.get(code):
+            cx, cy = divmod(POINTS[code][len(POINTS[code]) // 2], 100)
+            x, y = cx * 10 + 5, cy * 10 + 5
+        elif code in PRECIS:
+            x, y = PRECIS[code][0] * 10, PRECIS[code][1] * 10
+        else:
+            continue
+        points.append(f'<circle class="ping" cx="{x:.1f}" cy="{y:.1f}" r="5"><title>{e(pays(code))} : en ce moment</title></circle>')
     return f'<svg class="map" viewBox="0 0 {LARGEUR * 10} {HAUTEUR * 10}" role="img" aria-label="Visites par pays">{"".join(points)}</svg>'
 
 
 def liste_pays(items: list[tuple[str, float]], unite: str, vide: str) -> str:
-    items = [(c, v) for c, v in items if v > 0][:7]
-    if not items:
+    tous = [(c, v) for c, v in items if v > 0]
+    if not tous:
         return f'<p class="vide">{e(vide)}</p>'
-    total, maxi = sum(v for _, v in items), items[0][1]
+    total = sum(v for _, v in tous)  # le vrai total, pas celui des 7 lignes montrées (D71)
+    items = tous[:7]
+    maxi = items[0][1]
     lignes = "".join(
         f'<li style="--i:{i}"><span class="cc">{e(c if c != "??" else "–")}</span><span class="nom">{e(pays(c))}</span>'
         f'<span class="trk"><span style="width:{100 * v / maxi:.0f}%"></span></span>'
@@ -351,9 +428,41 @@ def tableau(lignes: list[tuple[str, str]], vide: str) -> str:
     return '<table class="tab">' + "".join(f"<tr><td>{g}</td><td>{d}</td></tr>" for g, d in lignes) + "</table>"
 
 
-def _jours(n: float) -> str:
-    n = max(0, round(n))
-    return "aujourd'hui" if n == 0 else f"{n} jour{'s' if n > 1 else ''}"
+def _dans(moment, fin) -> str:
+    s = max(0, (fin - moment).total_seconds())
+    return f"dans {max(1, round(s / 3600))} h" if s < 86400 else f"dans {pl(round(s / 86400), 'jour', 'jours')}"
+
+
+def _depuis(moment, cree) -> str:
+    if cree is None:
+        return "inscrit"
+    jours = int((moment - cree).total_seconds() // 86400)
+    return "inscrit aujourd'hui" if jours == 0 else f"inscrit il y a {pl(jours, 'jour', 'jours')}"
+
+
+def _il_y_a(moment, quand) -> str:
+    if quand is None:
+        return ""
+    s = max(0, int((moment - quand).total_seconds()))
+    return f"il y a {s} s" if s < 60 else f"il y a {s // 60} min" if s < 3600 else f"il y a {s // 3600} h" if s < 86400 else f"le {quand.day}/{quand.month:02d}"
+
+
+def bloc_direct(direct: dict, moment) -> str:
+    """En ce moment (5 dernières minutes) et le fil des 10 derniers événements, plus la bande défilante."""
+    v, a = direct["visiteurs"], direct["appels"]
+    items, bande = [], []
+    for k, (quand, genre, libelle, detail, code) in enumerate(direct["evenements"]):
+        neuf = " neuf" if k == 0 and quand and (moment - quand).total_seconds() < 60 else ""
+        lieu = pays(code) if code else "pays inconnu"
+        items.append(f'<li class="ev g-{genre}{neuf}" style="--i:{k}"><span class="pt"></span><b>{e(libelle)}</b>'
+                     f'<span class="det">{e(lieu)} · {e(detail)}</span><time>{e(_il_y_a(moment, quand))}</time></li>')
+        bande.append(f'<span class="tk g-{genre}"><i></i><b>{e(libelle)}</b> {e(lieu)} · {e(_il_y_a(moment, quand))}</span>')
+    fil = "".join(items) or '<li class="ev"><span class="det">Aucun événement pour l\'instant : le fil se remplira à la première visite.</span></li>'
+    defile = f'<div class="ticker" aria-hidden="true"><div class="defile">{"".join(bande) * 2}</div></div>' if bande else ""
+    return (f'<section class="direct" aria-label="En direct"><div class="maintenant"><span class="radar"><i></i></span><div>'
+            f'<p class="lbl">En ce moment</p><div class="val">{e(fr(v))}<small>{"visiteur" if v <= 1 else "visiteurs"}</small></div>'
+            f'<div class="sous">{e(pl(a, "appel", "appels"))} API · 5 dernières minutes</div></div></div>'
+            f'<ul class="fil" aria-label="Derniers événements">{fil}</ul></section>{defile}')
 
 
 def registre(stats: dict) -> str:
@@ -364,7 +473,7 @@ def registre(stats: dict) -> str:
             f'<p class="vide">Registre indisponible ({e(ledger.get("error"))}) : les chiffres sont incomplets.</p>')
     fenetres = barres([(nom, reel(windows.get(cle, {}))) for nom, cle in (("24 h", "24h"), ("7 jours", "7d"), ("30 jours", "30d"))],
                       "Aucun encaissement réel sur 30 jours.", lambda v: f"{fr(v, 2)} USDC")
-    lignes = [(f'<span class="mono">{e(str(item.get("tx_hash"))[:18])}…</span>',
+    lignes = [(f'<span class="mono">{e(str(item.get("tx_hash"))[:18])}…</span><div class="vide">{e(str(item.get("created_at") or "")[:16].replace("T", " "))}</div>',
                f'{e(fr(float(item.get("amount_usdc", 0) or 0), 2))} USDC · {e("recette, exclue" if item.get("test_mode") else "client")}')
               for item in recent[:6]]
     recette = ledger.get("test_validations_paid", 0)
@@ -394,9 +503,11 @@ def page(d: dict, sante: dict, stats: dict) -> str:
             f'<div class="etat {etat[0]}"><i></i><div>{e(etat[1])}<small>{e(etat[2])}</small></div></div>'
             f'<form class="nav" method="post" action="/dashboard/deconnexion"><button type="submit">{ico("sortie")}Se déconnecter</button></form></div></aside>')
     haut = (f'<header class="top" id="vue"><div><p class="sur">{e(entete_date)}</p><h1>Bonjour, voici <span>votre activité</span>.</h1></div>'
-            f'<div class="outils"><nav class="seg" aria-label="Période">{periodes}</nav><span class="live"><i></i>En direct · actualisé chaque minute</span></div></header>')
+            f'<div class="outils"><nav class="seg" aria-label="Période">{periodes}</nav><span class="live"><i></i>En direct · {e(f"{moment:%H:%M:%S}" if moment else "")} UTC · toutes les 30 s</span></div></header>')
     if "erreur" in d:
-        corps = (f'<section class="alertes"><div class="alerte ko">{ico("alerte", 20)}<span><b>Chiffres indisponibles</b> : la base ne répond pas ({e(d["erreur"])}).</span></div></section>'
+        raison = ("la base de données ne répond pas" if d["erreur"] == "base" else
+                  "un calcul a échoué ; le détail est dans le journal du serveur (journalctl -u address-validator)")
+        corps = (f'<section class="alertes"><div class="alerte ko">{ico("alerte", 20)}<span><b>Chiffres indisponibles</b> : {e(raison)}.</span></div></section>'
                  + registre(stats))
         return _document(cote + f"<main>{haut}{corps}{_pied()}</main>")
 
@@ -423,7 +534,7 @@ def page(d: dict, sante: dict, stats: dict) -> str:
                    f'<div>Prévision fin de mois<b>{e(euros(a["prevision_revenus_eur"]))}</b></div>')
         jauge, cout_jour = "", None
         note = '<p class="vide">Le résultat (revenus moins coûts) s\'affichera dès que les coûts seront renseignés (COST_* dans .env).</p>'
-    abos = ", ".join(f"{n} {accounts.PLAN_LIBELLES[p]}" for p, n in a["abonnements"].items() if n) or "aucun abonné"
+    abos = ", ".join(f"{n} {accounts.PLAN_LIBELLES[p]}" + (" (sur devis)" if p == "enterprise" else "") for p, n in a["abonnements"].items() if n) or "aucun abonné"
     parts = si["part_sources"]
     sous_visites = " · ".join(f"{fr(100 * parts[n])} % depuis {n}" for n in ("Google", "ChatGPT") if parts.get(n)) or "visiteurs humains, robots à part"
     bento = (
@@ -432,7 +543,7 @@ def page(d: dict, sante: dict, stats: dict) -> str:
         f'{courbe("mois", courbe_eur, moment, cout_jour, axes=False)}</article>'
         f'<article class="carte" style="--i:1;color:#2fd4c4"><p class="lbl">{ico("argent", 16)}Encaissé · {e(libelle)}</p>'
         f'<div class="val" style="color:var(--tx)">{e(fr(a["usdc_periode"], 2))}<small>USDC</small></div>'
-        f'<div class="sous">≈ {e(euros(a["eur_periode"]))} · {e(fr(a["paiements_periode"]))} paiement{"s" if a["paiements_periode"] != 1 else ""} {delta(a["evolution_usdc"])}</div>{spark(a["courbe_usdc"])}</article>'
+        f'<div class="sous">≈ {e(euros(a["eur_periode"]))} · {e(pl(a["paiements_periode"], "paiement", "paiements"))} {delta(a["evolution_usdc"])}</div>{spark(a["courbe_usdc"])}</article>'
         f'<article class="carte" style="--i:2;color:#5b7cff"><p class="lbl">{ico("clients", 16)}Abonnements</p>'
         f'<div class="val" style="color:var(--tx)">{e(fr(a["a_facturer_eur"]))}<small>€ / mois</small></div><div class="sous">{e(abos)} · à facturer</div></article>'
         f'<article class="carte" style="--i:3;color:#ff8a3d"><p class="lbl">{ico("api", 16)}Appels API · {e(libelle)}</p>'
@@ -445,15 +556,15 @@ def page(d: dict, sante: dict, stats: dict) -> str:
     argent = (f'<section class="sec" id="argent"><div class="sec-h"><span class="pastille">{ico("argent")}</span><h2>Argent</h2>'
               f'<p>USDC converti à 1 € = {e(fr(taux, 2))} $ ({e(i18n.DATE_TAUX)}) · abonnements à facturer, pas encaissés automatiquement</p></div>'
               f'<div class="duo"><article class="carte"><h3>Revenus{" et coûts" if cout_jour else ""}, jour par jour</h3><p class="aide">Encaissé des agents, en euros. Survolez la courbe pour lire chaque jour.</p>'
-              f'{courbe("argent", courbe_eur, moment, cout_jour)}<div class="legende"><span><i style="background:linear-gradient(90deg,#5b7cff,#2fd4c4)"></i>Revenus</span>'
+              f'{courbe("argent", courbe_eur, moment, cout_jour)}<div class="legende"><span><i style="background:linear-gradient(90deg,#5b7cff,#2fd4c4)"></i>Revenus des agents (x402, hors abonnements)</span>'
               f'{"<span><i style=background:#ff8a3d></i>Coûts par jour</span>" if cout_jour else ""}</div></article>'
-              f'<article class="carte"><h3>Ce que rapporte chaque pays</h3><p class="aide">Paiements des agents et abonnements, en euros.</p>'
+              f'<article class="carte"><h3>Ce que rapporte chaque pays</h3><p class="aide">Paiements des agents sur la période, plus les abonnements par mois, en euros.</p>'
               f'{liste_pays(a["par_pays_eur"], "€", "Pas encore de revenu rattaché à un pays.")}</article></div></section>')
 
     statuts = api["statuts"]
     erreurs = statuts.get("client", 0) + statuts.get("serveur", 0)
     api_html = (f'<section class="sec" id="api"><div class="sec-h"><span class="pastille">{ico("api")}</span><h2>API</h2><p>Appels de /validate, du serveur MCP et de l\'essai gratuit</p></div>'
-                f'<div class="quad"><article class="carte"><p class="lbl">Réussite</p><div class="rings">{anneau(api["taux_reussite"], "#34d399")}<div class="sous">Appels servis sans erreur · {e(fr(erreurs))} erreur{"s" if erreurs != 1 else ""}</div></div></article>'
+                f'<div class="quad"><article class="carte"><p class="lbl">Réussite</p><div class="rings">{anneau(api["taux_reussite"], "#34d399")}<div class="sous">Appels servis sans erreur, refus sans paiement à part · {e(pl(erreurs, "erreur", "erreurs"))}</div></div></article>'
                 f'<article class="carte"><p class="lbl">Cache</p><div class="rings">{anneau(api["taux_cache"], "#2fd4c4")}<div class="sous">{e("Économie : " + euros(api["economie_cache_eur"]) if api["economie_cache_eur"] is not None else "Vérifications évitées au fournisseur")}</div></div></article>'
                 f'<article class="carte"><p class="lbl">{ico("horloge", 16)}Temps de réponse</p><div class="val">{e("—" if api["duree_moyenne_ms"] is None else fr(api["duree_moyenne_ms"]))}<small>ms</small></div>'
                 f'<div class="sous">{e("" if api["duree_p95_ms"] is None else "95 % des appels sous " + fr(api["duree_p95_ms"]) + " ms")}</div></article>'
@@ -470,13 +581,13 @@ def page(d: dict, sante: dict, stats: dict) -> str:
         f'<span class="taux">{e("point de départ" if k == 0 else ("—" if not etapes[k - 1][1] else fr(100 * n / etapes[k - 1][1]) + " % de l’étape d’avant"))}</span>'
         f'<div class="bar" style="height:{max(6, round(96 * n / plus_grand))}px;animation-delay:{k / 10}s"></div></div>'
         for k, (nom, n) in enumerate(etapes))
-    fin_essai = [(e(nom), f'<span class="badge {"chaud" if (fin - moment).days < 2 else "tiede"}">dans {e(_jours((fin - moment).total_seconds() / 86400))}</span>') for nom, fin in cl["essais_finissant"]]
+    fin_essai = [(e(nom), f'<span class="badge {"chaud" if (fin - moment).days < 2 else "tiede"}">{e(_dans(moment, fin))}</span>') for nom, fin in cl["essais_finissant"]]
     quota = [(f'{e(nom)}<div class="mini"><span style="width:{min(100, round(100 * c / q))}%"></span></div>', e(f"{fr(c)} / {fr(q)}")) for nom, _p, c, q in cl["proches_quota"]]
-    relance = [(e(nom), f'<span class="badge froid">inscrit il y a {e(_jours((moment - cree).total_seconds() / 86400)) if cree else "?"}</span>') for nom, cree in cl["jamais_appele"][:6]]
-    top = [(e(nom), e(f"{fr(c)} validations")) for nom, _p, c in cl["top"]]
+    relance = [(e(nom), f'<span class="badge froid">{e(_depuis(moment, cree))}</span>') for nom, cree in cl["jamais_appele"][:6]]
+    top = [(e(nom), e(pl(c, "validation", "validations"))) for nom, _p, c in cl["top"]]
     payants = cl["payants"]
     clients_html = (f'<section class="sec" id="clients"><div class="sec-h"><span class="pastille">{ico("clients")}</span><h2>Clients</h2>'
-                    f'<p>{e(cl["total"])} comptes · {e(sum(payants.values()))} payant{"s" if sum(payants.values()) != 1 else ""} · {e(cl["essais_en_cours"])} essai{"s" if cl["essais_en_cours"] != 1 else ""} en cours</p></div>'
+                    f'<p>{e(pl(cl["total"], "compte", "comptes"))} · {e(pl(sum(payants.values()), "payant", "payants"))} · {e(pl(cl["essais_en_cours"], "essai", "essais"))} en cours</p></div>'
                     f'<article class="carte"><h3>Le parcours, du visiteur au client</h3><p class="aide">{e(libelle)}, tous pays confondus.</p><div class="funnel">{entonnoir}</div></article>'
                     f'<div class="quad" style="margin-top:20px">'
                     f'<article class="carte"><h3>Essais qui finissent bientôt</h3><p class="aide">À contacter avant la fin.</p>{tableau(fin_essai, "Aucun essai ne finit dans les 3 jours.")}</article>'
@@ -487,12 +598,18 @@ def page(d: dict, sante: dict, stats: dict) -> str:
     robots = "".join(f'<span class="robot">{ico("robot", 16)}{e(nom)} <b>{e(fr(n))}</b></span>' for nom, n in si["robots"][:10]) or '<p class="vide">Aucun robot de moteur sur la période.</p>'
     site_html = (f'<section class="sec" id="site"><div class="sec-h"><span class="pastille">{ico("site")}</span><h2>Site et SEO</h2><p>Visites humaines ; les robots des moteurs et des IA sont comptés à part</p></div>'
                  f'<article class="carte"><h3>D\'où viennent vos visiteurs</h3><p class="aide">Chaque point est une zone du monde ; plus il brille, plus il y a de visites. Survolez un pays.</p>'
-                 f'<div class="monde">{carte_monde(si["pays"])}{liste_pays(si["pays"], "", "Pas encore de visite sur la période.")}</div></article>'
+                 f'<div class="monde">{carte_monde(si["pays"], d["direct"]["pays_actifs"])}{liste_pays(si["pays"], "", "Pas encore de visite sur la période.")}</div></article>'
                  f'<div class="trio" style="margin-top:20px"><article class="carte"><h3>Sources des visites</h3><p class="aide">Le site d\'où arrive chaque visiteur.</p>{barres(si["sources"], "Pas encore de visite sur la période.")}</article>'
                  f'<article class="carte"><h3>Robots des moteurs et des IA</h3><p class="aide">Ils lisent le site pour le citer.</p><div class="robots">{robots}</div></article>'
                  f'<article class="carte"><h3>Pages les plus vues</h3><p class="aide">Toutes langues confondues.</p>{barres(si["pages"], "Pas encore de visite sur la période.")}</article></div></section>')
 
-    corps = f'<section class="alertes">{bloc_alertes}</section>{bento}{argent}{api_html}{clients_html}{site_html}{registre(stats)}'
+    debut, suivi = d["debut_periode"], d.get("debut_suivi")
+    portee = f'<p class="portee">Période affichée : du {debut.day} {MOIS[debut.month - 1]} à {debut:%H:%M} au {moment.day} {MOIS[moment.month - 1]} à {moment:%H:%M} UTC.'
+    if suivi and suivi > debut:
+        portee += (f' Le suivi des visites et des appels a commencé le {suivi.day} {MOIS[suivi.month - 1]} à {suivi:%H:%M} : '
+                   "tant qu'il est plus jeune que la période, les périodes donnent les mêmes chiffres de visites et d'appels.")
+    portee += "</p>"
+    corps = f'{portee}{bloc_direct(d["direct"], moment)}<section class="alertes">{bloc_alertes}</section>{bento}{argent}{api_html}{clients_html}{site_html}{registre(stats)}'
     return _document(cote + f"<main>{haut}{corps}{_pied()}</main>")
 
 
@@ -503,7 +620,7 @@ def _pied() -> str:
 
 def _document(contenu: str) -> str:
     return (f'<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            f'<meta name="robots" content="noindex, nofollow"><meta http-equiv="refresh" content="60"><title>Pilotage · Address Validator</title>'
+            f'<meta name="robots" content="noindex, nofollow"><meta http-equiv="refresh" content="30"><title>Pilotage · Address Validator</title>'
             f'<style>{CSS}</style></head><body><div class="app">{contenu}</div></body></html>')
 
 

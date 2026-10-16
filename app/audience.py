@@ -122,7 +122,11 @@ def robot(agent: str) -> str | None:
     for motif, nom in ROBOTS:
         if motif in bas:
             return nom
-    return "Autre robot" if seo.est_robot(agent) else None
+    if seo.est_robot(agent):
+        return "Autre robot"
+    # D71 : tous les navigateurs s'annoncent « Mozilla/5.0 » ; curl, python-requests ou un agent vide
+    # sont des programmes, pas des visiteurs.
+    return None if "mozilla" in bas else "Programme"
 
 
 def source(referer: str) -> str | None:
@@ -153,25 +157,42 @@ async def suivre(request: Request, call_next):
     debut = time.perf_counter()
     try:
         reponse = await call_next(request)
+    except Exception:
+        # D71 : une route qui plante donne un 500 plus loin ; la ligne le compte, sinon l'alerte
+        # « erreurs serveur » ne verrait jamais les vraies pannes.
+        if route is not None:
+            _noter_appel(request, route, appel, 500, debut)
+        raise
     finally:
         _APPEL.reset(jeton)
 
-    pays_connexion = pays(client_ip(request))
     if route is None:
         if reponse.status_code == 200 and reponse.headers.get("content-type", "").startswith("text/html"):
+            # Sous `Referrer-Policy: no-referrer`, la navigation interne n'a pas de `Referer` ;
+            # `Sec-Fetch-Site: same-origin` la reconnaît quand même (D71).
+            origine = source(request.headers.get("referer", ""))
+            if origine is None and request.headers.get("sec-fetch-site") == "same-origin":
+                origine = _hote_propre()
             _mettre(PageVisit(
-                created_at=_maintenant(), path=chemin, country=pays_connexion,
-                referrer_host=source(request.headers.get("referer", "")),
-                robot=robot(request.headers.get("user-agent", "")),
+                created_at=_maintenant(), path=chemin, country=pays(client_ip(request)),
+                referrer_host=origine, robot=robot(request.headers.get("user-agent", "")),
             ))
     else:
-        champs = {cle: appel[cle] for cle in CHAMPS if cle in appel}
-        champs["address_country"] = code_pays(champs.get("address_country"))
-        _mettre(ApiCall(
-            created_at=_maintenant(), endpoint=route, status=reponse.status_code,
-            duration_ms=round((time.perf_counter() - debut) * 1000), country=pays_connexion, **champs,
-        ))
+        _noter_appel(request, route, appel, reponse.status_code, debut)
     return reponse
+
+
+def _hote_propre() -> str:
+    return get_settings().public_base_url.split("://", 1)[-1].split("/", 1)[0].lower().removeprefix("www.")
+
+
+def _noter_appel(request: Request, route: str, appel: dict, statut: int, debut: float) -> None:
+    champs = {cle: appel[cle] for cle in CHAMPS if cle in appel}
+    champs["address_country"] = code_pays(champs.get("address_country"))
+    _mettre(ApiCall(
+        created_at=_maintenant(), endpoint=route, status=statut,
+        duration_ms=round((time.perf_counter() - debut) * 1000), country=pays(client_ip(request)), **champs,
+    ))
 
 
 def _mettre(ligne) -> None:
