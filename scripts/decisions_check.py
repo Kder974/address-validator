@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D74, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D75, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 74
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 75
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -6095,7 +6095,7 @@ def d71() -> None:
     guard("En ce moment" in page and 'class="ticker"' in page and '<meta http-equiv="refresh" content="30">' in page, "pas de bloc En direct, de bande defilante ou de rafraichissement a 30 s")
     argent = dashboard._page({"ledger": {"available": True}, "windows": {}, "recent": []}, d, {"Base de données": True}, "argent")
     guard('<a href="/dashboard/argent?p=7j" aria-current=page>' in argent and 'id="clients"' not in argent, "le menu ne mene pas a une page par section, ou perd la periode")
-    guard("Le suivi des visites et des appels a commencé" in page, "la page ne dit pas que le suivi est plus jeune que la periode")
+    guard('class="bandeau-periode"' in page, "la page ne dit pas que le suivi est plus jeune que la periode")
     guard("<script" not in page.lower(), "le pilotage embarque un script")
     guard("D71" in read("DECISIONS.md"), "la decision D71 n'est plus consignee dans DECISIONS.md")
 
@@ -6188,7 +6188,42 @@ def d74() -> None:
     guard("D74" in read("DECISIONS.md"), "la decision D74 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 75)}
+def d75() -> None:
+    """Les decouvertes MCP gratuites ne passent plus pour des validations, et le jeune age du suivi se voit."""
+    import tempfile
+    from datetime import datetime, timedelta
+    from pathlib import Path
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import exploitation
+    from app.config import get_settings
+    from app.models import ApiCall, Customer, CustomerValidation, PageVisit, PaymentTransaction
+    from app.routes.dashboard import _page
+
+    moment = datetime(2026, 10, 17, 12)
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp()) / 'd75.sqlite'}")
+    for modele in (Customer, CustomerValidation, PaymentTransaction, ApiCall, PageVisit):
+        modele.__table__.create(moteur)
+    with sessionmaker(bind=moteur)() as s:
+        s.add_all([ApiCall(endpoint="mcp", method="tools/list", status=200, duration_ms=3, created_at=moment - timedelta(minutes=2)),
+                   ApiCall(endpoint="mcp", method="initialize", status=200, duration_ms=2, created_at=moment - timedelta(minutes=2)),
+                   ApiCall(endpoint="validate", status=402, duration_ms=8, created_at=moment - timedelta(minutes=3)),
+                   PageVisit(path="/", robot="Programme", created_at=moment - timedelta(minutes=1)),
+                   PageVisit(path="/", country="FR", created_at=moment - timedelta(hours=5))])
+        s.commit()
+        d = exploitation.collecter(s, moment, "7j", get_settings())
+    guard(d["api"]["total"] == 1 and d["api"]["decouvertes"] == 2, f"les decouvertes MCP comptent comme des validations ({d['api']['total']}, {d['api']['decouvertes']})")
+    guard(d["direct"]["appels"] == 1, "le bloc En direct compte les decouvertes MCP")
+    page = _page({"ledger": {"available": True}, "windows": {}, "recent": []}, d, {"Base de données": True})
+    guard("Validations demandées · 7 jours" in page and "+ 2 découvertes MCP gratuites" in page, "la carte ne separe pas validations et decouvertes")
+    guard('class="bandeau-periode"' in page and "a démarré il y a 5 heures" in page, "le bandeau ne dit pas depuis quand le suivi tourne")
+    guard("Robot Programme" not in page and "<b>Programme</b>" in page, "un script est encore appele Robot Programme")
+    guard("D75" in read("DECISIONS.md"), "la decision D75 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 76)}
 
 
 def catalog() -> list[tuple[str, str]]:
