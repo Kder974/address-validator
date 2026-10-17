@@ -12,7 +12,7 @@ from app.config import get_settings
 from app.main import app
 from app.routes.mcp import CARD_LAST_UPDATED, MCP_PROTOCOL_VERSION, tool_definition
 from app.schemas import ValidationRequest, ValidationResponse
-from tests.test_x402 import PAYLOAD, TX, _header
+from tests.test_x402 import PAYLOAD, TX, _authorization, _header, _sign
 
 client = TestClient(app)
 settings = get_settings()
@@ -57,24 +57,44 @@ def test_tools_list_is_free_and_derived_from_the_models():
     assert tool["annotations"]["readOnlyHint"] is True
 
 
-def test_tools_call_without_payment_returns_402_and_the_offer():
-    """D37 + D34 : l'appel est payant, et le refus dit exactement comment payer."""
+def test_tools_call_without_payment_returns_an_iserror_result_with_the_offer():
+    """D78 : le transport MCP v2 refuse en **résultat d'outil**, pas en 402 JSON-RPC.
+
+    Un client x402 MCP appelle l'outil sans paiement, lit `result.isError` puis le
+    `PaymentRequired` dans `structuredContent` (ou `content[0].text`, même
+    document). Un 402 HTTP lui donnerait une erreur de transport, pas une offre.
+    """
     response = client.post(
         "/mcp",
         json={"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "validate_address", "arguments": PAYLOAD}},
     )
-    assert response.status_code == 402
-    error = response.json()["error"]
-    assert error["code"] == -32002
-    assert error["data"]["accepts"][0]["maxAmountRequired"] == "20000"
-    assert error["data"]["accepts"][0]["payTo"] == settings.cdp_wallet_address
-    # Aucun paiement n'a ete presente : il n'y a donc rien a regler, et l'en-tete
-    # de reglement (`X-PAYMENT-RESPONSE`) n'est pas emis a vide.
+    assert response.status_code == 200
+    body = response.json()
+    assert "error" not in body
+    result = body["result"]
+    assert result["isError"] is True
+    offre = result["structuredContent"]
+    assert offre["x402Version"] == 2
+    assert offre["resource"]["url"] == "mcp://tool/validate_address"
+    [accepts] = offre["accepts"]
+    assert accepts["network"] == "eip155:8453"
+    assert accepts["amount"] == "20000"
+    assert accepts["payTo"] == settings.cdp_wallet_address
+    assert accepts["asset"] == settings.x402_usdc_contract
+    # `content[0].text` est le même document, sérialisé : les deux formes servent.
+    assert json.loads(result["content"][0]["text"]) == offre
+    # Aucun paiement n'a été présenté : il n'y a pas de reçu d'échec à joindre.
+    assert "x402/payment-response" not in offre
     assert "X-PAYMENT-RESPONSE" not in response.headers
 
 
 def test_tools_call_with_a_bad_payment_reports_the_failed_settlement():
-    """D34 : un paiement presente mais refuse est decrit dans l'en-tete spec."""
+    """D78 : un paiement présenté mais refusé est un résultat d'outil en erreur.
+
+    Le reçu d'échec reste publié dans les deux formes que le SDK officiel
+    produit : `structuredContent["x402/payment-response"]` pour le transport
+    MCP, et l'en-tête `X-PAYMENT-RESPONSE` pour un client v1 (D34).
+    """
     import base64
 
     response = client.post(
@@ -82,13 +102,16 @@ def test_tools_call_with_a_bad_payment_reports_the_failed_settlement():
         headers={"X-PAYMENT": base64.b64encode(b"{}").decode()},
         json={"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {"name": "validate_address", "arguments": PAYLOAD}},
     )
-    assert response.status_code == 402
-    receipt = json.loads(
-        base64.b64decode(response.headers["X-PAYMENT-RESPONSE"] + "===")
-    )
-    assert receipt["success"] is False
-    assert receipt["errorReason"]
-    assert response.json()["error"]["code"] == -32002
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["isError"] is True
+    document = result["structuredContent"]
+    assert document["x402Version"] == 2
+    recu = document["x402/payment-response"]
+    assert recu["success"] is False and recu["errorReason"]
+    # Compatibilité v1 : l'en-tête de règlement en échec reste émis.
+    entete = json.loads(base64.b64decode(response.headers["X-PAYMENT-RESPONSE"] + "==="))
+    assert entete["success"] is False and entete["errorReason"]
 
 
 def test_tools_call_with_bad_arguments_is_free_and_named():
@@ -283,3 +306,149 @@ def test_card_publishes_only_documented_fields():
     assert client.post(
         "/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
     ).json()["result"]["tools"] == [tool_definition()]
+
+# --- D78 : transport MCP x402 v2 (paiement dans params._meta) -----------------
+
+
+def _v2_payload(
+    authorization: dict | None = None,
+    resource: str = "mcp://tool/validate_address",
+    **accepte,
+) -> dict:
+    """`PaymentPayload` x402 v2 tel que le client MCP le met dans `_meta`.
+
+    Construit sur l'offre réellement publiée par `structuredContent.accepts[0]` :
+    même réseau CAIP-2, même jeton, même montant (en unités atomiques), même
+    destinataire. Un champ `accepte` permet de fabriquer une offre *différente*.
+    """
+    authorization = authorization or _authorization()
+    accepted = {
+        "scheme": "exact",
+        "network": "eip155:8453",
+        "amount": authorization["value"],
+        "asset": settings.x402_usdc_contract,
+        "payTo": settings.cdp_wallet_address,
+        "maxTimeoutSeconds": 300,
+        "extra": {
+            "name": settings.x402_domain_name,
+            "version": settings.x402_domain_version,
+        },
+    }
+    accepted.update(accepte)
+    return {
+        "x402Version": 2,
+        "resource": {
+            "url": resource,
+            "description": "Validate a delivery address",
+            "mimeType": "application/json",
+        },
+        "accepted": accepted,
+        "payload": {"signature": _sign(authorization), "authorization": authorization},
+    }
+
+
+def call_with_meta(payload: dict, request_id: int = 5):
+    """`tools/call` avec le paiement dans `params._meta["x402/payment"]`."""
+    return client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": "tools/call",
+            "params": {
+                "name": "validate_address",
+                "arguments": PAYLOAD,
+                "_meta": {"x402/payment": payload},
+            },
+        },
+    )
+
+
+def test_meta_payment_is_settled_and_the_receipt_comes_back_in_meta(facilitator):
+    """D78 : paiement dans `_meta` -> règlement -> résultat + reçu dans `result._meta`."""
+    paiement = _v2_payload()
+    response = call_with_meta(paiement)
+
+    assert response.status_code == 200, response.text
+    result = response.json()["result"]
+    assert result["isError"] is False
+    # Le facilitateur reçoit le payload **inchangé** et l'offre au format v2 (D77).
+    assert [suffix for suffix, _ in facilitator] == ["/verify", "/settle"]
+    for suffix, body in facilitator:
+        assert body["x402Version"] == 2
+        assert body["paymentPayload"] == paiement, f"{suffix} : payload modifié"
+        assert body["paymentRequirements"]["amount"] == "20000"
+        assert "maxAmountRequired" not in body["paymentRequirements"]
+    # Le reçu voyage dans `result._meta`, pas dans un en-tête.
+    recu = result["_meta"]["x402/payment-response"]
+    assert recu["success"] is True
+    assert recu["transaction"] == TX
+    assert recu["network"] == "eip155:8453"
+    assert recu["payer"].lower() == _authorization()["from"].lower()
+    # Le contenu payé reste le contrat HTTP, prix et transaction compris.
+    assert result["structuredContent"]["price_paid"] == 0.02
+    assert result["structuredContent"]["transaction_id"] == TX
+
+
+def test_meta_payment_for_another_offer_is_refused_locally(facilitator):
+    """D78 : une offre `accepted` différente de celle publiée est refusée hors ligne."""
+    # 1. L'autorisation signée porte un montant insuffisant.
+    response = call_with_meta(_v2_payload(_authorization(value="1")))
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["isError"] is True
+    document = result["structuredContent"]
+    assert document["x402Version"] == 2 and "montant insuffisant" in document["error"]
+    assert document["x402/payment-response"]["success"] is False
+    assert document["x402/payment-response"]["errorReason"]
+
+    # 2. Le client dit accepter une autre offre que celle publiée.
+    autre = call_with_meta(_v2_payload(amount="1")).json()["result"]
+    assert autre["isError"] is True
+    assert "offre acceptee differente" in autre["structuredContent"]["error"]
+    assert facilitator == [], "le facilitateur a été appelé avec une offre refusée"
+
+
+def test_meta_payment_v1_is_refused_explicitly():
+    """D78 : le transport MCP est v2 ; un payload v1 y est refusé, pas servi."""
+    import base64
+
+    v1 = json.loads(base64.b64decode(_header() + "=" * (-len(_header()) % 4)))
+    response = call_with_meta(v1)
+
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["isError"] is True
+    assert "v2" in result["structuredContent"]["error"]
+    assert "X-PAYMENT-RESPONSE" not in response.headers
+
+
+def test_meta_settlement_failure_is_a_tool_error(monkeypatch):
+    """D78 : un règlement refusé ne rend pas le résultat, et son reçu dit pourquoi."""
+    from app import x402
+
+    monkeypatch.setattr(
+        x402,
+        "_post_facilitator",
+        lambda suffix, body: (
+            {"isValid": True}
+            if suffix == "/verify"
+            else {"success": False, "errorReason": "insufficient_funds", "transaction": ""}
+        ),
+    )
+    x402.reset_nonce_cache()
+    response = call_with_meta(_v2_payload())
+    x402.reset_nonce_cache()
+
+    assert response.status_code == 200
+    result = response.json()["result"]
+    assert result["isError"] is True
+    document = result["structuredContent"]
+    assert "insufficient_funds" in document["x402/payment-response"]["errorReason"]
+    assert "structuredContent" in result and "result" not in document
+
+
+def test_meta_payment_text_matches_structured_content(facilitator):
+    """D78 : `content[0].text` et `structuredContent` sont le même document."""
+    result = call_with_meta(_v2_payload()).json()["result"]
+    assert json.loads(result["content"][0]["text"]) == result["structuredContent"]

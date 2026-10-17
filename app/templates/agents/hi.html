@@ -339,7 +339,7 @@ p,li,dd{line-height:1.75}
     <p class="pill in" style="--i:0"><b>AI एजेंट</b>MCP और x402</p>
     <h1 id="titre" class="in" style="--i:1">ऐसा पता सत्यापन जिसका भुगतान आपका AI एजेंट खुद कर सके।</h1>
     <p class="lead in" style="--i:2">एक MCP टूल, <code>validate_address</code>, और हर कॉल पर x402 भुगतान: आपका एजेंट सेवा को मुफ़्त में खोजता है, Base नेटवर्क पर हर वैलिडेशन के लिए {{prix_x402}} USDC देता है, और मानकीकृत पता पाता है। न खाता, न API कुंजी, न किसी इंसान की ज़रूरत।</p>
-    <ul class="chips-k in" style="--i:3"><li dir="ltr">MCP 2025-06-18</li><li dir="ltr">x402 v1</li><li dir="ltr">{{prix_x402}} USDC / कॉल</li><li dir="ltr">USDC · Base</li></ul>
+    <ul class="chips-k in" style="--i:3"><li dir="ltr">MCP 2025-06-18</li><li dir="ltr">x402 v1 · v2</li><li dir="ltr">{{prix_x402}} USDC / कॉल</li><li dir="ltr">USDC · Base</li></ul>
   </div>
 </section>
 
@@ -347,7 +347,7 @@ p,li,dd{line-height:1.75}
   <section aria-labelledby="etapes">
     <h2 id="etapes">तीन कॉल में</h2>
     <p class="sub">वही सेवा जो HTTP पर है, उस प्रोटोकॉल में जिसे आपका एजेंट पहले से बोलता है।</p>
-    <ol class="steps3"><li><h3>मुफ़्त में खोजें</h3><p><code>/.well-known/mcp-server</code> कार्ड सर्वर का विवरण देता है। <code>/mcp</code> पर <code>initialize</code> और फिर <code>tools/list</code> मुफ़्त हैं।</p></li><li><h3>ऑफ़र पाएँ</h3><p>बिना भुगतान वाला <code>tools/call</code> 402 त्रुटि देता है, जिसमें सटीक ऑफ़र होता है: नेटवर्क, USDC टोकन, राशि ({{unites}} इकाइयाँ, यानी {{prix_x402}} USDC), गंतव्य।</p></li><li><h3>भुगतान करें, फिर पाएँ</h3><p>एजेंट अनुमति (EIP-3009) पर हस्ताक्षर करता है और <code>X-PAYMENT</code> हेडर के साथ कॉल दोबारा भेजता है। निपटान के बाद नतीजा आता है।</p></li></ol>
+    <ol class="steps3"><li><h3>मुफ़्त में खोजें</h3><p><code>/.well-known/mcp-server</code> कार्ड सर्वर का विवरण देता है। <code>/mcp</code> पर <code>initialize</code> और फिर <code>tools/list</code> मुफ़्त हैं।</p></li><li><h3>ऑफ़र पाएँ</h3><p>बिना भुगतान वाला <code>tools/call</code> त्रुटि वाला टूल परिणाम देता है (<code>isError</code>), जिसमें सटीक x402 v2 ऑफ़र होता है: नेटवर्क, USDC टोकन, राशि ({{unites}} इकाइयाँ, यानी {{prix_x402}} USDC), गंतव्य।</p></li><li><h3>भुगतान करें, फिर पाएँ</h3><p>एजेंट अनुमति (EIP-3009) पर हस्ताक्षर करता है और भुगतान <code>params._meta["x402/payment"]</code> में रखकर कॉल दोबारा भेजता है (या v1 क्लाइंट का <code>X-PAYMENT</code> हेडर)। निपटान के बाद रसीद के साथ नतीजा आता है।</p></li></ol>
     <p class="code-l">MCP क्लाइंट का कॉन्फ़िगरेशन</p>
     <pre class="code">{
   "mcpServers": {
@@ -365,10 +365,10 @@ p,li,dd{line-height:1.75}
       "state": "CA", "zip": "94043", "country": "US" } }
   }
 }</pre>
-    <p class="code-l">402 में पढ़ा गया ऑफ़र</p>
+    <p class="code-l">टूल परिणाम में पढ़ा गया ऑफ़र</p>
     <pre class="code">"accepts": [{
-  "scheme": "exact", "network": "base",
-  "maxAmountRequired": "{{unites}}",
+  "scheme": "exact", "network": "eip155:8453",
+  "amount": "{{unites}}",
   "asset": "USDC", "payTo": "0x…"
 }]</pre>
   </section>

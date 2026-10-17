@@ -338,7 +338,7 @@ h1,h2{text-wrap:wrap}
     <p class="pill in" style="--i:0"><b>AI 代理</b>MCP 与 x402</p>
     <h1 id="titre" class="in" style="--i:1">您的 AI 代理可以自行付费的地址验证。</h1>
     <p class="lead in" style="--i:2">一个 MCP 工具 <code>validate_address</code>，加上按次计费的 x402 支付：您的代理免费发现服务，在 Base 网络上每次验证支付 {{prix_x402}} USDC，并获得标准化地址。无需账户，无需 API 密钥，无需人工介入。</p>
-    <ul class="chips-k in" style="--i:3"><li dir="ltr">MCP 2025-06-18</li><li dir="ltr">x402 v1</li><li dir="ltr">每次调用 {{prix_x402}} USDC</li><li dir="ltr">USDC · Base</li></ul>
+    <ul class="chips-k in" style="--i:3"><li dir="ltr">MCP 2025-06-18</li><li dir="ltr">x402 v1 · v2</li><li dir="ltr">每次调用 {{prix_x402}} USDC</li><li dir="ltr">USDC · Base</li></ul>
   </div>
 </section>
 
@@ -346,7 +346,7 @@ h1,h2{text-wrap:wrap}
   <section aria-labelledby="etapes">
     <h2 id="etapes">三次调用完成</h2>
     <p class="sub">与 HTTP 相同的服务，接入您的代理已经在用的协议。</p>
-    <ol class="steps3"><li><h3>免费发现</h3><p><code>/.well-known/mcp-server</code> 卡片描述服务器。在 <code>/mcp</code> 上调用 <code>initialize</code> 和 <code>tools/list</code> 完全免费。</p></li><li><h3>获取报价</h3><p>未付款的 <code>tools/call</code> 会返回 402 错误，并给出准确报价：网络、USDC 代币、金额（{{unites}} 个单位，即 {{prix_x402}} USDC）和收款地址。</p></li><li><h3>付款，然后获得结果</h3><p>代理签署授权（EIP-3009），并携带 <code>X-PAYMENT</code> 请求头再次调用。结算完成后返回结果。</p></li></ol>
+    <ol class="steps3"><li><h3>免费发现</h3><p><code>/.well-known/mcp-server</code> 卡片描述服务器。在 <code>/mcp</code> 上调用 <code>initialize</code> 和 <code>tools/list</code> 完全免费。</p></li><li><h3>获取报价</h3><p>未付款的 <code>tools/call</code> 会返回一个错误工具结果（<code>isError</code>），其中是准确的 x402 v2 报价：网络、USDC 代币、金额（{{unites}} 个单位，即 {{prix_x402}} USDC）和收款地址。</p></li><li><h3>付款，然后获得结果</h3><p>代理签署授权（EIP-3009），并将付款放入 <code>params._meta["x402/payment"]</code> 再次调用（v1 客户端也可使用 <code>X-PAYMENT</code> 请求头）。结算完成后返回结果与收据。</p></li></ol>
     <p class="code-l">MCP 客户端配置</p>
     <pre class="code">{
   "mcpServers": {
@@ -364,10 +364,10 @@ h1,h2{text-wrap:wrap}
       "state": "CA", "zip": "94043", "country": "US" } }
   }
 }</pre>
-    <p class="code-l">402 中的报价</p>
+    <p class="code-l">工具结果中的报价</p>
     <pre class="code">"accepts": [{
-  "scheme": "exact", "network": "base",
-  "maxAmountRequired": "{{unites}}",
+  "scheme": "exact", "network": "eip155:8453",
+  "amount": "{{unites}}",
   "asset": "USDC", "payTo": "0x…"
 }]</pre>
   </section>

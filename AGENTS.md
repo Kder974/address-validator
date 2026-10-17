@@ -21,8 +21,11 @@ https://kder-ai.com/validate, 0,02 USDC par appel.
 
 Si l'agent parle MCP plutot que HTTP : lire la carte
 https://kder-ai.com/.well-known/mcp-server, appeler `initialize` puis
-`tools/list` sur https://kder-ai.com/mcp (gratuit), et n'appeler `tools/call`
-qu'avec l'en-tete `X-PAYMENT` (payant).
+`tools/list` sur https://kder-ai.com/mcp (gratuit), puis `tools/call` en
+presentant le paiement. Un appel sans paiement rend un **resultat d'outil**
+`isError: true` dont `structuredContent` est l'offre x402 v2 ; le client MCP
+renvoie alors le `PaymentPayload` v2 dans `params._meta["x402/payment"]` et
+recoit le reglement dans `result._meta["x402/payment-response"]`.
 
 ## Payer sans se tromper
 
@@ -36,10 +39,16 @@ qu'avec l'en-tete `X-PAYMENT` (payant).
   (reseau `eip155:8453`, champ `amount`, extension `bazaar`), paie par l'en-tete
   `PAYMENT-SIGNATURE` et recoit le reglement dans `PAYMENT-RESPONSE`. Le corps du
   402 reste en v1 pour les clients v1.
+- Un client **MCP** x402 v2 met le meme `PaymentPayload` (`x402Version: 2`,
+  offre publiee dans `accepted`) dans `params._meta["x402/payment"]` et lit le
+  reglement dans `result._meta["x402/payment-response"]` (reseau `eip155:8453`).
+  L'en-tete `X-PAYMENT` reste accepte pour un client v1 ; un outil non paye
+  repond par un resultat d'outil `isError`, jamais par un code 402.
 - Le service ne rend le resultat qu'apres reglement : la reponse 200 porte
   `X-PAYMENT-RESPONSE` (base64 de `{success, transaction, network, payer}`).
 - Un 402 n'est pas une erreur de l'agent : c'est l'absence de paiement valide, et
-  le corps dit exactement pourquoi (`error`).
+  le corps dit exactement pourquoi (`error`). En MCP, ce refus n'est pas un code
+  HTTP : c'est `result.isError` avec l'offre dans `result.structuredContent`.
 - Les paiements sont dedupliques par hash de reglement : rejouer la meme
   autorisation ne double pas la facturation, elle est refusee.
 - Un agent n'a besoin d'aucun compte : le paiement x402 suffit. L'autre voie,

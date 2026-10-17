@@ -13,8 +13,16 @@ agent qui sait payer un service x402 sait payer cet outil.
 Découvrir est **gratuit** (`initialize`, `ping`, `tools/list`, `resources/list`,
 `prompts/list`) : c'est la découverte qui est le sujet de ce chantier, la
 facturer reviendrait à cacher la porte d'entrée. Appeler l'outil est **payant**.
-Un appel non payé reçoit `402` avec une erreur JSON-RPC qui porte `data.accepts`
-— de quoi payer et rejouer sans documentation.
+
+Depuis D78, le paiement suit le **transport MCP x402 v2**
+(`specs/transports-v2/mcp.md`) : le client met son `PaymentPayload` dans
+`params._meta["x402/payment"]`, un appel sans paiement rend un **résultat
+d'outil** `isError: true` dont `structuredContent` est le `PaymentRequired` v2
+(et `content[0].text` le même document en JSON), et le règlement revient dans
+`result._meta["x402/payment-response"]`. Un `402` JSON-RPC a été la première
+forme (D37) ; il rendait l'outil illisible pour les clients x402 MCP, qui lisent
+un résultat, pas un statut HTTP. La compatibilité est gardée : un client v1
+paie toujours par l'en-tête `X-PAYMENT` et reçoit son reçu d'en-tête.
 
 Choix d'implémentation :
 
@@ -52,14 +60,22 @@ from app import audience
 from app.config import get_settings
 from app.observability import log_unpaid_attempt
 from app.payment import (
-    generate_payment_required_response,
     payment_result,
     record_transaction,
 )
 from app.routes.metrics import metrics
 from app.routes.validate import build_response, perform_validation
 from app.schemas import ValidationRequest, ValidationResponse
-from app.x402 import payment_requirements
+from app.x402 import (
+    MCP_PAYMENT_META_KEY,
+    MCP_PAYMENT_RESPONSE_META_KEY,
+    InvalidPayment,
+    PaymentDecision,
+    parse_payment_payload,
+    payment_required_mcp,
+    settle_payment,
+    settlement_response,
+)
 
 router = APIRouter()
 settings = get_settings()
@@ -78,16 +94,19 @@ TOOL_DESCRIPTION = (
     "unknown / invalid) avec un niveau de confiance. Une reponse 200 avec "
     "degraded=true signale que le fournisseur etait injoignable : la reponse "
     "est alors incomplete et le champ confidence est bas. Cout : 1 "
-    "validation (0.02 USDC sur Base, reglee en x402)."
+    "validation (0.02 USDC sur Base, reglee en x402 v2 dans "
+    "params._meta['x402/payment'], ou par l'en-tete X-PAYMENT d'un client v1)."
 )
 
-# Codes d'erreur JSON-RPC 2.0 et un code d'application pour le paiement.
+# Codes d'erreur JSON-RPC 2.0. Depuis D78, un paiement absent ou refusé n'est
+# plus une erreur JSON-RPC : c'est un résultat d'outil `isError` qui porte
+# l'offre (le transport MCP x402 v2 se lit ainsi). Ces codes restent ceux des
+# erreurs de protocole et du registre (D41).
 PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
 INTERNAL_ERROR = -32603
-PAYMENT_REQUIRED = -32002
 
 
 def tool_definition() -> dict[str, Any]:
@@ -112,20 +131,20 @@ def tool_definition() -> dict[str, Any]:
     }
 
 
-def _json(payload: dict[str, Any], status: int = 200) -> JSONResponse:
+def _json(payload: dict[str, Any], status: int = 200, headers: dict[str, str] | None = None) -> JSONResponse:
     """Réponse JSON-RPC : jamais de `Cache-Control` implicite, jamais de SSE."""
-    return JSONResponse(
-        status_code=status,
-        content=payload,
-        headers={
-            "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
-            "Cache-Control": "no-store",
-        },
-    )
+    entetes = {
+        "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
+        "Cache-Control": "no-store",
+    }
+    if headers:
+        # Reçu de règlement en-tête d'un client v1 (D34) : conservé à l'identique.
+        entetes.update(headers)
+    return JSONResponse(status_code=status, content=payload, headers=entetes)
 
 
-def _result(request_id: Any, result: Any) -> JSONResponse:
-    return _json({"jsonrpc": "2.0", "id": request_id, "result": result})
+def _result(request_id: Any, result: Any, headers: dict[str, str] | None = None) -> JSONResponse:
+    return _json({"jsonrpc": "2.0", "id": request_id, "result": result}, headers=headers)
 
 
 def _error(
@@ -155,34 +174,80 @@ def _initialize(params: dict[str, Any]) -> dict[str, Any]:
         },
         "instructions": (
             "Serveur d'un seul outil payant : validate_address. Appeler l'outil "
-            "coute 0.02 USDC sur le reseau Base, regle par le protocole x402 : "
-            "presenter l'en-tete X-PAYMENT (base64 d'un PaymentPayload) sur la "
-            "requete HTTP. Un appel non paye recoit une erreur JSON-RPC 402 "
-            "dont data.accepts porte l'offre exacte (reseau, jeton, montant, "
-            "adresse de destination). Decouvrir (tools/list) est gratuit."
+            "coute 0.02 USDC sur le reseau Base, regle par le protocole x402. "
+            "Client x402 v2 (MCP) : mettre le PaymentPayload dans "
+            "params._meta[\"x402/payment\"] ; le recu revient dans "
+            "result._meta[\"x402/payment-response\"]. Client v1 : presenter "
+            "l'en-tete X-PAYMENT sur la requete HTTP. Un appel sans paiement "
+            "rend un resultat d'outil isError=true dont structuredContent est "
+            "le PaymentRequired v2 (reseau eip155:8453, montant, adresse de "
+            "destination, jeton). Decouvrir (tools/list) est gratuit."
         ),
     }
 
 
-def _payment_error(request_id: Any, request: Request, decision) -> JSONResponse:
-    """Refus 402 : erreur JSON-RPC **et** offre lisible par un client x402."""
+def _paiement_meta(valeur: Any) -> PaymentDecision:
+    """Règle un paiement reçu dans `params._meta["x402/payment"]` (D78).
+
+    Le transport MCP est **v2** : le payload doit déclarer `x402Version: 2` (le
+    SDK officiel n'envoie que cela). Un payload v1 est refusé explicitement
+    plutôt que servi avec un reçu v2 qui ne correspondrait pas à sa signature.
+    """
+    if not isinstance(valeur, dict):
+        return PaymentDecision(
+            paid=False,
+            reason="champ _meta['x402/payment'] illisible : objet JSON attendu",
+            protocol="x402",
+        )
+    if valeur.get("x402Version") != 2:
+        return PaymentDecision(
+            paid=False,
+            reason="le transport MCP attend un PaymentPayload x402 v2",
+            protocol="x402",
+        )
+    try:
+        payload = parse_payment_payload(valeur)
+    except InvalidPayment as exc:
+        return PaymentDecision(paid=False, reason=str(exc), protocol="x402")
+    return settle_payment(payload, settings.x402_price)
+
+
+def _refus_paiement(request_id: Any, request: Request, decision) -> JSONResponse:
+    """Refus de paiement du transport MCP v2 : un **résultat d'outil** `isError`.
+
+    Le client x402 MCP lit `result.isError`, puis le `PaymentRequired` dans
+    `result.structuredContent` (ou `content[0].text`, même document) : un `402`
+    HTTP lui donnerait une erreur de transport, pas une offre à payer. C'est la
+    forme que publie `specs/transports-v2/mcp.md` et que produit le SDK officiel.
+
+    Un paiement **présenté puis refusé** joint en plus son reçu d'échec
+    (`x402/payment-response`), comme le fait le SDK pour un règlement refusé ;
+    un appel sans aucun moyen de paiement ne joint rien (il n'y a pas eu de
+    règlement).
+    """
     log_unpaid_attempt(request, settings.x402_price, decision.reason)
-    headers = {"MCP-Protocol-Version": MCP_PROTOCOL_VERSION}
-    headers.update(decision.response_headers)
-    return JSONResponse(
-        status_code=402,
-        headers=headers,
-        content={
+    document = payment_required_mcp(
+        TOOL_NAME,
+        settings.x402_price,
+        None if decision.protocol == "none" else decision.reason,
+    )
+    if decision.protocol != "none":
+        document[MCP_PAYMENT_RESPONSE_META_KEY] = settlement_response(
+            None, None, success=False, error_reason=decision.reason
+        )
+    return _json(
+        {
             "jsonrpc": "2.0",
             "id": request_id,
-            "error": {
-                "code": PAYMENT_REQUIRED,
-                "message": f"Payment required: {decision.reason}",
-                "data": generate_payment_required_response(
-                    settings.x402_price, decision.reason
-                ),
+            "result": {
+                "isError": True,
+                "structuredContent": document,
+                "content": [
+                    {"type": "text", "text": json.dumps(document, ensure_ascii=False)}
+                ],
             },
         },
+        headers=decision.response_headers,
     )
 
 
@@ -209,9 +274,13 @@ async def _call_tool(request: Request, request_id: Any, params: dict[str, Any]) 
             {"errors": exc.errors(include_url=False)},
         )
 
-    decision = payment_result(request)
+    # D78 : le transport MCP v2 porte le paiement dans `params._meta` ; l'en-tête
+    # (X-PAYMENT / PAYMENT-SIGNATURE / X-Payment-Proof) reste accepté (D34/D37).
+    meta = params.get("_meta")
+    paiement = meta.get(MCP_PAYMENT_META_KEY) if isinstance(meta, dict) else None
+    decision = _paiement_meta(paiement) if paiement is not None else payment_result(request)
     if not decision.paid:
-        return _payment_error(request_id, request, decision)
+        return _refus_paiement(request_id, request, decision)
 
     result, key = perform_validation(body.address.model_dump())
     if decision.transaction and not record_transaction(
@@ -235,16 +304,21 @@ async def _call_tool(request: Request, request_id: Any, params: dict[str, Any]) 
 
     audience.noter(mode=decision.protocol, amount_usdc=None if settings.test_mode or not decision.transaction else settings.x402_price)
     payload = build_response(result, key, decision.transaction).model_dump()
-    return _result(
-        request_id,
-        {
-            "content": [
-                {"type": "text", "text": json.dumps(payload, ensure_ascii=False)}
-            ],
-            "structuredContent": payload,
-            "isError": False,
-        },
-    )
+    tool_result: dict[str, Any] = {
+        "content": [
+            {"type": "text", "text": json.dumps(payload, ensure_ascii=False)}
+        ],
+        "structuredContent": payload,
+        "isError": False,
+    }
+    if decision.protocol == "x402":
+        # D78 : règlement rendu dans `result._meta` (SettlementResponse, réseau CAIP-2).
+        tool_result["_meta"] = {
+            MCP_PAYMENT_RESPONSE_META_KEY: settlement_response(
+                decision.transaction, decision.payer
+            )
+        }
+    return _result(request_id, tool_result, headers=decision.response_headers)
 
 
 async def _dispatch(request: Request, message: dict[str, Any]) -> Response | None:

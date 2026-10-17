@@ -27,6 +27,9 @@ from app.config import get_settings
 from app.payment import PROOF_HEADER, generate_payment_required_response
 from app.schemas import ValidationRequest, ValidationResponse
 from app.x402 import (
+    MCP_PAYMENT_META_KEY,
+    MCP_PAYMENT_RESPONSE_META_KEY,
+    MCP_RESOURCE_PREFIX,
     PAYMENT_HEADER,
     PAYMENT_REQUIRED_HEADER,
     PAYMENT_RESPONSE_HEADER,
@@ -234,11 +237,26 @@ async def manifest():
                     "prompts/list",
                 ],
                 "paid_methods": ["tools/call"],
+                "payment": {
+                    # D78 : le transport MCP x402 v2 porte le paiement dans
+                    # `params._meta` et rend le reçu dans `result._meta`.
+                    "x402_version": 2,
+                    "meta_key": MCP_PAYMENT_META_KEY,
+                    "response_meta_key": MCP_PAYMENT_RESPONSE_META_KEY,
+                    "resource_url": f"{MCP_RESOURCE_PREFIX}validate_address",
+                    "accepts": [payment_requirements_v2(settings.x402_price)],
+                    # Compatibilité D37 : un client v1 paie par l'en-tête HTTP.
+                    "v1_header": PAYMENT_HEADER,
+                },
                 "errors": {
-                    "402": {
+                    "isError": {
                         "description": (
-                            "Outil payant appele sans paiement : erreur JSON-RPC "
-                            "-32002 dont data.accepts porte l'offre x402."
+                            "Paiement absent ou refusé : résultat d'outil "
+                            "isError=true dont structuredContent est le "
+                            "PaymentRequired x402 v2 (réseau eip155:8453, amount, "
+                            "payTo) et content[0].text le même document. Un paiement "
+                            "présenté puis refusé joint son reçu d'échec dans "
+                            "x402/payment-response."
                         ),
                     }
                 },
@@ -273,7 +291,7 @@ async def manifest():
             "La voie x402 ne traite aucun identifiant de personne : pas de compte, pas de nom, pas d'e-mail. L'abonnement par cle d'API (X-API-Key, D44) cree un compte client : e-mail, nom de boutique, plateforme, empreinte bcrypt du mot de passe et empreinte SHA-256 de la cle (voir PRIVACY.md). Le revenu est publie sous forme d'agregats (/metrics/revenue), sans adresse IP.",
             "Pas de limitation de debit dans l'application : elle est tenue en amont par Nginx (10 req/s par IP, rafale 20, 429 au-dela).",
             "Les paiements anterieurs au deploiement de D29 ne figurent pas dans le registre durable : les fenetres 24 h / 7 j / 30 j ne sont pas retroactives.",
-            "Serveur MCP : un seul outil (validate_address), sans etat et sans flux SSE (GET /mcp repond 405). La decouverte (tools/list) est gratuite, l'appel de l'outil est paye. Un client MCP qui n'envoie pas X-PAYMENT recoit un 402 JSON-RPC portant l'offre.",
+            "Serveur MCP : un seul outil (validate_address), sans etat et sans flux SSE (GET /mcp repond 405). La decouverte (tools/list) est gratuite, l'appel de l'outil est paye. Un appel sans paiement rend un resultat d'outil isError=true dont structuredContent est le PaymentRequired x402 v2 ; un client MCP v2 le paie en renvoyant le PaymentPayload dans params._meta[\"x402/payment\"], un client v1 peut aussi presenter l'en-tete X-PAYMENT.",
         ],
         "deliverability_values": {
             "residential": "adresse complete ou voie reconnue, usage residentiel (code DPV Y ou S)",

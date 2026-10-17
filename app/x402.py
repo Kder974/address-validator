@@ -21,6 +21,15 @@ Depuis D77, la même offre est aussi publiée en **x402 v2**
 dans `PAYMENT-SIGNATURE`, règlement dans `PAYMENT-RESPONSE`. Le corps du `402`
 reste en v1 : un client v1 et un client v2 lisent chacun leur version.
 
+Depuis D78, le transport **MCP** de la même spécification
+(`specs/transports-v2/mcp.md`) est servi : le `PaymentPayload` voyage dans
+`params._meta["x402/payment"]`, un appel sans paiement rend un **résultat
+d'outil** `isError: true` dont `structuredContent` est le `PaymentRequired` v2
+(réseau CAIP-2, `mcp://tool/<nom>`), et le règlement revient dans
+`result._meta["x402/payment-response"]`. La vérification et le règlement sont
+**les mêmes** que pour l'en-tête HTTP : `settle_payment` est l'unique chemin,
+les deux transports ne diffèrent que par l'endroit où le payload voyage.
+
 Deux contrôles **indépendants**, dans cet ordre (D35, D36) :
 
 1. **local** — la signature EIP-712 `TransferWithAuthorization` (EIP-3009) est
@@ -73,6 +82,12 @@ PAYMENT_RESPONSE_HEADER = "X-PAYMENT-RESPONSE"
 PAYMENT_REQUIRED_HEADER = "PAYMENT-REQUIRED"
 PAYMENT_SIGNATURE_HEADER = "PAYMENT-SIGNATURE"
 PAYMENT_RESPONSE_HEADER_V2 = "PAYMENT-RESPONSE"
+#: Transport MCP v2 (D78) : le paiement et son reçu vivent dans les métadonnées
+#: de la requête (`params._meta`) et du résultat (`result._meta`).
+MCP_PAYMENT_META_KEY = "x402/payment"
+MCP_PAYMENT_RESPONSE_META_KEY = "x402/payment-response"
+#: Ressource d'un outil MCP : la forme publiée par le SDK x402 officiel.
+MCP_RESOURCE_PREFIX = "mcp://tool/"
 #: Réseau accepté en entrée : nom v1 et identifiant CAIP-2 (clients v2), tirés de la configuration.
 NETWORKS = (settings.x402_network, f"eip155:{settings.x402_chain_id}")
 #: Un motif de refus voyage dans des en-têtes : borné et ASCII, sinon nginx (tampon de
@@ -277,6 +292,53 @@ def payment_required_header(price: float, error: str | None = None, fiche: bool 
     return base64.b64encode(corps.encode()).decode()
 
 
+def payment_required_mcp(tool: str, price: float, error: str | None = None) -> dict[str, Any]:
+    """`PaymentRequired` v2 du transport MCP (D78) : la ressource est l'outil.
+
+    Mêmes règles que la fiche HTTP, sans l'extension `bazaar` : un outil MCP se
+    fait découvrir par la carte `/.well-known/mcp-server` et par le registre MCP
+    (`server.json`), pas par le catalogue HTTP. Le document est celui que le SDK
+    officiel publie (réseau CAIP-2, `amount`, ressource `mcp://tool/<nom>`), et
+    ses champs sont lus par les clients x402 v2 pour construire le paiement.
+    """
+    defaut = "Payment required to access this tool"
+    return {
+        "x402Version": 2,
+        "error": (error[:300] if error else defaut),
+        "resource": {
+            "url": f"{MCP_RESOURCE_PREFIX}{tool}",
+            "description": description(price),
+            "mimeType": "application/json",
+        },
+        "accepts": [payment_requirements_v2(price)],
+    }
+
+
+def settlement_response(
+    transaction: str | None,
+    payer: str | None,
+    success: bool = True,
+    error_reason: str | None = None,
+) -> dict[str, Any]:
+    """`SettlementResponse` lisible dans `result._meta["x402/payment-response"]` (D78).
+
+    Le réseau est toujours au format CAIP-2 (`eip155:8453`) : le transport MCP
+    est v2 par construction, même quand le paiement vient d'un client v1 par
+    l'en-tête `X-PAYMENT` (compatibilité D37).
+    """
+    body: dict[str, Any] = {
+        "success": success,
+        "transaction": transaction or "",
+        "network": network_v2(),
+    }
+    if payer:
+        body["payer"] = payer
+    if not success:
+        body["errorReason"] = motif(error_reason) or "payment_failed"
+    return body
+
+
+
 class InvalidPayment(ValueError):
     """En-tête `X-PAYMENT` illisible ou hors schéma : refus immédiat."""
 
@@ -303,8 +365,19 @@ def parse_payment_header(value: str | None) -> dict[str, Any]:
         payload = json.loads(_b64decode(value.strip()))
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise InvalidPayment(f"en-tete X-PAYMENT non JSON : {exc}") from exc
+    return parse_payment_payload(payload)
+
+
+def parse_payment_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Valide un `PaymentPayload` **déjà décodé**, d'où qu'il vienne.
+
+    Depuis D78 deux transports portent le même document : l'en-tête HTTP
+    (`X-PAYMENT`, `PAYMENT-SIGNATURE`) et `params._meta["x402/payment"]` du
+    transport MCP. La validation est donc faite ici, une seule fois : version,
+    schéma, réseau, présence du champ `payload`.
+    """
     if not isinstance(payload, dict):
-        raise InvalidPayment("en-tete X-PAYMENT : objet JSON attendu")
+        raise InvalidPayment("PaymentPayload : objet JSON attendu")
 
     version = payload.get("x402Version")
     if version not in (1, 2):
@@ -694,26 +767,50 @@ class PaymentDecision:
         )
 
 
+def _refus_paiement(reason: str, version: int | None = None) -> PaymentDecision:
+    """Refus x402 : le motif, et le reçu d'échec dans la version du client (ou les deux)."""
+    return PaymentDecision(
+        paid=False,
+        reason=reason,
+        protocol="x402",
+        response_headers=settlement_headers(version, None, None, success=False, error_reason=reason),
+    )
+
+
 def authorize_and_settle(
     header: str | None, price: float, resource: str | None = None
 ) -> PaymentDecision:
-    """Chemin complet x402 : décodage → vérification locale → règlement.
+    """Chemin x402 **par en-tête HTTP** : décodage → vérification locale → règlement.
 
     L'ordre est significatif : rien n'est envoyé au facilitateur avant que la
     signature, la destination, le montant et la fenêtre soient conformes à
     l'offre publiée. Un facilitateur lent ou en panne ne peut donc pas servir
     de prétexte pour rendre le service sans paiement vérifié.
     """
-    absent = PaymentDecision(paid=False, reason="en-tete X-PAYMENT absent", protocol="x402")
-
     wallet = settings.cdp_wallet_address or ""
     if not ADDRESS_RE.match(wallet):
-        return absent.refusal("aucune adresse d'encaissement utilisable configuree")
+        return _refus_paiement("aucune adresse d'encaissement utilisable configuree")
 
     try:
         payload = parse_payment_header(header)
     except InvalidPayment as exc:
-        return absent.refusal(str(exc))
+        return _refus_paiement(str(exc))
+    return settle_payment(payload, price, resource)
+
+
+def settle_payment(
+    payload: dict[str, Any], price: float, resource: str | None = None
+) -> PaymentDecision:
+    """Vérifie hors ligne puis règle un `PaymentPayload` **déjà validé**.
+
+    Unique chemin d'encaissement des deux transports (D78) : l'en-tête HTTP
+    (`authorize_and_settle`) et le transport MCP (`params._meta["x402/payment"]`).
+    Le payload est celui que le client a signé, inchangé ; seule l'offre
+    confrontée dépend de sa version (v1 ou v2).
+    """
+    wallet = settings.cdp_wallet_address or ""
+    if not ADDRESS_RE.match(wallet):
+        return _refus_paiement("aucune adresse d'encaissement utilisable configuree")
 
     # D77 : le facilitateur reçoit l'offre dans la version du payload.
     version = payload["x402Version"]
@@ -721,18 +818,18 @@ def authorize_and_settle(
     ok, reason, details = verify_authorization(payload, requirements)
     if not ok:
         logger.warning("paiement x402 refuse (local) : %s", reason)
-        return absent.refusal(reason, version=version)
+        return _refus_paiement(reason, version=version)
 
     nonce = details["nonce"]
     with _SETTLED_LOCK:
         if nonce in _SETTLED:
-            return absent.refusal(f"autorisation deja reglee (nonce {nonce[:18]}...)", version=version)
+            return _refus_paiement(f"autorisation deja reglee (nonce {nonce[:18]}...)", version=version)
 
     if settings.x402_facilitator_verify:
         ok, reason = facilitator_verify(payload, requirements)
         if not ok:
             logger.warning("paiement x402 refuse (facilitateur) : %s", reason)
-            return absent.refusal(reason, version=version)
+            return _refus_paiement(reason, version=version)
 
     transaction: str | None = None
     payer = details["payer"]
@@ -740,7 +837,7 @@ def authorize_and_settle(
         ok, reason, transaction, payer = facilitator_settle(payload, requirements)
         if not ok:
             logger.warning("paiement x402 refuse (reglement) : %s", reason)
-            return absent.refusal(reason, version=version)
+            return _refus_paiement(reason, version=version)
     else:  # pragma: no cover - mode diagnostic, jamais en production
         logger.warning("X402_REQUIRE_SETTLEMENT=false : service rendu sans encaissement")
 

@@ -116,7 +116,8 @@ envoyee.
 - https://kder-ai.com/openapi.json : contrat OpenAPI.
 - https://kder-ai.com/.well-known/security.txt : contact securite (RFC 9116).
 - https://kder-ai.com/mcp : serveur MCP (JSON-RPC 2.0) — outil payant
-  `validate_address`, decouverte gratuite (`tools/list`).
+  `validate_address`, decouverte gratuite (`tools/list`), paiement x402 v2 dans
+  `params._meta["x402/payment"]` (un client v1 peut presenter `X-PAYMENT`).
 - https://kder-ai.com/.well-known/mcp-server : carte de decouverte du serveur MCP.
 - https://kder-ai.com/llms.txt : ce fichier.
 - https://kder-ai.com/AGENTS.md : guide d'integration pour agents autonomes.
@@ -129,8 +130,9 @@ envoyee.
   HTTP 200 avec `degraded: true` et une confiance basse. Lire `degraded`.
 - Serveur MCP : un seul outil, sans etat, sans flux SSE (`GET /mcp` repond 405)
   et sans ressources ni prompts (`resources/list` et `prompts/list` rendent des
-  listes vides). L'appel de l'outil exige `X-PAYMENT` ; un appel non paye recoit
-  un 402 JSON-RPC dont `data.accepts` porte l'offre.
+  listes vides). L'appel de l'outil est paye : un appel sans paiement rend un
+  resultat d'outil `isError` dont `structuredContent` est l'offre x402 v2, et le
+  client MCP la paie dans `params._meta["x402/payment"]`.
 - La voie heritagee `X-Payment-Proof` (secret partage) reste acceptee pour
   l'outillage de l'exploitant, mais un agent tiers doit payer en x402.
 - Limitation de debit tenue en amont par le reverse proxy : 10 requetes par
