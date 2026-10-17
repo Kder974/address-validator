@@ -742,6 +742,7 @@ accident.
 | migration de base à appliquer | `venv/bin/python scripts/<migration>.py` **avant** `--maj` (voir §11.2 pour `migrate_test_mode.py`) |
 | Nginx, certificat, pare-feu, unité systemd | modification manuelle, documentée §6 à §9 : `--maj` n'y touche pas |
 | fichier supprimé du dépôt | il reste sur le serveur : il apparaît dans `fichiers-en-trop.txt` (M5), à retirer à la main |
+| fichier **racine** modifié (`AGENTS.md`, `llms.txt`, `README.md`, `DECISIONS.md`, `GATES.md`…) | le mode `--maj` ne copie que `app/ scripts/ docs/` : copier ces fichiers à la main (`scp` vers `/tmp`, puis `install -o root -g root -m 664` dans `/opt/address-validator/`) — `AGENTS.md` et `llms.txt` sont lus par Nginx à cet endroit |
 | `venv/` ou le service absents, disque plein | `--maj` s'arrête en M1 ou M4 et le dit : reprendre par l'installation complète |
 
 ### 13.6 Vérifier après coup
@@ -758,3 +759,42 @@ Garder une ou deux sauvegardes, retirer les plus anciennes : elles contiennent l
 code, jamais les secrets (le `.env` n'y est pas copié). Un dossier
 `/opt/address-validator-nouveau` peut rester entre deux mises à jour : il est
 écrasé par l'extraction suivante.
+
+## 14. Mise en production de D78 (17/10/2026) — transport MCP x402 v2
+
+Compte rendu de la mise en ligne du commit `f6458e4` (fusion `7d761e4`, décision
+D78) sur `87.76.197.38`, par `deploy-kder-ai.sh --maj` (section 13).
+
+| Élément | Mesure du 17/10/2026 |
+|---|---|
+| Archive déployée | `av-maj-d78.tgz`, 6 734 Ko, 238 entrées — 123 fichiers dans `app/`, 72 gabarits HTML ; `sha256 8c484738467c130b…c6a0d8e62a` |
+| Source | clone `Kder974/address-validator`, `main` après fusion de la PR #32 |
+| Sauvegarde | `/opt/address-validator-avant-20261017-201253` (253 fichiers) — retour arrière : `cd <sauvegarde> && tar -cf - app scripts docs \| tar -C /opt/address-validator -xf - && systemctl restart address-validator` |
+| M7 (santé) | `{"status":"ok","database":"ok","redis":"ok","version":"1.0.0"}`, `0` redémarrage systemd, `.env` `root:www-data 640` lu par `www-data` |
+| M9 (public) | `/health`, `/manifest`, `/`, `/en/pricing` → `200` |
+| Fichiers en trop (M5) | `app/templates/accueil.html` (reste d'un ancien dessin, absent du dépôt) → retiré ; aucun autre |
+| Fichiers racine mis à jour à part | `AGENTS.md`, `llms.txt`, `README.md`, `DECISIONS.md`, `GATES.md` (le mode `--maj` ne copie que `app/ scripts/ docs/`) ; hashes identiques au dépôt, `AGENTS.md` et `llms.txt` relus par Nginx depuis `/opt/address-validator/` |
+| Hashes déployés = locaux | `app/routes/mcp.py` `101eac66…17f5e530`, `scripts/e2e_check.py` `fefa266a…2936d47c`, `scripts/deploy-kder-ai.sh` `9f6c2e37…55b9773a` |
+
+**Mesure du changement, avant/après**, sur `https://kder-ai.com/mcp` (`tools/call`
+sans paiement, même corps) :
+
+| | Avant (D77, déployé le 17/10 à 18:06) | Après (D78) |
+|---|---|---|
+| Statut HTTP | `402` | `200` |
+| Corps | erreur JSON-RPC `-32002` « Payment required » | résultat d'outil `isError: true`, `structuredContent` = `PaymentRequired` v2 |
+| Offre | `data.accepts[]` v1 | `x402Version: 2`, `resource: mcp://tool/validate_address`, `eip155:8453`, `amount: 20000` |
+| Cohérence | — | `content[0].text` = `structuredContent` (vérifié) |
+
+`POST /validate` sans paiement reste un `402` x402 v1 : le transport HTTP n'a pas
+changé. La découverte publique suit : `/manifest` publie
+`payment.meta_key = x402/payment`, `resource_url = mcp://tool/validate_address`,
+`accepts[0].amount = 20000` et `errors.isError` ; `/AGENTS.md` (4 mentions de
+`x402/payment`) et `/llms.txt` (2 mentions de `params._meta`) sont à jour ; la
+page `/agents` des six langues rend le nouveau texte (`isError`, `x402/payment`).
+
+Limites de cette mise à jour, dites : le mode `--maj` ne copie **pas** les
+fichiers racine — `AGENTS.md` et `llms.txt` ont dû être copiés à la main (§13.5) ;
+le dossier `/opt/address-validator-nouveau` reste sur le serveur (écrasé à la
+prochaine mise à jour) ; l'ancienne archive
+`address-validator-backup-20261013_033928.tgz` (49 Mo) n'a pas été supprimée.
