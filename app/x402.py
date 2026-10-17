@@ -151,7 +151,14 @@ def payment_requirements(price: float, resource: str | None = None) -> dict[str,
     `maxAmountRequired` est en unités atomiques (USDC = 6 décimales) : 0,02
     USDC s'écrit `"20000"`. Un agent qui lit cette offre peut construire sa
     signature sans aucune information extérieure.
+
+    D79 : `outputSchema` n'est plus `null` — il est dérivé du modèle Pydantic de
+    la réponse (`ValidationResponse`), comme les schémas du manifeste et de MCP
+    (D33) : un client x402 reçoit le contrat de sortie réel, et une évolution du
+    modèle le met à jour toute seule.
     """
+    from app.schemas import ValidationResponse
+
     return {
         "scheme": SCHEME,
         "network": settings.x402_network,
@@ -159,7 +166,7 @@ def payment_requirements(price: float, resource: str | None = None) -> dict[str,
         "resource": resource or resource_url(),
         "description": description(price),
         "mimeType": "application/json",
-        "outputSchema": None,
+        "outputSchema": ValidationResponse.model_json_schema(),
         "payTo": settings.cdp_wallet_address,
         "maxTimeoutSeconds": 300,
         "asset": settings.x402_usdc_contract,

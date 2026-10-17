@@ -285,7 +285,7 @@ async def manifest():
             },
         ],
         "limitations": [
-            "Couverture : le fournisseur est optimise pour les adresses des Etats-Unis ; les adresses internationales sont acceptees mais leur verification est partielle.",
+            "Couverture : les adresses des Etats-Unis sont verifiees par SmartyStreets (USPS DPV, code Y/S/D requis) ; celles de France et d'outre-mer par la Base Adresse Nationale (BAN : score >= 0.8, code postal et ville confrontes) ; les adresses internationales des autres pays sont acceptees mais leur verification reste partielle.",
             "Mode degrade : si le fournisseur est injoignable, la reponse reste un 200 avec degraded=true et confidence basse. Lire degraded avant de conclure.",
             "Paiement : protocole x402 v1 (en-tete X-PAYMENT, base64 d'un PaymentPayload signe EIP-712) regle par le facilitateur avant tout service : 0,02 USDC sur Base. La voie heritage a secret partage (X-Payment-Proof) reste ouverte pour l'outillage de l'exploitant, mais elle n'est pas publiable : un agent tiers paie en x402.",
             "La voie x402 ne traite aucun identifiant de personne : pas de compte, pas de nom, pas d'e-mail. L'abonnement par cle d'API (X-API-Key, D44) cree un compte client : e-mail, nom de boutique, plateforme, empreinte bcrypt du mot de passe et empreinte SHA-256 de la cle (voir PRIVACY.md). Le revenu est publie sous forme d'agregats (/metrics/revenue), sans adresse IP.",
@@ -293,6 +293,11 @@ async def manifest():
             "Les paiements anterieurs au deploiement de D29 ne figurent pas dans le registre durable : les fenetres 24 h / 7 j / 30 j ne sont pas retroactives.",
             "Serveur MCP : un seul outil (validate_address), sans etat et sans flux SSE (GET /mcp repond 405). La decouverte (tools/list) est gratuite, l'appel de l'outil est paye. Un appel sans paiement rend un resultat d'outil isError=true dont structuredContent est le PaymentRequired x402 v2 ; un client MCP v2 le paie en renvoyant le PaymentPayload dans params._meta[\"x402/payment\"], un client v1 peut aussi presenter l'en-tete X-PAYMENT.",
         ],
+        "verification": {
+            "united_states": "SmartyStreets, USPS DPV : code Y, S ou D requis",
+            "france_outre_mer": "Base Adresse Nationale (api-adresse.data.gouv.fr) : score >= 0.8, code postal et ville confrontes",
+            "other_countries": "pas de referentiel verifie : verification partielle",
+        },
         "deliverability_values": {
             "residential": "adresse complete ou voie reconnue, usage residentiel (code DPV Y ou S)",
             "commercial": "boite commerciale identifiee (code DPV D)",

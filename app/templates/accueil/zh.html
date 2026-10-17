@@ -523,7 +523,7 @@ h1,h2{text-wrap:wrap}
   <div class="guides" aria-hidden="true"></div>
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <p class="pill in" style="--i:0"><b>API</b>邮政地址，针对美国优化</p>
+<p class="pill in" style="--i:0"><b>API</b>邮政地址：美国、法国及海外省</p>
       <h1 id="titre"><span class="w" style="--i:1">寄出包裹之前，</span><span class="w" style="--i:3">先核对</span><span class="w" style="--i:5">地址。</span></h1>
       <p class="lead in" style="--i:5"><span class="nb">按客户输入的原样发送地址。</span><span class="nb">API 会返回<span class="ns">标准化</span>后的地址、<span class="ns">GPS 坐标</span>、<span class="ns">可送达性</span>，</span><span class="nb">以及 0 到 1 的<span class="ns">置信度</span>。</span></p>
       <div class="cta in" style="--i:6">
@@ -711,7 +711,7 @@ h1,h2{text-wrap:wrap}
     <div class="live-copy reveal">
       <p class="eyebrow">在线测试</p>
       <h2 id="h-live"><span class="nb">无需账户，</span><span class="nb">试一个地址。</span></h2>
-      <p><span class="nb">每个 IP 地址每天可免费试用几次。</span><span class="nb">想看到完整结果，</span><span class="nb">请使用美国地址：</span><span class="nb">其他地区的验证只是部分验证。</span></p>
+<p><span class="nb">每个 IP 地址每天可免费试用几次。</span><span class="nb">美国、法国及海外省地址可核验；</span><span class="nb">其他地区只做部分验证。</span></p>
       <p class="hint mono">示例：<b>100 stewart st</b> · <b>seattle</b> · <b>wa</b> · <b>98101</b> · <b>US</b></p>
     </div>
     <form class="form reveal" method="post" action="{{url_validate_form}}">
@@ -767,12 +767,12 @@ h1,h2{text-wrap:wrap}
     <div class="sec-head reveal">
       <p class="eyebrow">覆盖范围</p>
       <h2 id="h-cover"><span class="nb">验证什么，</span><span class="nb">验证到哪一步。</span></h2>
-      <p class="sec-lead">服务针对美国地址优化。集成之前，请先了解这一点。</p>
+<p class="sec-lead">美国地址由 USPS（DPV）核验；法国及海外省由国家地址库（BAN）核验。其他地区仍为部分验证。</p>
     </div>
     <div class="cover-grid">
       <dl class="cover-list reveal">
         <div class="cover-item"><dt>美国<br><span class="st st-ok">已优化</span></dt><dd><span class="ns">标准化</span>地址、<span class="ns">GPS 坐标</span>、<span class="ns">可送达性</span>和<span class="ns">置信度</span>。</dd></div>
-        <div class="cover-item"><dt>美国以外<br><span class="st st-warn">部分验证</span></dt><dd><span class="nb">验证只是部分验证。</span><span class="nb">法国或留尼汪地址即使有返回结果，</span><span class="nb">也不代表已完整确认。</span></dd></div>
+<div class="cover-item"><dt>法国及海外省<br><span class="st st-ok">已核验（BAN）</span></dt><dd><span class="nb">地址由国家地址库（BAN）核验：</span><span class="nb">比对评分、邮编和城市。</span><span class="nb">其他国家仍为部分验证。</span></dd></div>
         <div class="cover-item"><dt><code>degraded: true</code><br><span class="st st-info">需重新验证</span></dt><dd><span class="nb">服务商没有响应。</span><span class="nb">该响应不说明地址本身的任何情况，</span><span class="nb">也不是拒绝。</span><span class="nb">请稍后重新验证。</span></dd></div>
         <div class="cover-item"><dt>缓存</dt><dd>已验证过的地址直接从缓存返回，因此不会重复计费。</dd></div>
       </dl>

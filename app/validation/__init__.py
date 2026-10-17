@@ -5,8 +5,15 @@ parse -> standardize -> verify (fournisseur) -> geocode -> score.
 Conforme à la spec (Phase 2). `degraded=True` signale que le fournisseur n'a
 pas pu être interrogé (panne, timeout, disjoncteur ouvert) : la réponse reste
 honnête au lieu de faire croire à une adresse invalide certaine.
+
+D79 — le fournisseur dépend du pays : SmartyStreets est un service **américain**
+et renvoie la saisie sans code DPV pour une adresse étrangère (le pipeline la
+déclarait alors « validée ») ; les adresses françaises et d'outre-mer passent
+donc par la **Base Adresse Nationale** (`app/validation/ban.py`), jamais par
+SmartyStreets, et un échec BAN donne `degraded: true` sans repli.
 """
 
+from .ban import PAYS_BAN, verify_ban
 from .geocoder import geocode
 from .parser import parse_address
 from .scorer import score_deliverability
@@ -14,9 +21,11 @@ from .standardizer import standardize_address
 from .verifier import verify_address
 
 __all__ = [
+    "PAYS_BAN",
     "parse_address",
     "standardize_address",
     "verify_address",
+    "verify_ban",
     "geocode",
     "score_deliverability",
     "validate_full",
@@ -26,7 +35,10 @@ __all__ = [
 def validate_full(raw_address: dict) -> dict:
     parsed = parse_address(raw_address)
     standardized = standardize_address(parsed)
-    verification = verify_address(standardized)
+    if standardized.get("country") in PAYS_BAN:
+        verification = verify_ban(standardized)
+    else:
+        verification = verify_address(standardized)
     geo = geocode(standardized)
     score = score_deliverability(verification, geo)
 

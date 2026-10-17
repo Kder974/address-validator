@@ -92,6 +92,13 @@ class CircuitBreaker:
 # spec (failure_threshold=5, recovery_timeout=60).
 breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=60)
 
+#: Codes DPV qui désignent une adresse réellement livrable (D79) : Y = adresse
+#: complète, S = voie reconnue, D = boîte commerciale. X (inconnu) et N
+#: (inexistant) ne valident pas une adresse. Avant D79, *tout* candidat rendu
+#: valait « validée » — y compris l'écho d'une adresse étrangère, que ce
+#: fournisseur américain renvoie sans code DPV.
+DPV_VALIDES = frozenset({"Y", "S", "D"})
+
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
 def _call_smarty(street: str, city: str, state: str, zip_code: str) -> Dict:
@@ -124,10 +131,27 @@ def verify_address(standardized: Dict) -> Dict:
 
         if results and len(results) > 0:
             result = results[0]
+            analysis = result.get("analysis") or {}
+            dpv = analysis.get("dpv_match_code")
+            if not dpv:
+                # D79 : un candidat sans code DPV n'est pas une preuve d'existence.
+                # SmartyStreets renvoie la saisie telle quelle pour une adresse
+                # hors de sa couverture (typiquement étrangère) : il ne sait pas
+                # juger. Le pipeline le dit `degraded`, jamais un verdict muet.
+                return {
+                    "valid": False,
+                    "deliverability": "unknown",
+                    "metadata": result.get("metadata") or {},
+                    "raw": result,
+                    "error": (
+                        "aucun code DPV renvoye : le fournisseur ne sait pas "
+                        "verifier cette adresse"
+                    ),
+                }
             return {
-                "valid": True,
-                "deliverability": result.get("analysis", {}).get("dpv_match_code", "unknown"),
-                "metadata": result.get("metadata", {}),
+                "valid": dpv in DPV_VALIDES,
+                "deliverability": dpv,
+                "metadata": result.get("metadata") or {},
                 "raw": result,
             }
         else:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D78, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D80, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -6593,7 +6593,268 @@ def d78() -> None:
     guard("D78" in read("DECISIONS.md"), "la decision D78 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 79)}
+def d79() -> None:
+    """Les adresses francaises passent par la BAN ; une incoherence est refusee ; panne BAN degradee sans repli."""
+    import httpx
+
+    from app.validation import ban, validate_full, verifier
+    from app.validation.ban import PAYS_BAN
+
+    adresse_fr = {
+        "street": "8 Rue de la Paix",
+        "city": "Paris",
+        "state": "IDF",
+        "zip": "75002",
+        "country": "FR",
+    }
+    adresse_re = {
+        "street": "1 Rue de Paris",
+        "city": "Saint-Denis",
+        "state": "RE",
+        "zip": "97400",
+        "country": "RE",
+    }
+    appels_smarty: list[tuple] = []
+
+    def _smarty_interdit(*args, **kwargs):
+        appels_smarty.append(args)
+        raise AssertionError("SmartyStreets ne doit pas verifier une adresse francaise")
+
+    def _feature(score=0.964, postcode="75002", city="Paris", type_="housenumber"):
+        return {
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [2.330992, 48.868831]},
+            "properties": {
+                "label": "8 Rue de la Paix 75002 Paris",
+                "score": score,
+                "postcode": postcode,
+                "city": city,
+                "type": type_,
+                "id": "75102_7225_00008",
+            },
+        }
+
+    def resultat(features, adresse):
+        with (
+            mock.patch.object(ban, "_call_ban", lambda q, postcode: features),
+            mock.patch.object(verifier, "_call_smarty", _smarty_interdit),
+            mock.patch(
+                "app.validation.geocode",
+                lambda standardized: {"lat": None, "lng": None},
+            ),
+        ):
+            return validate_full(dict(adresse))
+
+    # --- 1. La France et l'outre-mer sont servis par la BAN, jamais par Smarty ---
+    guard(
+        ban.BAN_SEARCH_URL == "https://api-adresse.data.gouv.fr/search/",
+        f"URL de la BAN inattendue : {ban.BAN_SEARCH_URL!r}",
+    )
+    guard(
+        ban.BAN_SEUIL_SCORE == 0.8,
+        f"seuil de score de la BAN : {ban.BAN_SEUIL_SCORE!r} au lieu de 0.8",
+    )
+    guard(
+        {"FR", "RE"} <= PAYS_BAN,
+        f"la France ou La Reunion n'est plus dans les pays servis par la BAN : {sorted(PAYS_BAN)}",
+    )
+    valide = resultat([_feature()], adresse_fr)
+    guard(valide["validated"] is True, "une adresse FR coherente n'est plus validee")
+    guard(valide["degraded"] is False, "une adresse FR validee est marquee degradee")
+    guard(
+        valide["deliverability"] == "residential" and valide["confidence"] == 0.99,
+        f"verdict BAN inattendu : {valide['deliverability']} / {valide['confidence']}",
+    )
+    reunion = resultat(
+        [_feature(score=0.82, type_="street", city="Saint-Denis", postcode="97400")],
+        adresse_re,
+    )
+    guard(
+        reunion["validated"] is True and reunion["confidence"] == 0.95,
+        f"une adresse de La Reunion n'est plus validee par la BAN : {reunion}",
+    )
+    guard(appels_smarty == [], "SmartyStreets a ete appele pour une adresse francaise")
+
+    # --- 2. Le cas signale : ville/CP incoherents -> refus, sans degradation ---
+    incoherente = {
+        "street": "8 rue madelaine",
+        "city": "Lyon",
+        "state": "ARA",
+        "zip": "75005",
+        "country": "FR",
+    }
+    refuse = resultat([], incoherente)
+    guard(
+        refuse["validated"] is False and refuse["degraded"] is False,
+        f"« 8 rue madelaine, Lyon, 75005 » n'est pas refuse : {refuse}",
+    )
+    guard(
+        refuse["deliverability"] == "invalid",
+        f"une adresse refusee n'est plus invalide : {refuse['deliverability']}",
+    )
+    score_bas = resultat(
+        [_feature(score=0.398, postcode="75005")],
+        {**incoherente, "city": "Paris"},
+    )
+    guard(score_bas["validated"] is False, "un score BAN 0.398 valide encore l'adresse")
+    ville_fausse = resultat(
+        [_feature(score=0.95, city="Paris", postcode="75005")],
+        incoherente,
+    )
+    guard(ville_fausse["validated"] is False, "une ville differente valide encore l'adresse")
+    cp_faux = resultat([_feature(postcode="75002")], {**adresse_fr, "zip": "75005"})
+    guard(cp_faux["validated"] is False, "un code postal different valide encore l'adresse")
+    sans_voie = resultat([_feature(type_="municipality")], adresse_fr)
+    guard(sans_voie["validated"] is False, "un resultat BAN sans voie valide encore l'adresse")
+
+    # --- 3. Panne BAN : degrade, et jamais de repli sur SmartyStreets -----------
+    def _ban_injoignable(*args, **kwargs):
+        raise httpx.ConnectError("api-adresse.data.gouv.fr injoignable")
+
+    with (
+        mock.patch.object(ban, "_call_ban", _ban_injoignable),
+        mock.patch.object(verifier, "_call_smarty", _smarty_interdit),
+        mock.patch(
+            "app.validation.geocode",
+            lambda standardized: {"lat": None, "lng": None},
+        ),
+    ):
+        degrade = validate_full(dict(adresse_fr))
+    guard(degrade["degraded"] is True, "une panne BAN n'est plus marquee degradee")
+    guard(degrade["validated"] is False, "une panne BAN valide encore l'adresse")
+    guard(appels_smarty == [], "une panne BAN declenche un repli sur SmartyStreets")
+
+    # --- 4. SmartyStreets : seul un DPV Y/S/D vaut preuve ----------------------
+    adresse_us = {
+        "street": "123 Fake Street",
+        "city": "Nowhere",
+        "state": "XX",
+        "zip": "00000",
+        "country": "US",
+    }
+    for dpv, valide_attendu in (("N", False), ("X", False), ("Y", True)):
+        with (
+            mock.patch.object(
+                verifier,
+                "_call_smarty",
+                lambda *args, dpv=dpv: [{"analysis": {"dpv_match_code": dpv}, "metadata": {}}],
+            ),
+            mock.patch(
+                "app.validation.geocode",
+                lambda standardized: {"lat": None, "lng": None},
+            ),
+        ):
+            verdict = validate_full(dict(adresse_us))
+        guard(
+            verdict["validated"] is valide_attendu,
+            f"DPV {dpv} : validated={verdict['validated']} au lieu de {valide_attendu}",
+        )
+    with (
+        mock.patch.object(verifier, "_call_smarty", lambda *a, **k: [{"analysis": {}, "metadata": {}}]),
+        mock.patch(
+            "app.validation.geocode",
+            lambda standardized: {"lat": None, "lng": None},
+        ),
+    ):
+        sans_dpv = validate_full(dict(adresse_us))
+    guard(
+        sans_dpv["degraded"] is True and sans_dpv["validated"] is False,
+        "un candidat sans code DPV n'est pas rendu degrade (echo d'une adresse etrangere)",
+    )
+
+    # --- 5. Le cache faux d'avant D79 se purge, et la decision est consignee ---
+    purge = ROOT / "scripts" / "purger_cache_ban.py"
+    guard(purge.is_file(), "le script de purge du cache France/outre-mer a disparu")
+    contenu = purge.read_text(encoding="utf-8")
+    guard("--apply" in contenu and "PAYS_BAN" in contenu, "le script de purge ne cible plus la France")
+
+    # --- 6. La couverture publiee dit la verite (D48, D79) --------------------
+    from app import i18n
+
+    for famille in ("accueil", "guide", "pricing", "agents"):
+        for langue in i18n.LANGUES:
+            page = (ROOT / "app" / "templates" / famille / f"{langue}.html").read_text(
+                encoding="utf-8"
+            )
+            guard(
+                "BAN" in page or "Base Adresse Nationale" in page,
+                f"{famille}/{langue} ne cite plus la Base Adresse Nationale (BAN)",
+            )
+    for fichier in ("AGENTS.md", "llms.txt", "app/routes/manifest.py"):
+        guard(
+            "Base Adresse Nationale" in read(fichier),
+            f"{fichier} ne dit plus que la France passe par la BAN",
+        )
+    guard("D79" in read("DECISIONS.md"), "la decision D79 n'est plus consignee dans DECISIONS.md")
+
+
+def d80() -> None:
+    """Le 402 publie un outputSchema reel (derive de Pydantic) et le reseau racine, sous le tampon nginx."""
+    import base64
+    import json as jsonlib
+
+    from fastapi.testclient import TestClient
+
+    from app.config import get_settings
+    from app.main import app
+    from app.schemas import ValidationResponse
+    from app.x402 import PAYMENT_REQUIRED_HEADER
+
+    settings = get_settings()
+    client = TestClient(app)
+    corps = {
+        "address": {
+            "street": "1 A St",
+            "city": "X",
+            "state": "CA",
+            "zip": "90001",
+            "country": "US",
+        }
+    }
+
+    refus = client.post("/validate", json=corps)
+    guard(refus.status_code == 402, f"/validate sans paiement repond {refus.status_code}")
+    body = refus.json()
+    for champ in ("error", "price", "currency", "wallet", "protocol"):
+        guard(champ in body, f"le 402 n'a plus le champ {champ!r} : {sorted(body)}")
+    guard(
+        body.get("network") == settings.x402_network,
+        f"reseau racine du 402 : {body.get('network')!r} au lieu de {settings.x402_network!r}",
+    )
+    schema = (body.get("accepts") or [{}])[0].get("outputSchema")
+    guard(
+        isinstance(schema, dict) and schema,
+        f"outputSchema du 402 absent ou null : {schema!r}",
+    )
+    guard(
+        schema == ValidationResponse.model_json_schema(),
+        "outputSchema du 402 n'est plus le schema derive de ValidationResponse",
+    )
+    guard(
+        schema.get("properties", {}).get("result"),
+        "outputSchema du 402 ne decrit plus le champ result",
+    )
+    taille = sum(len(cle) + len(valeur) + 4 for cle, valeur in refus.headers.items())
+    guard(taille < 3800, f"en-tetes du 402 : {taille} octets, tampon nginx de 4 Ko en danger")
+    brut = refus.headers[PAYMENT_REQUIRED_HEADER]
+    v2 = jsonlib.loads(base64.b64decode(brut + "=" * (-len(brut) % 4)))
+    guard(
+        v2["accepts"][0]["amount"] == body["accepts"][0]["maxAmountRequired"],
+        "l'offre v2 ne correspond plus a l'offre v1",
+    )
+    guard(
+        "outputSchema" not in v2["accepts"][0],
+        "l'offre x402 v2 publie un outputSchema qui n'est pas dans son schema",
+    )
+    manifeste = client.get("/manifest").json()["payment"]["accepts"][0]
+    guard(
+        manifeste.get("outputSchema") == schema,
+        "le manifeste ne publie pas le meme outputSchema que le 402",
+    )
+    guard("D80" in read("DECISIONS.md"), "la decision D80 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 81)}
 
 
 def catalog() -> list[tuple[str, str]]:

@@ -416,7 +416,7 @@ console.log(response.status, await response.json());</pre>
   </section>
   <section aria-labelledby="savoir">
     <h2 id="savoir">Good to know</h2>
-    <ul class="notes"><li>The check is optimised for the United States; elsewhere, it is partial.</li><li><code>degraded</code> set to true means the provider did not answer: it is not a wrong address, call again later.</li><li>No more than 10 requests per second per IP address.</li><li>The address is not kept in the logs; the result stays {{jours_cache}} days in cache so we can answer faster.</li><li>A shop without a wallet uses the same service with an API key and a subscription.</li></ul>
+    <ul class="notes"><li>The United States are checked with USPS (DPV), France and overseas territories with the Base Adresse Nationale; elsewhere, verification remains partial.</li><li><code>degraded</code> set to true means the provider did not answer: it is not a wrong address, call again later.</li><li>No more than 10 requests per second per IP address.</li><li>The address is not kept in the logs; the result stays {{jours_cache}} days in cache so we can answer faster.</li><li>A shop without a wallet uses the same service with an API key and a subscription.</li></ul>
   </section>
   <section aria-labelledby="faq">
     <h2 id="faq">Frequently asked questions</h2>

@@ -518,7 +518,7 @@ h3{font-size:1.25rem;line-height:1.5;font-weight:600;letter-spacing:normal}
   <div class="guides" aria-hidden="true"></div>
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <p class="pill in" style="--i:0"><b>API</b>عناوين بريدية، مُحسَّنة للولايات المتحدة</p>
+<p class="pill in" style="--i:0"><b>API</b>عناوين بريدية: الولايات المتحدة وفرنسا وأقاليم ما وراء البحر</p>
       <h1 id="titre"><span class="w" style="--i:1">تحقق</span> <span class="w" style="--i:2">من</span> <span class="w" style="--i:3">العنوان</span> <span class="w" style="--i:4">قبل</span> <span class="w" style="--i:5">أن</span> <span class="w" style="--i:6">يُشحن</span> <span class="w" style="--i:7">الطرد.</span></h1>
       <p class="lead in" style="--i:5">أرسل العنوان كما كتبه العميل. تعيده واجهة API بصيغة موحّدة، مع إحداثيات GPS وقابلية التسليم ومؤشر ثقة من 0 إلى 1.</p>
       <div class="cta in" style="--i:6">
@@ -706,7 +706,7 @@ h3{font-size:1.25rem;line-height:1.5;font-weight:600;letter-spacing:normal}
     <div class="live-copy reveal">
       <p class="eyebrow">الاختبار المباشر</p>
       <h2 id="h-live">جرّب عنوانًا، دون حساب.</h2>
-      <p>بضع تجارب مجانية يوميًا لكل عنوان IP. للحصول على نتيجة كاملة، استخدم عنوانًا في الولايات المتحدة. خارجها يبقى التحقق جزئيًا.</p>
+<p>بعض المحاولات المجانية يوميًا لكل عنوان IP. تُتحقَّق عناوين الولايات المتحدة وفرنسا وأقاليم ما وراء البحر؛ أما بقية الدول فالتحقق فيها جزئي.</p>
       <p class="hint mono"><span class="ar">مثال:</span> <span dir="ltr"><b>100 stewart st</b> · <b>seattle</b> · <b>wa</b> · <b>98101</b> · <b>US</b></span></p>
     </div>
     <form class="form reveal" method="post" action="{{url_validate_form}}">
@@ -762,12 +762,12 @@ h3{font-size:1.25rem;line-height:1.5;font-weight:600;letter-spacing:normal}
     <div class="sec-head reveal">
       <p class="eyebrow">التغطية</p>
       <h2 id="h-cover">ما الذي نتحقق منه، وإلى أي مدى.</h2>
-      <p class="sec-lead">الخدمة مُحسَّنة لعناوين الولايات المتحدة. من الأفضل أن تعرف ذلك قبل التكامل.</p>
+<p class="sec-lead">الولايات المتحدة تُتحقَّق عبر USPS (DPV)، وفرنسا وأقاليم ما وراء البحر عبر قاعدة العناوين الوطنية (BAN). أما بقية الدول فالتحقق فيها جزئي.</p>
     </div>
     <div class="cover-grid">
       <dl class="cover-list reveal">
         <div class="cover-item"><dt>الولايات المتحدة<br><span class="st st-ok">مُحسَّن</span></dt><dd>عنوان بصيغة موحّدة، وإحداثيات GPS، وقابلية التسليم، ومؤشر ثقة.</dd></div>
-        <div class="cover-item"><dt>خارج الولايات المتحدة<br><span class="st st-warn">جزئي</span></dt><dd>التحقق جزئي. الرد على عنوان في فرنسا أو في جزيرة لا&nbsp;ريونيون لا يُعد تأكيدًا كاملًا.</dd></div>
+<div class="cover-item"><dt>فرنسا وأقاليم ما وراء البحر<br><span class="st st-ok">مُتحقَّق (BAN)</span></dt><dd>يُتحقَّق من العنوان عبر قاعدة العناوين الوطنية (BAN): يُقارَن المؤشر والرمز البريدي والمدينة. أما بقية الدول فيبقى التحقق فيها جزئيًا.</dd></div>
         <div class="cover-item"><dt><code dir="ltr">degraded: true</code><br><span class="st st-info">أعد التحقق</span></dt><dd>لم يستجب المزوّد. الرد لا يقول شيئًا عن العنوان، وهو ليس رفضًا. أعد التحقق لاحقًا.</dd></div>
         <div class="cover-item"><dt>ذاكرة التخزين المؤقت</dt><dd>العنوان الذي سبق التحقق منه يُقدَّم من ذاكرة التخزين المؤقت، فلا يُحتسب مرة أخرى.</dd></div>
       </dl>

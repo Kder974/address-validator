@@ -436,3 +436,12 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D78
   EXPECT: DECISION OK D78
   EVIDENCE: automatic-evidence=v1; definition-sha256=138ca77a601e67042f98077624968ad470fd509237709862c96bf8bd614fca99; exit=0; EXPECT=matched; output-sha256=457c5a45724e3b4e0a1869a0678de12b169b559279570074eed2b03226f9e4ef; output-bytes=1447; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\Documents\PDF Suite Files\Surveillant PC\Plan de richesse\address-validator; path=7b70d0fe75c0/27 entries
+
+- [x] D79: an address in France or overseas is checked against the Base Adresse Nationale (score >= 0.8, exact postcode, normalised city, housenumber/street), an incoherent address such as 8 rue madelaine Lyon 75005 is refused, a BAN outage is degraded with no SmartyStreets fallback, SmartyStreets no longer validates a candidate without a DPV code, and a purge script targets the French cache entries written before this fix
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D79
+  EXPECT: DECISION OK D79
+  EVIDENCE: automatic-evidence=v1; definition-sha256=adbb2785e1b4f13d09074c0ed68020d6a736ecd76093d855986590a7ea38e5ed; exit=0; EXPECT=matched; output-sha256=27fd09304b8179cc5989fa40d0f1e30e5befdc343af8d338566a7441d21f0ff5; output-bytes=17; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\Documents\PDF Suite Files\Surveillant PC\Plan de richesse\address-validator; path=7b70d0fe75c0/27 entries
+- [x] D80: an unpaid POST /validate publishes a non-null outputSchema derived from ValidationResponse and the network at the root, identical to the manifest, within nginx's 4 KB header budget, while the v2 PAYMENT-REQUIRED offer keeps the v2 schema
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D80
+  EXPECT: DECISION OK D80
+  EVIDENCE: automatic-evidence=v1; definition-sha256=7ea83e65aed940b827ae52e89eb6285058c93a04f382d96f6baec32283b12ab8; exit=0; EXPECT=matched; output-sha256=4b9fa7f79a6d7c1267ec7910ff4fe900394855f2af2fa1b9d2bc0bc00a93b743; output-bytes=501; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\Documents\PDF Suite Files\Surveillant PC\Plan de richesse\address-validator; path=7b70d0fe75c0/27 entries

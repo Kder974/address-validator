@@ -124,8 +124,13 @@ envoyee.
 
 ## Limites
 
-- Fournisseur optimise pour les adresses des Etats-Unis ; les adresses hors US
-  sont acceptees mais leur verification est partielle.
+- Verification : les adresses des Etats-Unis passent par SmartyStreets (USPS DPV) ;
+  celles de France et d'outre-mer par la Base Adresse Nationale (BAN : score >= 0.8,
+  code postal et ville confrontes) ; les autres pays ne sont pas couverts par un
+  referentiel verifie, leur verification reste partielle.
+- Contrat du 402 : le corps x402 v1 porte `network` a la racine, `x402Version`,
+  `accepts[0].outputSchema` (schema de sortie derive de `ValidationResponse`) et
+  les cles historiques `price`, `currency`, `wallet`, `protocol` (D80).
 - Mode degrade honnete : si le fournisseur est injoignable, la reponse reste un
   HTTP 200 avec `degraded: true` et une confiance basse. Lire `degraded`.
 - Serveur MCP : un seul outil, sans etat, sans flux SSE (`GET /mcp` repond 405)

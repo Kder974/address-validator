@@ -106,6 +106,15 @@ def _offline_provider(monkeypatch):
             validation, "geocode", lambda standardized: {"lat": None, "lng": None}
         )
 
+    # D79 : la BAN non plus ne doit jamais sortir de la suite. Les tests de la
+    # BAN remplacent `_call_ban` par un double déterministe.
+    from app.validation import ban
+
+    def _ban_injoignable(*args, **kwargs):
+        raise httpx.ConnectError("BAN simulée injoignable (suite hors-ligne)")
+
+    monkeypatch.setattr(ban, "_call_ban", _ban_injoignable)
+
     yield
     verifier.breaker.reset()
     cache.reset_backend_state()
