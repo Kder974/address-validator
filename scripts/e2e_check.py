@@ -229,15 +229,20 @@ def main() -> int:
             "params": {"name": "validate_address", "arguments": PAYLOAD},
         },
     )
+    offre_mcp = unpaid_tool.json().get("result", {}).get("structuredContent", {})
     check(
-        "POST /mcp tools/call sans paiement -> 402 JSON-RPC -32002",
-        unpaid_tool.status_code == 402 and unpaid_tool.json()["error"]["code"] == -32002,
+        "POST /mcp tools/call sans paiement -> 200, resultat isError + offre v2",
+        unpaid_tool.status_code == 200
+        and unpaid_tool.json()["result"]["isError"] is True
+        and offre_mcp.get("x402Version") == 2
+        and offre_mcp["accepts"][0]["amount"] == "20000",
         f"HTTP {unpaid_tool.status_code}",
     )
     check(
-        "  le refus MCP porte la meme offre que le 402 HTTP",
-        unpaid_tool.json()["error"]["data"]["accepts"][0]
-        == ubody["accepts"][0],
+        "  le resultat MCP porte la meme offre que le 402 HTTP (v1 -> v2)",
+        offre_mcp["accepts"][0]["amount"] == ubody["accepts"][0]["maxAmountRequired"]
+        and offre_mcp["accepts"][0]["payTo"] == ubody["accepts"][0]["payTo"]
+        and offre_mcp["accepts"][0]["network"] == "eip155:8453",
     )
     check(
         "GET /mcp -> 405 (pas de flux SSE)",

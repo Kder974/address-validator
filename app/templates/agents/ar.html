@@ -334,7 +334,7 @@ h1{margin-top:24px;font-size:clamp(2.3rem,1rem + 3.5vw,3.75rem);line-height:1.3;
     <p class="pill in" style="--i:0"><b>وكلاء الذكاء الاصطناعي</b>MCP وx402</p>
     <h1 id="titre" class="in" style="--i:1">تحقق من العناوين يستطيع وكيلك الذكي أن يدفع ثمنه بنفسه.</h1>
     <p class="lead in" style="--i:2">أداة MCP واحدة، <code dir="ltr">validate_address</code>، ودفع لكل استدعاء عبر x402: يكتشف وكيلك الخدمة مجانًا، ويدفع {{prix_x402}} USDC لكل عملية تحقق على شبكة Base، ويحصل على العنوان الموحّد. دون حساب، ودون مفتاح API، ودون تدخل بشري.</p>
-    <ul class="chips-k in" style="--i:3"><li dir="ltr">MCP 2025-06-18</li><li dir="ltr">x402 v1</li><li dir="ltr">{{prix_x402}} USDC / استدعاء</li><li dir="ltr">USDC · Base</li></ul>
+    <ul class="chips-k in" style="--i:3"><li dir="ltr">MCP 2025-06-18</li><li dir="ltr">x402 v1 · v2</li><li dir="ltr">{{prix_x402}} USDC / استدعاء</li><li dir="ltr">USDC · Base</li></ul>
   </div>
 </section>
 
@@ -342,7 +342,7 @@ h1{margin-top:24px;font-size:clamp(2.3rem,1rem + 3.5vw,3.75rem);line-height:1.3;
   <section aria-labelledby="etapes">
     <h2 id="etapes">في ثلاثة استدعاءات</h2>
     <p class="sub">الخدمة نفسها المتاحة عبر HTTP، موصولة بالبروتوكول الذي يتحدثه وكيلك أصلًا.</p>
-    <ol class="steps3"><li><h3>الاكتشاف مجانًا</h3><p>تصف بطاقة <code dir="ltr">/.well-known/mcp-server</code> الخادم. لا يكلّف <code dir="ltr">initialize</code> ثم <code dir="ltr">tools/list</code> على <code dir="ltr">/mcp</code> شيئًا.</p></li><li><h3>استلام العرض</h3><p>يُجيب <code dir="ltr">tools/call</code> دون دفع بخطأ 402 يذكر العرض بدقة: الشبكة، ورمز USDC، والمبلغ ({{unites}} وحدة، أي {{prix_x402}} USDC)، والوجهة.</p></li><li><h3>الدفع ثم الاستلام</h3><p>يوقّع الوكيل التفويض (EIP-3009) ويعيد الاستدعاء مع الترويسة <code dir="ltr">X-PAYMENT</code>. تصل النتيجة بعد التسوية.</p></li></ol>
+    <ol class="steps3"><li><h3>الاكتشاف مجانًا</h3><p>تصف بطاقة <code dir="ltr">/.well-known/mcp-server</code> الخادم. لا يكلّف <code dir="ltr">initialize</code> ثم <code dir="ltr">tools/list</code> على <code dir="ltr">/mcp</code> شيئًا.</p></li><li><h3>استلام العرض</h3><p>يُعيد <code dir="ltr">tools/call</code> دون دفع نتيجة أداة بخطأ (<code dir="ltr">isError</code>) تحمل العرض بدقة في x402 v2: الشبكة، ورمز USDC، والمبلغ ({{unites}} وحدة، أي {{prix_x402}} USDC)، والوجهة.</p></li><li><h3>الدفع ثم الاستلام</h3><p>يوقّع الوكيل التفويض (EIP-3009) ويعيد الاستدعاء مع الدفع في <code dir="ltr">params._meta["x402/payment"]</code> (أو الترويسة <code dir="ltr">X-PAYMENT</code> لعميل v1). تصل النتيجة بعد التسوية، مع إيصالها.</p></li></ol>
     <p class="code-l">إعداد عميل MCP</p>
     <pre class="code">{
   "mcpServers": {
@@ -360,10 +360,10 @@ h1{margin-top:24px;font-size:clamp(2.3rem,1rem + 3.5vw,3.75rem);line-height:1.3;
       "state": "CA", "zip": "94043", "country": "US" } }
   }
 }</pre>
-    <p class="code-l">العرض كما يُقرأ في 402</p>
+    <p class="code-l">العرض كما يُقرأ في نتيجة الأداة</p>
     <pre class="code">"accepts": [{
-  "scheme": "exact", "network": "base",
-  "maxAmountRequired": "{{unites}}",
+  "scheme": "exact", "network": "eip155:8453",
+  "amount": "{{unites}}",
   "asset": "USDC", "payTo": "0x…"
 }]</pre>
   </section>

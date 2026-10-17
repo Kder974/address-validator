@@ -130,7 +130,7 @@ Toutes les valeurs viennent de l'environnement ou de `.env` (pydantic-settings,
 | `POST` | `/validate` | **payant** — validation complète ; **deux façons de payer** : abonnement (`X-API-Key`, D45) ou encaissement à l'appel (x402 / preuve HMAC) | `app/routes/validate.py` |
 | `GET` | `/docs` | documentation interactive (FastAPI) | auto |
 | `GET` | `/llms.txt`, `/AGENTS.md`, `/.well-known/security.txt` | fichiers de découverte pour agents, servis en statique par Nginx (voir `DISCOVERY.md`) | `nginx-discovery.conf` |
-| `POST` | `/mcp` | serveur MCP (JSON-RPC 2.0) : decouverte gratuite, `tools/call` **payant** | `app/routes/mcp.py` |
+| `POST` | `/mcp` | serveur MCP (JSON-RPC 2.0) : decouverte gratuite, `tools/call` **payant** (transport x402 v2 : paiement dans `params._meta["x402/payment"]`, offre et reçu dans le résultat d'outil ; en-tête `X-PAYMENT` v1 accepté) | `app/routes/mcp.py` |
 | `GET` | `/.well-known/mcp-server` | carte de decouverte MCP (servie par l'application) | `app/routes/mcp.py` |
 
 Chaque requête refusée en `402` est journalisée sous forme de métadonnées
@@ -518,16 +518,24 @@ seule une recette déclarée `TEST_MODE=true` s'en passe) par lecture JSON-RPC
 porte pas `X-PAYMENT-RESPONSE`.
 
 **MCP.** Le même outil est exposé en MCP sur `POST /mcp` (JSON-RPC 2.0, sans état,
-sans flux SSE) : `tools/list` est gratuit, `tools/call` est payé par le même
-en-tête `X-PAYMENT` et rend `structuredContent` + `content`. La carte
+sans flux SSE). Depuis D78, le paiement suit le **transport MCP x402 v2** : un
+`tools/call` sans paiement rend un **résultat d'outil** `isError: true` dont
+`structuredContent` est le `PaymentRequired` v2 (et `content[0].text` le même
+document, réseau CAIP-2, ressource `mcp://tool/validate_address`) ; le client met
+alors son `PaymentPayload` v2 dans `params._meta["x402/payment"]` et reçoit le
+règlement dans `result._meta["x402/payment-response"]`. Un `402` JSON-RPC n'est
+plus émis par ce transport : les clients x402 MCP lisent un résultat, pas un
+statut HTTP. La compatibilité D34/D37 est gardée (un client v1 paie par
+`X-PAYMENT` et garde ses en-têtes de règlement), et `settle_payment` est l'unique
+chemin de vérification/encaissement des deux transports. La carte
 `GET /.well-known/mcp-server` est servie par l'application, donc elle ne peut pas
 décrire un endpoint éteint. Publication annuaire : `server.json`,
 `.mcp.json`, `smithery.yaml` (voir `DISCOVERY.md` §1).
 
 **Recette réelle.** `scripts/test_x402_payment.py` a trois modes : plan (vérifie
-que `/manifest`, le corps `402` et la carte MCP publient la **même** offre),
-`--check-domain` (compare le domaine annoncé au contrat on-chain) et `--pay`
-(paiement réel ; exige un portefeuille acheteur financé en USDC sur Base et
+que `/manifest`, le corps `402` et l'offre du transport MCP publient la **même**
+offre), `--check-domain` (compare le domaine annoncé au contrat on-chain) et
+`--pay` (paiement réel ; exige un portefeuille acheteur financé en USDC sur Base et
 dépense 0,02 USDC).
 
 ## 8. Tests et vérification

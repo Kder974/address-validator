@@ -328,7 +328,7 @@ h1{margin-top:24px;font-size:clamp(2.4rem,1rem + 3.6vw,3.9rem);line-height:1.04;
     <p class="pill in" style="--i:0"><b>AI AGENTS</b>MCP and x402</p>
     <h1 id="titre" class="in" style="--i:1">Address validation your AI agent can pay for on its own.</h1>
     <p class="lead in" style="--i:2">One MCP tool, <code>validate_address</code>, and pay-per-call x402 payments: your agent discovers the service for free, pays {{prix_x402}} USDC per validation on the Base network, and gets the standardized address. No account, no API key, no human in the loop.</p>
-    <ul class="chips-k in" style="--i:3"><li dir="ltr">MCP 2025-06-18</li><li dir="ltr">x402 v1</li><li dir="ltr">{{prix_x402}} USDC / call</li><li dir="ltr">USDC · Base</li></ul>
+    <ul class="chips-k in" style="--i:3"><li dir="ltr">MCP 2025-06-18</li><li dir="ltr">x402 v1 · v2</li><li dir="ltr">{{prix_x402}} USDC / call</li><li dir="ltr">USDC · Base</li></ul>
   </div>
 </section>
 
@@ -336,7 +336,7 @@ h1{margin-top:24px;font-size:clamp(2.4rem,1rem + 3.6vw,3.9rem);line-height:1.04;
   <section aria-labelledby="etapes">
     <h2 id="etapes">In three calls</h2>
     <p class="sub">The same service as over HTTP, plugged into the protocol your agent already speaks.</p>
-    <ol class="steps3"><li><h3>Discover, for free</h3><p>The <code>/.well-known/mcp-server</code> card describes the server. <code>initialize</code> then <code>tools/list</code> on <code>/mcp</code> cost nothing.</p></li><li><h3>Get the offer</h3><p>A <code>tools/call</code> without payment answers with a 402 error stating the exact offer: network, USDC token, amount ({{unites}} units, that is {{prix_x402}} USDC), destination.</p></li><li><h3>Pay, then receive</h3><p>The agent signs the authorization (EIP-3009) and sends the call again with the <code>X-PAYMENT</code> header. The result arrives after settlement.</p></li></ol>
+    <ol class="steps3"><li><h3>Discover, for free</h3><p>The <code>/.well-known/mcp-server</code> card describes the server. <code>initialize</code> then <code>tools/list</code> on <code>/mcp</code> cost nothing.</p></li><li><h3>Get the offer</h3><p>A <code>tools/call</code> without payment returns an error tool result (<code>isError</code>) whose content is the exact x402 v2 offer: network, USDC token, amount ({{unites}} units, that is {{prix_x402}} USDC), destination.</p></li><li><h3>Pay, then receive</h3><p>The agent signs the authorization (EIP-3009) and sends the call again with the payment in <code>params._meta["x402/payment"]</code> (or the <code>X-PAYMENT</code> header of a v1 client). The result arrives after settlement, with its receipt.</p></li></ol>
     <p class="code-l">MCP client configuration</p>
     <pre class="code">{
   "mcpServers": {
@@ -354,10 +354,10 @@ h1{margin-top:24px;font-size:clamp(2.4rem,1rem + 3.6vw,3.9rem);line-height:1.04;
       "state": "CA", "zip": "94043", "country": "US" } }
   }
 }</pre>
-    <p class="code-l">The offer read in the 402</p>
+    <p class="code-l">The offer read in the tool result</p>
     <pre class="code">"accepts": [{
-  "scheme": "exact", "network": "base",
-  "maxAmountRequired": "{{unites}}",
+  "scheme": "exact", "network": "eip155:8453",
+  "amount": "{{unites}}",
   "asset": "USDC", "payTo": "0x…"
 }]</pre>
   </section>

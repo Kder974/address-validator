@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D77, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D78, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -1744,6 +1744,52 @@ def x402_payload(**overrides) -> str:
     return base64.b64encode(jsonlib.dumps(payload).encode()).decode()
 
 
+def x402_payload_v2(**overrides) -> dict:
+    """`PaymentPayload` x402 v2 **signe reellement** (EIP-712), porté par le transport MCP.
+
+    Le document est celui que le client MCP met dans `params._meta["x402/payment"]` :
+    `x402Version: 2`, `accepted` = l'offre v2 publiee, `payload` = signature
+    EIP-3009. `overrides` porte sur l'autorisation signee (montant, destinataire…).
+    """
+    import time as timelib
+
+    install_keccak()
+    from eth_keys import keys
+
+    from app.config import get_settings
+    from app.x402 import eip712_digest, payment_requirements, payment_requirements_v2
+
+    price = overrides.pop("price", None) or get_settings().x402_price
+    nonce = overrides.pop("nonce", None) or os.urandom(32).hex()
+    wallet = keys.PrivateKey(ORACLE_PRIVATE_KEY)
+    offre_v1 = payment_requirements(price)
+    offre_v2 = payment_requirements_v2(price)
+    now = int(timelib.time())
+    authorization = {
+        "from": wallet.public_key.to_address(),
+        "to": offre_v1["payTo"],
+        "value": offre_v1["maxAmountRequired"],
+        "validAfter": now - 60,
+        "validBefore": now + 240,
+        "nonce": "0x" + nonce,
+    }
+    authorization.update(overrides)
+    digest = eip712_digest(offre_v1, authorization)
+    return {
+        "x402Version": 2,
+        "resource": {
+            "url": "mcp://tool/validate_address",
+            "description": "Validate a delivery address",
+            "mimeType": "application/json",
+        },
+        "accepted": offre_v2,
+        "payload": {
+            "signature": "0x" + bytes(wallet.sign_msg_hash(digest).to_bytes()).hex(),
+            "authorization": authorization,
+        },
+    }
+
+
 def fake_facilitator(transaction: str | None = ORACLE_TX):
     """Double du facilitateur : `/verify` puis `/settle` repondent comme le vrai."""
     appels: list[str] = []
@@ -2234,7 +2280,6 @@ def d37() -> None:
     arguments = {
         "address": {"street": "1 A St", "city": "X", "state": "CA", "zip": "90001"}
     }
-    http_402 = client.post("/validate", json=arguments).json()
 
     def rpc(methode: str, params: dict | None = None, identifiant: int = 1, headers=None):
         corps = {"jsonrpc": "2.0", "id": identifiant, "method": methode}
@@ -2267,14 +2312,38 @@ def d37() -> None:
     )
     guard(rpc("ping").json()["result"] == {}, "ping ne repond pas")
 
-    # --- 2. L'outil paye refuse sans paiement, en publiant l'offre ---------
+    # --- 2. L'outil paye refuse sans paiement, en resultant avec l'offre ---
+    # D78 (precise D37) : le transport MCP x402 v2 se lit dans un **resultat
+    # d'outil** (`isError`), pas dans un 402 JSON-RPC ; l'offre est le
+    # PaymentRequired v2, celui que produit la fonction de l'offre HTTP.
+    from app.x402 import payment_requirements_v2
+
     sans = rpc("tools/call", {"name": "validate_address", "arguments": arguments})
-    guard(sans.status_code == 402, f"un appel d'outil non paye donne HTTP {sans.status_code}")
-    erreur = sans.json()["error"]
-    guard(erreur["code"] == -32002, f"code d'erreur inattendu : {erreur['code']}")
+    guard(sans.status_code == 200, f"un appel d'outil non paye donne HTTP {sans.status_code}")
+    guard("error" not in sans.json(), "un appel non paye rend une erreur JSON-RPC au lieu d'un resultat")
+    resultat_sans = sans.json()["result"]
+    guard(resultat_sans["isError"] is True, "un appel non paye n'est pas marque isError")
+    offre_mcp = resultat_sans["structuredContent"]
+    guard(offre_mcp.get("x402Version") == 2, "le PaymentRequired MCP n'est pas en v2")
     guard(
-        erreur["data"]["accepts"][0] == http_402["accepts"][0],
-        "l'offre publiee par MCP differe de celle du 402 HTTP",
+        offre_mcp.get("resource", {}).get("url") == "mcp://tool/validate_address",
+        "la ressource du PaymentRequired MCP n'est pas l'outil",
+    )
+    guard(
+        offre_mcp.get("accepts") == [payment_requirements_v2(settings.x402_price)],
+        "l'offre publiee par MCP differe de l'offre v2 du code",
+    )
+    guard(
+        jsonlib.loads(resultat_sans["content"][0]["text"]) == offre_mcp,
+        "le contenu texte MCP et le contenu structure divergent",
+    )
+    guard(
+        "x402/payment-response" not in offre_mcp,
+        "un reçu d'echec est joint a un appel qui n'a rien paye",
+    )
+    guard(
+        "X-PAYMENT-RESPONSE" not in sans.headers,
+        "un en-tete de reglement est emis alors qu'aucun paiement n'a ete presente",
     )
     guard(
         rpc("tools/call", {"name": "validate_address", "arguments": {}}).json()["error"]["code"]
@@ -6325,7 +6394,206 @@ def d77() -> None:
     guard("D77" in read("DECISIONS.md"), "la decision D77 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 78)}
+def d78() -> None:
+    """Un agent MCP x402 v2 paie dans `params._meta` et recoit son recu dans `result._meta`."""
+    import base64
+    import json as jsonlib
+
+    from fastapi.testclient import TestClient
+
+    from app.config import get_settings
+    from app.main import app
+    from app.routes.mcp import TOOL_NAME
+    from app.x402 import (
+        MCP_PAYMENT_META_KEY,
+        MCP_PAYMENT_RESPONSE_META_KEY,
+        PAYMENT_HEADER,
+        network_v2,
+        payment_requirements_v2,
+        reset_nonce_cache,
+    )
+
+    settings = get_settings()
+    client = TestClient(app)
+    arguments = {
+        "address": {
+            "street": "1 A St",
+            "city": "X",
+            "state": "CA",
+            "zip": "90001",
+            "country": "US",
+        }
+    }
+
+    def rpc_tool(paiement: dict | None = None, headers: dict | None = None,
+                 identifiant: int = 3):
+        params: dict = {"name": TOOL_NAME, "arguments": arguments}
+        if paiement is not None:
+            params["_meta"] = {MCP_PAYMENT_META_KEY: paiement}
+        corps = {"jsonrpc": "2.0", "id": identifiant, "method": "tools/call", "params": params}
+        return client.post("/mcp", json=corps, headers=headers or {})
+
+    recus: list[dict] = []
+
+    def _post(suffix: str, body: dict) -> dict:
+        recus.append(body)
+        payeur = body["paymentPayload"]["payload"]["authorization"]["from"]
+        if suffix == "/verify":
+            return {"isValid": True, "payer": payeur}
+        return {
+            "success": True,
+            "transaction": ORACLE_TX,
+            "network": network_v2(),
+            "payer": payeur,
+        }
+
+    offres = payment_requirements_v2(settings.x402_price)
+
+    # --- 1. Un appel sans paiement : un resultat d'outil, jamais un 402 ------
+    sans = rpc_tool()
+    guard(sans.status_code == 200, f"un appel MCP sans paiement donne HTTP {sans.status_code}")
+    guard(
+        "error" not in sans.json(),
+        "un appel sans paiement rend une erreur JSON-RPC au lieu d'un resultat d'outil",
+    )
+    resultat = sans.json()["result"]
+    guard(resultat.get("isError") is True, "le resultat d'un appel sans paiement n'est pas isError")
+    document = resultat["structuredContent"]
+    guard(document.get("x402Version") == 2, "le PaymentRequired du transport MCP n'est pas en v2")
+    guard(
+        document.get("resource", {}).get("url") == "mcp://tool/validate_address",
+        "la ressource du PaymentRequired MCP n'est pas l'outil",
+    )
+    guard(document.get("accepts") == [offres], "l'offre MCP differe de l'offre v2 du code")
+    guard(
+        document["accepts"][0]["network"] == network_v2(),
+        f"reseau du PaymentRequired MCP : {document['accepts'][0]['network']}",
+    )
+    guard(
+        jsonlib.loads(resultat["content"][0]["text"]) == document,
+        "les deux formes du PaymentRequired MCP divergent",
+    )
+    guard(
+        MCP_PAYMENT_RESPONSE_META_KEY not in document,
+        "un recu est joint a un appel qui n'a rien paye",
+    )
+    guard(
+        "X-PAYMENT-RESPONSE" not in sans.headers,
+        "un en-tete de reglement accompagne un appel sans paiement",
+    )
+
+    # --- 2. Un paiement v2 dans _meta : regle, servi, recu dans result._meta --
+    paiement = x402_payload_v2()
+    reset_nonce_cache()
+    with (
+        mock.patch("app.x402._post_facilitator", _post),
+        mock.patch(
+            "app.routes.mcp.perform_validation",
+            lambda raw: (dict(ORACLE_RESULT), "cle-oracle"),
+        ),
+        mock.patch("app.routes.mcp.record_transaction", lambda tx, amount, key: True),
+    ):
+        paye = rpc_tool(paiement)
+    reset_nonce_cache()
+    guard(paye.status_code == 200, f"un appel MCP paye echoue (HTTP {paye.status_code})")
+    resultat_paye = paye.json()["result"]
+    guard(resultat_paye.get("isError") is False, "l'appel MCP paye est marque en erreur")
+    guard(len(recus) == 2, f"le facilitateur a recu {len(recus)} appels au lieu de 2")
+    guard(
+        all(b["x402Version"] == 2 for b in recus),
+        "le facilitateur ne recoit pas la version 2 du transport MCP",
+    )
+    guard(
+        all(b["paymentPayload"] == paiement for b in recus),
+        "le payload MCP est modifie avant le facilitateur",
+    )
+    guard(
+        all("amount" in b["paymentRequirements"] and "maxAmountRequired" not in b["paymentRequirements"]
+            for b in recus),
+        "le facilitateur recoit une offre v1 pour un paiement MCP v2",
+    )
+    recu = resultat_paye.get("_meta", {}).get(MCP_PAYMENT_RESPONSE_META_KEY, {})
+    guard(
+        recu.get("success") is True and recu.get("transaction") == ORACLE_TX,
+        f"recu MCP absent ou faux : {recu}",
+    )
+    guard(recu.get("network") == network_v2(), f"reseau du recu MCP : {recu.get('network')}")
+    guard(
+        resultat_paye["structuredContent"]["transaction_id"] == ORACLE_TX,
+        "le resultat MCP ne porte pas le hash regle",
+    )
+    guard(
+        resultat_paye["structuredContent"]["result"]["cache_key"] == "cle-oracle",
+        "le resultat MCP ne vient pas du pipeline partage",
+    )
+
+    # --- 3. Un paiement presente et refuse : resultat d'outil + recu d'echec --
+    appels: list[str] = []
+
+    def _jamais(suffix: str, body: dict) -> dict:
+        appels.append(suffix)
+        return {"isValid": True}
+
+    reset_nonce_cache()
+    with mock.patch("app.x402._post_facilitator", _jamais):
+        refuse = rpc_tool(x402_payload_v2(value="1"))
+    reset_nonce_cache()
+    guard(refuse.status_code == 200, f"un paiement MCP refuse donne HTTP {refuse.status_code}")
+    resultat_refus = refuse.json()["result"]
+    guard(
+        resultat_refus.get("isError") is True,
+        "un paiement MCP refuse n'est pas un resultat d'outil en erreur",
+    )
+    document_refus = resultat_refus["structuredContent"]
+    guard(
+        "montant insuffisant" in document_refus.get("error", ""),
+        f"motif du refus MCP : {document_refus.get('error')}",
+    )
+    guard(
+        document_refus.get(MCP_PAYMENT_RESPONSE_META_KEY, {}).get("success") is False,
+        "le recu d'echec MCP n'est pas joint au refus",
+    )
+    guard(appels == [], "le facilitateur a ete appele pour une autorisation refusee hors ligne")
+
+    # --- 4. Compatibilite D37 : un client v1 paie par l'en-tete --------------
+    recus.clear()
+    reset_nonce_cache()
+    with (
+        mock.patch("app.x402._post_facilitator", _post),
+        mock.patch(
+            "app.routes.mcp.perform_validation",
+            lambda raw: (dict(ORACLE_RESULT), "cle-oracle"),
+        ),
+        mock.patch("app.routes.mcp.record_transaction", lambda tx, amount, key: True),
+    ):
+        entete = rpc_tool(headers={PAYMENT_HEADER: x402_payload()})
+    reset_nonce_cache()
+    guard(
+        entete.status_code == 200 and entete.json()["result"].get("isError") is False,
+        "un paiement v1 par en-tete n'est plus servi sur /mcp",
+    )
+    guard(
+        entete.json()["result"].get("_meta", {}).get(MCP_PAYMENT_RESPONSE_META_KEY, {}).get("success") is True,
+        "le recu MCP manque a un paiement v1 par en-tete",
+    )
+
+    # --- 5. Le transport MCP est v2 : un payload v1 dans _meta est refuse ----
+    brut = x402_payload()
+    v1 = jsonlib.loads(base64.b64decode(brut + "=" * (-len(brut) % 4)))
+    meta_v1 = rpc_tool(v1)
+    guard(
+        meta_v1.status_code == 200 and meta_v1.json()["result"].get("isError") is True,
+        "un payload v1 dans params._meta n'est pas refuse",
+    )
+    guard(
+        "v2" in meta_v1.json()["result"]["structuredContent"].get("error", ""),
+        "le refus d'un payload v1 dans _meta ne dit pas que le transport attend v2",
+    )
+
+    guard("D78" in read("DECISIONS.md"), "la decision D78 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 79)}
 
 
 def catalog() -> list[tuple[str, str]]:

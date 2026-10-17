@@ -49,7 +49,7 @@ def test_chaque_page_se_rend_dans_chaque_langue(lang, nom):
 def test_les_chiffres_du_service_suivent_la_configuration():
     reglages = get_settings().model_copy(update={"x402_price": 0.05, "public_base_url": "https://exemple.test", "trial_days": 21})
     agents = unescape(contenu.page(reglages, "fr", "agents"))
-    assert "0,05 USDC" in agents and f'"maxAmountRequired": "{usdc_units(0.05)}"' in agents
+    assert "0,05 USDC" in agents and f'"amount": "{usdc_units(0.05)}"' in agents
     assert '"url": "https://exemple.test/mcp"' in agents and "kder-ai.com/mcp" not in agents
     compare = unescape(contenu.page(reglages, "en", "compare"))
     assert "Trial: 21 days" in compare
