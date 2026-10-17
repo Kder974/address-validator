@@ -23,12 +23,18 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import Iterable, Iterator
 
 from redis import Redis
 
-from app.config import get_settings
-from app.validation.ban import PAYS_BAN
+# Lancé depuis `scripts/` (comme sur le VPS), le dossier racine n'est pas dans
+# `sys.path` : on l'ajoute pour importer le paquet `app` (même technique que
+# `scripts/e2e_check.py`). Sans cela : `ModuleNotFoundError: No module named 'app'`.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.config import get_settings  # noqa: E402
+from app.validation.ban import PAYS_BAN  # noqa: E402
 
 
 def entrees_francaises(redis: Redis) -> Iterator[tuple[str, dict]]:

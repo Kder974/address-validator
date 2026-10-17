@@ -7,6 +7,8 @@ France/outre-mer, et ne rien supprimer sans `--apply`.
 """
 
 import json
+import sys
+from pathlib import Path
 
 from scripts.purger_cache_ban import entrees_francaises, purger
 
@@ -80,3 +82,26 @@ def test_apply_supprime_la_france_et_laisse_le_reste():
     assert sorted(redis.supprimees) == ["addr:fr", "addr:re"]
     assert "addr:us" in redis.donnees and "addr:de" in redis.donnees
     assert "addr:illisible" in redis.donnees
+
+
+def test_le_script_se_lance_comme_sur_le_vps():
+    """D79 : `venv/bin/python scripts/purger_cache_ban.py` doit trouver `app`.
+
+    C'est la commande réellement jouée sur le VPS après déploiement ; sans le
+    `sys.path` ajouté, elle échouait en `ModuleNotFoundError` (mesuré le 17/10/2026).
+    """
+    import subprocess
+
+    racine = Path(__file__).resolve().parents[1]
+    resultat = subprocess.run(
+        [sys.executable, "scripts/purger_cache_ban.py"],
+        cwd=racine,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+    assert "ModuleNotFoundError" not in resultat.stderr, resultat.stderr
+    # Redis n'est pas joignable dans la suite -> code 2 (« cache injoignable »),
+    # jamais un plantage d'import.
+    assert resultat.returncode in (0, 2), resultat.stderr
