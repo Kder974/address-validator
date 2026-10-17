@@ -415,7 +415,7 @@ console.log(response.status, await response.json());</pre>
   </section>
   <section aria-labelledby="savoir">
     <h2 id="savoir">Bon à savoir</h2>
-    <ul class="notes"><li>La vérification est optimisée pour les États-Unis ; ailleurs, elle est partielle.</li><li><code>degraded</code> à vrai veut dire que le fournisseur n'a pas répondu : ce n'est pas une adresse fausse, rejouez l'appel plus tard.</li><li>Pas plus de 10 requêtes par seconde et par adresse IP.</li><li>L'adresse n'est pas gardée dans les journaux ; le résultat reste {{jours_cache}} jours en cache, pour répondre plus vite.</li><li>Une boutique sans portefeuille utilise le même service avec une clé d'API et un abonnement.</li></ul>
+    <ul class="notes"><li>Les États-Unis sont vérifiés par USPS (DPV), la France et l'outre-mer par la Base Adresse Nationale ; ailleurs, la vérification reste partielle.</li><li><code>degraded</code> à vrai veut dire que le fournisseur n'a pas répondu : ce n'est pas une adresse fausse, rejouez l'appel plus tard.</li><li>Pas plus de 10 requêtes par seconde et par adresse IP.</li><li>L'adresse n'est pas gardée dans les journaux ; le résultat reste {{jours_cache}} jours en cache, pour répondre plus vite.</li><li>Une boutique sans portefeuille utilise le même service avec une clé d'API et un abonnement.</li></ul>
   </section>
   <section aria-labelledby="faq">
     <h2 id="faq">Questions fréquentes</h2>

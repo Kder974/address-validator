@@ -789,7 +789,7 @@ API = <span class="s">"{{base}}/validate"</span>
       <h2 id="h-limites">限制</h2>
       <dl class="ref ref-wide">
         <div class="ref-row"><dt>美国 <span class="st st-ok">已优化</span></dt><dd>服务商针对美国地址优化：标准化地址、坐标、可送达性和置信度。</dd></div>
-        <div class="ref-row"><dt>美国以外 <span class="st st-warn">部分验证</span></dt><dd>美国以外的验证只是部分验证。法国或留尼汪地址即使有返回结果，也不代表已完整确认。</dd></div>
+<div class="ref-row"><dt>法国及海外省 <span class="st st-ok">已核验（BAN）</span></dt><dd>法国及海外省地址由国家地址库（BAN）核验：评分、邮编和城市必须一致。其他国家仍为部分验证。</dd></div>
         <div class="ref-row"><dt><code>degraded: true</code> <span class="st st-info">需重新验证</span></dt><dd>服务商没有响应。该响应不说明地址本身的任何情况，也不是拒绝。请稍后重试。</dd></div>
         <div class="ref-row"><dt>集成</dt><dd>没有 Shopify 应用，也没有 WooCommerce 插件：调用从您自己的服务发出。</dd></div>
       </dl>

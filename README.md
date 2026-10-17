@@ -380,6 +380,28 @@ contredire sur ce qu'est un agent.
 Vérification : `.\\.venv\\Scripts\\python.exe scripts\\run_tests.py tests\\test_agents_ia.py tests\\test_visites.py`.
 
 
+### 4.10 Adresses françaises : Base Adresse Nationale (D79)
+
+Pour un pays de `PAYS_BAN` (France métropolitaine et outre-mer : `FR`, `RE`,
+`GP`, `MQ`, `GF`, `YT`, `BL`, `MF`, `PM`), la vérification passe par la **Base
+Adresse Nationale** (`app/validation/ban.py`, `https://api-adresse.data.gouv.fr`)
+et **jamais** par SmartyStreets, qui ne sait pas juger une adresse française :
+
+* score BAN **≥ 0,8**, **code postal retourné identique** au code postal saisi,
+  **ville identique** (accents, casse, tirets et ponctuation normalisés) ;
+* types `housenumber` (0,99) et `street` (0,95) seulement — les autres
+  (`municipality`, `locality`) n'ont pas de voie reconnue ;
+* une panne BAN rend `degraded: true`, **sans repli** sur SmartyStreets ;
+* côté américain, seul un code DPV `Y`/`S`/`D` valide une adresse ; `X` et `N`
+  ne valident pas, et un candidat sans DPV rend `degraded: true`.
+
+Les résultats France/outre-mer calculés avant ce correctif (30 jours de cache)
+se purgent avec `scripts/purger_cache_ban.py` (simulation par défaut,
+`--apply` pour supprimer). Mesure du 17/10/2026 : « 8 rue madelaine, Lyon,
+75005 » passe de `validated: true` (cache) à `validated: false`, tandis que
+Paris 75002, Lyon 69001 et Saint-Denis 97400 restent validées.
+
+
 ## 5. Exemple d'appel payant
 
 1. Construire une preuve (le client et l'API partagent `API_SECRET_KEY`) :
@@ -406,6 +428,12 @@ curl.exe -X POST http://127.0.0.1:8000/validate `
 {"error": "Payment Required", "price": 0.02, "currency": "USDC",
  "wallet": "", "protocol": "x402", "version": "1.0"}
 ```
+
+Le corps du `402` publié ci-dessus est un extrait : il porte aussi
+`x402Version`, `network`, `accepts[]` (offre x402 v1) et désormais
+`accepts[0].outputSchema`, le schéma Pydantic de `ValidationResponse` (D80).
+Mesuré le 17/10/2026 : 1 788 octets de corps, en-têtes sous le tampon de 4 Ko
+de nginx, et la même offre en v2 dans l'en-tête `PAYMENT-REQUIRED`.
 
 4. Avec une preuve valide, la réponse est `200`. Exemple **mesuré** en recette
    le 10/10/2026 sur ce poste (fournisseur injoignable, donc `degraded`) :
@@ -629,6 +657,8 @@ passe Redis, et vérifier que Nginx a bien installé la redirection HTTPS
 | Métriques en mémoire | perdues au redémarrage, pas d'export Prometheus ni d'alerte | `SECURITY.md` §5 |
 | Erreurs 4xx du fournisseur rejouées | latence dégradée mesurée à 11,1 s ; le back-off porte sur des erreurs non rejouables | `TEST_REPORT.md`, « Limites connues » |
 | `CORS *`, `/metrics` et `/docs` publics, secret par défaut `change_me` encore accepté par le code | restent à durcir ; le déploiement, lui, refuse `change_me` et tout secret de moins de 32 caractères (`scripts/deploy-kder-ai.sh`) | `§9`, `SECURITY.md` §2 et §6 |
+| Couverture France/outre-mer | vérifiée par la Base Adresse Nationale (D79) : score, code postal et ville ; panne BAN = `degraded`, jamais un verdict ; les résultats cachés avant le correctif se purgent une fois (`scripts/purger_cache_ban.py`) | `§4.10`, D79 |
+| Contrat du `402` | `outputSchema` (schéma de sortie dérivé) et `network` racine publiés ; le corps passe à ~1,8 Ko, les en-têtes restent sous 4 Ko | `§5`, `§7`, D80 |
 | `deploy.sh` ne crée pas `.env` | démarrage avec des secrets par défaut si l'étape manuelle est oubliée | `§9` |
 
 Suite recommandée, par ordre de valeur :

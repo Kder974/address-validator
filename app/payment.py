@@ -146,6 +146,9 @@ def generate_payment_required_response(price: float, error: str | None = None) -
             "price": price,
             "currency": "USDC",
             "wallet": settings.cdp_wallet_address,
+            # D79 : le réseau au niveau racine aussi (les clients historiques le
+            # lisent là, la spec x402 v1 le publie dans `accepts[].network`).
+            "network": settings.x402_network,
             "protocol": "x402",
             "version": "1.0",
         }

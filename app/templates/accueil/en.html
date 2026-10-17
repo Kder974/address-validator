@@ -513,7 +513,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
   <div class="guides" aria-hidden="true"></div>
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <p class="pill in" style="--i:0"><b>API</b>Postal addresses, optimized for the United States</p>
+<p class="pill in" style="--i:0"><b>API</b>Postal addresses: US, France, overseas</p>
       <h1 id="titre"><span class="w" style="--i:1">Verify</span> <span class="w" style="--i:2">the</span> <span class="w" style="--i:3">address</span> <span class="w" style="--i:4">before</span> <span class="w" style="--i:5">the</span> <span class="w" style="--i:6">package</span> <span class="w" style="--i:7">ships.</span></h1>
       <p class="lead in" style="--i:5">Send the address exactly as the customer typed it. The API returns it standardized, with GPS coordinates, deliverability and a confidence score from 0 to 1.</p>
       <div class="cta in" style="--i:6">
@@ -701,7 +701,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
     <div class="live-copy reveal">
       <p class="eyebrow">Live test</p>
       <h2 id="h-live">Try an address, no account needed.</h2>
-      <p>A few free tries per day per IP address. For a complete result, use a United States address: elsewhere, verification is partial.</p>
+<p>A few free tries per day per IP address. United States, French and overseas addresses are verified; elsewhere, verification is partial.</p>
       <p class="hint mono">Example: <b>100 stewart st</b> · <b>seattle</b> · <b>wa</b> · <b>98101</b> · <b>US</b></p>
     </div>
     <form class="form reveal" method="post" action="{{url_validate_form}}">
@@ -757,12 +757,12 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
     <div class="sec-head reveal">
       <p class="eyebrow">Coverage</p>
       <h2 id="h-cover">What is verified, and how far.</h2>
-      <p class="sec-lead">The service is optimized for United States addresses. Better to know before you integrate.</p>
+<p class="sec-lead">The United States are checked with USPS (DPV); France and overseas territories with the Base Adresse Nationale. Elsewhere, verification remains partial.</p>
     </div>
     <div class="cover-grid">
       <dl class="cover-list reveal">
         <div class="cover-item"><dt>United States<br><span class="st st-ok">Optimized</span></dt><dd>Standardized address, GPS coordinates, deliverability and confidence score.</dd></div>
-        <div class="cover-item"><dt>Outside the United States<br><span class="st st-warn">Partial</span></dt><dd>Verification is partial. A response for a French or Réunion address is not a full confirmation.</dd></div>
+<div class="cover-item"><dt>France and overseas<br><span class="st st-ok">Verified (BAN)</span></dt><dd>Address checked against the Base Adresse Nationale (score, postcode and city compared). Other countries remain partially verified.</dd></div>
         <div class="cover-item"><dt><code>degraded: true</code><br><span class="st st-info">Re-check</span></dt><dd>The provider did not answer. The response says nothing about the address: it is not a rejection. Run the check again later.</dd></div>
         <div class="cover-item"><dt>Cache</dt><dd>An address already verified is served from the cache, so it is not billed again.</dd></div>
       </dl>

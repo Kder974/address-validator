@@ -777,7 +777,7 @@ API = <span class="s">"{{base}}/validate"</span>
       <h2 id="h-limites">Limits</h2>
       <dl class="ref ref-wide">
         <div class="ref-row"><dt>United States <span class="st st-ok">Optimized</span></dt><dd>The provider is optimized for United States addresses: standardized address, coordinates, deliverability and confidence score.</dd></div>
-        <div class="ref-row"><dt>Elsewhere <span class="st st-warn">Partial</span></dt><dd>Outside the United States, verification is partial. A response for a French or Réunion address is not a full confirmation.</dd></div>
+<div class="ref-row"><dt>France and overseas <span class="st st-ok">Verified (BAN)</span></dt><dd>French and overseas addresses are checked against the Base Adresse Nationale: score, postcode and city must match. Other countries remain partially verified.</dd></div>
         <div class="ref-row"><dt><code>degraded: true</code> <span class="st st-info">Re-check</span></dt><dd>The provider did not answer. The response says nothing about the address: it is not a rejection. Run the check again later.</dd></div>
         <div class="ref-row"><dt>Integrations</dt><dd>No Shopify app, no WooCommerce extension: the call is made from your own service.</dd></div>
       </dl>

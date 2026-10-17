@@ -224,8 +224,8 @@ def test_les_promesses_retirees_ne_reviennent_pas():
     """Maquette validée : rien que le service ne fasse, et la couverture dite telle quelle."""
     fr, en = _tarifs("fr").text, _tarifs("en").text
 
-    assert "optimisé pour les adresses des États-Unis" in fr and "reste partielle" in fr
-    assert "optimized for United States addresses" in en and "stays partial" in en
+    assert "Base Adresse Nationale" in fr and "reste partielle" in fr
+    assert "Base Adresse Nationale" in en and "stays partial" in en
     for retire in (
         "Le plus choisi",
         "Validation en masse",

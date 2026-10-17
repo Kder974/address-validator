@@ -415,7 +415,7 @@ console.log(response.status, await response.json());</pre>
   </section>
   <section aria-labelledby="savoir">
     <h2 id="savoir">Conviene saber</h2>
-    <ul class="notes"><li>La verificación está optimizada para Estados Unidos; en otros lugares es parcial.</li><li><code>degraded</code> verdadero significa que el proveedor no respondió: no es una dirección errónea, repite la llamada más tarde.</li><li>No más de 10 peticiones por segundo y por dirección IP.</li><li>La dirección no se guarda en los registros; el resultado queda {{jours_cache}} días en caché para responder más rápido.</li><li>Una tienda sin monedero usa el mismo servicio con una clave de API y una suscripción.</li></ul>
+    <ul class="notes"><li>Estados Unidos se verifica con USPS (DPV); Francia y ultramar, con la Base Adresse Nationale; en otros lugares, la verificación sigue siendo parcial.</li><li><code>degraded</code> verdadero significa que el proveedor no respondió: no es una dirección errónea, repite la llamada más tarde.</li><li>No más de 10 peticiones por segundo y por dirección IP.</li><li>La dirección no se guarda en los registros; el resultado queda {{jours_cache}} días en caché para responder más rápido.</li><li>Una tienda sin monedero usa el mismo servicio con una clave de API y una suscripción.</li></ul>
   </section>
   <section aria-labelledby="faq">
     <h2 id="faq">Preguntas frecuentes</h2>

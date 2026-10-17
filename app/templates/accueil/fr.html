@@ -512,7 +512,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
   <div class="guides" aria-hidden="true"></div>
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <p class="pill in" style="--i:0"><b>API</b>Adresses postales, optimisé pour les États-Unis</p>
+<p class="pill in" style="--i:0"><b>API</b>Adresses postales : États-Unis, France, outre-mer</p>
       <h1 id="titre"><span class="w" style="--i:1">Vérifiez</span> <span class="w" style="--i:2">l'adresse</span> <span class="w" style="--i:3">avant</span> <span class="w" style="--i:4">que</span> <span class="w" style="--i:5">le</span> <span class="w" style="--i:6">colis</span> <span class="w" style="--i:7">parte.</span></h1>
       <p class="lead in" style="--i:5">Envoyez l'adresse telle que le client l'a tapée. L'API la renvoie standardisée, avec ses coordonnées GPS, sa livrabilité et un indice de confiance de 0 à 1.</p>
       <div class="cta in" style="--i:6">
@@ -700,7 +700,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
     <div class="live-copy reveal">
       <p class="eyebrow">Le test en direct</p>
       <h2 id="h-live">Essayez une adresse, sans compte.</h2>
-      <p>Quelques essais gratuits par jour et par adresse IP. Pour un résultat complet, prenez une adresse des États-Unis : ailleurs, la vérification reste partielle.</p>
+<p>Quelques essais gratuits par jour et par adresse IP. Les adresses des États-Unis, de France et d'outre-mer sont vérifiées ; ailleurs, la vérification reste partielle.</p>
       <p class="hint mono">Exemple : <b>100 stewart st</b> · <b>seattle</b> · <b>wa</b> · <b>98101</b> · <b>US</b></p>
     </div>
     <form class="form reveal" method="post" action="{{url_validate_form}}">
@@ -755,12 +755,12 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
     <div class="sec-head reveal">
       <p class="eyebrow">Couverture</p>
       <h2 id="h-cover">Ce qui est vérifié, et jusqu'où.</h2>
-      <p class="sec-lead">Le service est optimisé pour les adresses des États-Unis. Mieux vaut le savoir avant d'intégrer.</p>
+<p class="sec-lead">Les États-Unis sont vérifiés par USPS (DPV) ; la France et l'outre-mer par la Base Adresse Nationale. Ailleurs, la vérification reste partielle.</p>
     </div>
     <div class="cover-grid">
       <dl class="cover-list reveal">
         <div class="cover-item"><dt>États-Unis<br><span class="st st-ok">Optimisé</span></dt><dd>Adresse standardisée, coordonnées GPS, livrabilité et indice de confiance.</dd></div>
-        <div class="cover-item"><dt>Hors États-Unis<br><span class="st st-warn">Partiel</span></dt><dd>La vérification est partielle. Une réponse pour une adresse française ou réunionnaise ne vaut pas confirmation complète.</dd></div>
+<div class="cover-item"><dt>France et outre-mer<br><span class="st st-ok">Vérifié (BAN)</span></dt><dd>Adresse vérifiée par la Base Adresse Nationale (score, code postal et ville confrontés). Les autres pays restent partiellement vérifiés.</dd></div>
         <div class="cover-item"><dt><code>degraded: true</code><br><span class="st st-info">À re-vérifier</span></dt><dd>Le fournisseur n'a pas répondu. La réponse ne dit rien de l'adresse : ce n'est pas un refus. Relancez la vérification plus tard.</dd></div>
         <div class="cover-item"><dt>Cache</dt><dd>Une adresse déjà vérifiée est servie depuis le cache, donc pas refacturée.</dd></div>
       </dl>

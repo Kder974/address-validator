@@ -460,3 +460,22 @@ def test_refusal_402_stays_under_the_nginx_buffer(facilitator, monkeypatch):
         assert response.status_code == 402
         assert sum(len(k) + len(v) + 4 for k, v in response.headers.items()) < 3800, entetes
         assert all(v.isascii() for v in response.headers.values())
+
+
+# --- D79 : le 402 publie le vrai contrat de sortie et le reseau au niveau racine
+
+
+def test_402_publie_le_schema_de_sortie_et_le_reseau():
+    """Un client x402 reçoit `outputSchema` (dérivé de Pydantic) et `network`."""
+    from app.schemas import ValidationResponse
+
+    body = client.post("/validate", json=PAYLOAD).json()
+
+    assert body["network"] == settings.x402_network
+    schema = body["accepts"][0]["outputSchema"]
+    assert schema is not None, "outputSchema ne doit pas être null"
+    assert schema == ValidationResponse.model_json_schema()
+    assert schema.get("properties", {}).get("result"), "le schéma de sortie est vide"
+    # L'offre v2, elle, reste au schéma x402 v2 (pas de champ `outputSchema`).
+    v2 = _decoded_header(client.post("/validate", json=PAYLOAD).headers["PAYMENT-REQUIRED"])
+    assert v2["accepts"][0]["amount"] == body["accepts"][0]["maxAmountRequired"]

@@ -70,6 +70,11 @@ recoit le reglement dans `result._meta["x402/payment-response"]`.
 
 ## Bonnes pratiques
 
+- Verification : les adresses des Etats-Unis passent par SmartyStreets (USPS DPV) ;
+  celles de France et d'outre-mer par la Base Adresse Nationale (BAN) ; ailleurs,
+  la verification reste partielle. Un refus `402` porte dans `accepts[0]` le prix
+  et le `outputSchema` de la reponse ; `network` figure aussi a la racine du corps
+  (D80).
 - Pas plus de 10 requetes par seconde et par IP (HTTP 429 au-dela).
 - Le volume de refus est publie en agregat : https://kder-ai.com/metrics/revenue.
 - N'envoyer que les composantes de l'adresse : l'API n'accepte ni nom ni e-mail,

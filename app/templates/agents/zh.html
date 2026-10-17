@@ -426,7 +426,7 @@ console.log(response.status, await response.json());</pre>
   </section>
   <section aria-labelledby="savoir">
     <h2 id="savoir">须知</h2>
-    <ul class="notes"><li>验证针对美国做了优化；其他地区只能部分验证。</li><li><code>degraded</code> 为 true 表示数据提供方没有响应：这不是错误地址，请稍后再调用。</li><li>每个 IP 地址每秒不超过 10 个请求。</li><li>地址不会保存在日志中；结果会在缓存中保留 {{jours_cache}} 天，以便更快响应。</li><li>没有钱包的网店可以用 API 密钥和订阅使用同一服务。</li></ul>
+    <ul class="notes"><li>美国地址由 USPS（DPV）核验，法国及海外省由国家地址库（BAN）核验；其他地区仍为部分验证。</li><li><code>degraded</code> 为 true 表示数据提供方没有响应：这不是错误地址，请稍后再调用。</li><li>每个 IP 地址每秒不超过 10 个请求。</li><li>地址不会保存在日志中；结果会在缓存中保留 {{jours_cache}} 天，以便更快响应。</li><li>没有钱包的网店可以用 API 密钥和订阅使用同一服务。</li></ul>
   </section>
   <section aria-labelledby="faq">
     <h2 id="faq">常见问题</h2>

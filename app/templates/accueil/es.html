@@ -512,7 +512,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
   <div class="guides" aria-hidden="true"></div>
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <p class="pill in" style="--i:0"><b>API</b>Direcciones postales, optimizado para EE. UU.</p>
+<p class="pill in" style="--i:0"><b>API</b>Direcciones postales: EE. UU., Francia, ultramar</p>
       <h1 id="titre"><span class="w" style="--i:1">Verifica</span> <span class="w" style="--i:2">la</span> <span class="w" style="--i:3">dirección</span> <span class="w" style="--i:4">antes</span> <span class="w" style="--i:5">de</span> <span class="w" style="--i:6">que</span> <span class="w" style="--i:7">salga</span> <span class="w" style="--i:8">el</span> <span class="w" style="--i:9">paquete.</span></h1>
       <p class="lead in" style="--i:5">Envía la dirección tal como la escribió el cliente. La API la devuelve estandarizada, con sus coordenadas GPS, su entregabilidad y un índice de confianza de 0 a 1.</p>
       <div class="cta in" style="--i:6">
@@ -700,7 +700,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
     <div class="live-copy reveal">
       <p class="eyebrow">Prueba en vivo</p>
       <h2 id="h-live">Prueba una dirección, sin cuenta.</h2>
-      <p>Unas pocas pruebas gratuitas al día por dirección IP. Para un resultado completo, usa una dirección de Estados Unidos: en otros países, la verificación es parcial.</p>
+<p>Algunos intentos gratuitos por día y por dirección IP. Se verifican las direcciones de Estados Unidos, Francia y ultramar; en otros lugares, la verificación es parcial.</p>
       <p class="hint mono">Ejemplo: <b>100 stewart st</b> · <b>seattle</b> · <b>wa</b> · <b>98101</b> · <b>US</b></p>
     </div>
     <form class="form reveal" method="post" action="{{url_validate_form}}">
@@ -755,12 +755,12 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
     <div class="sec-head reveal">
       <p class="eyebrow">Cobertura</p>
       <h2 id="h-cover">Qué se verifica y hasta dónde.</h2>
-      <p class="sec-lead">El servicio está optimizado para direcciones de Estados Unidos. Conviene saberlo antes de integrarlo.</p>
+<p class="sec-lead">Estados Unidos se verifica con USPS (DPV); Francia y ultramar con la Base Adresse Nationale. En otros lugares, la verificación sigue siendo parcial.</p>
     </div>
     <div class="cover-grid">
       <dl class="cover-list reveal">
         <div class="cover-item"><dt>Estados Unidos<br><span class="st st-ok">Optimizado</span></dt><dd>Dirección estandarizada, coordenadas GPS, entregabilidad e índice de confianza.</dd></div>
-        <div class="cover-item"><dt>Fuera de Estados Unidos<br><span class="st st-warn">Parcial</span></dt><dd>La verificación es parcial. Una respuesta para una dirección francesa o de La Reunión no equivale a una confirmación completa.</dd></div>
+<div class="cover-item"><dt>Francia y ultramar<br><span class="st st-ok">Verificado (BAN)</span></dt><dd>Dirección verificada con la Base Adresse Nationale (puntuación, código postal y ciudad comparados). Otros países siguen con verificación parcial.</dd></div>
         <div class="cover-item"><dt><code>degraded: true</code><br><span class="st st-info">Reverificar</span></dt><dd>El proveedor no respondió. La respuesta no dice nada sobre la dirección: no es un rechazo. Repite la verificación más tarde.</dd></div>
         <div class="cover-item"><dt>Caché</dt><dd>Una dirección ya verificada se sirve desde la caché, por lo que no se vuelve a cobrar.</dd></div>
       </dl>

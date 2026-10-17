@@ -114,3 +114,78 @@ def test_valid_address_with_mocked_provider(monkeypatch):
     assert result["deliverability"] == "residential"
     assert result["confidence"] == 1.0  # 0.99 + 0.05 bonus géocodage, plafonné à 1.0
     assert result["latitude"] == 37.42
+
+
+# --- D79 : un candidat n'est une preuve que s'il porte un code DPV valide -----
+
+
+def _pipeline_avec_candidat(monkeypatch, candidat):
+    """SmartyStreets rend un candidat imposé ; le géocodage reste neutre."""
+    import app.validation as validation
+    from app.validation import verifier
+
+    monkeypatch.setattr(verifier, "_call_smarty", lambda *a, **k: [candidat])
+    monkeypatch.setattr(
+        validation, "geocode", lambda standardized: {"lat": None, "lng": None}
+    )
+
+
+def test_candidat_sans_dpv_est_degrade_pas_valide(monkeypatch):
+    """D79 : Smarty renvoie la saisie d'une adresse étrangère sans code DPV.
+
+    Ce n'est pas une preuve d'existence : le résultat est `degraded`, jamais
+    `validated` (c'est le défaut mesuré sur « 8 rue madelaine, Lyon, 75005 »).
+    """
+    _pipeline_avec_candidat(monkeypatch, {"analysis": {}, "metadata": {}})
+
+    result = validate_full(
+        {
+            "street": "8 rue madelaine",
+            "city": "Lyon",
+            "state": "",
+            "zip": "75005",
+            "country": "US",
+        }
+    )
+
+    assert result["validated"] is False
+    assert result["degraded"] is True
+
+
+def test_un_dpv_n_ne_valide_pas_l_adresse(monkeypatch):
+    """D79 : DPV `N` (inexistant) était déclaré « validée » avant le correctif."""
+    _pipeline_avec_candidat(monkeypatch, {"analysis": {"dpv_match_code": "N"}, "metadata": {}})
+
+    result = validate_full(
+        {
+            "street": "123 Fake Street",
+            "city": "Nowhere",
+            "state": "XX",
+            "zip": "00000",
+            "country": "US",
+        }
+    )
+
+    assert result["validated"] is False
+    assert result["degraded"] is False
+    assert result["deliverability"] == "invalid"
+    assert result["confidence"] == 0.0
+
+
+def test_un_dpv_x_ne_valide_pas_l_adresse(monkeypatch):
+    """DPV `X` (inconnu) ne prouve pas que l'adresse existe."""
+    _pipeline_avec_candidat(monkeypatch, {"analysis": {"dpv_match_code": "X"}, "metadata": {}})
+
+    result = validate_full(
+        {
+            "street": "1 Rue Inconnue",
+            "city": "Somewhere",
+            "state": "CA",
+            "zip": "90001",
+            "country": "US",
+        }
+    )
+
+    assert result["validated"] is False
+    assert result["degraded"] is False
+    assert result["deliverability"] == "invalid"
