@@ -10,6 +10,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -72,7 +74,23 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # D77 : un client x402 dans un navigateur doit pouvoir lire l'offre et le reçu.
+    expose_headers=["PAYMENT-REQUIRED", "PAYMENT-RESPONSE", "X-PAYMENT-RESPONSE", "X-Payment-Mode"],
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def corps_invalide(request: Request, exc: RequestValidationError):
+    """D77 : sans aucun moyen de paiement, `/validate` répond `402` avant de juger le corps.
+
+    Le contrôle du catalogue Coinbase envoie un corps vide et attend l'offre. Un
+    client qui paie ou présente une clé garde le `422` : rien n'est encaissé.
+    """
+    moyens = (validate.API_KEY_HEADER, "X-PAYMENT", "PAYMENT-SIGNATURE", "X-Payment-Proof")
+    if request.url.path == "/validate" and not any((request.headers.get(h) or "").strip() for h in moyens):
+        validate.metrics.incr("requests_total")
+        return validate.paiement_requis(request, validate.payment_result(request))
+    return await request_validation_exception_handler(request, exc)
 
 
 @app.middleware("http")

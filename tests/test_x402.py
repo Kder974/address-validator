@@ -352,3 +352,111 @@ def test_external_reference_vector_recovers_the_documented_signer(monkeypatch):
         {"asset": SPEC_ASSET}, SPEC_AUTHORIZATION, SPEC_SIGNATURE
     )
     assert recovered.lower() == SPEC_AUTHORIZATION["from"].lower()
+
+
+# --- D77 : x402 v2 (en-têtes) et fiche du catalogue Coinbase -----------------
+
+
+def _v2_header(authorization: dict | None = None, **accepte) -> str:
+    """`PAYMENT-SIGNATURE` strictement conforme a specs/transports-v2/http.md."""
+    authorization = authorization or _authorization()
+    offre = _decoded_header(client.post("/validate", json=PAYLOAD).headers["PAYMENT-REQUIRED"])
+    body = {
+        "x402Version": 2,
+        "resource": offre["resource"],
+        "accepted": {**offre["accepts"][0], **accepte},
+        "payload": {"signature": _sign(authorization), "authorization": authorization},
+        "extensions": offre["extensions"],
+    }
+    return base64.b64encode(json.dumps(body).encode()).decode()
+
+
+def test_402_publishes_the_same_offer_in_v2():
+    """D77 : un client v2 lit l'offre dans `PAYMENT-REQUIRED` ; le corps reste en v1."""
+    response = client.post("/validate", json=PAYLOAD)
+    assert response.status_code == 402 and response.json()["x402Version"] == 1
+    offre = _decoded_header(response.headers["PAYMENT-REQUIRED"])
+    v1 = response.json()["accepts"][0]
+    assert offre["x402Version"] == 2 and offre["error"] == "Payment required to access this resource"
+    [v2] = offre["accepts"]
+    assert v2["network"] == "eip155:8453" and v2["amount"] == v1["maxAmountRequired"] == "20000"
+    assert (v2["payTo"], v2["asset"], v2["extra"]) == (v1["payTo"], v1["asset"], v1["extra"])
+    assert offre["resource"]["url"] == "https://kder-ai.com/validate"
+    assert offre["resource"]["description"].isascii() and "0.02 USDC" in offre["resource"]["description"]
+    # Regles du catalogue (bazaar.md) : nom ASCII <= 32, au plus 5 etiquettes ASCII <= 32.
+    assert offre["resource"]["serviceName"].isascii() and len(offre["resource"]["serviceName"]) <= 32
+    assert len(offre["resource"]["tags"]) <= 5 and all(t.isascii() and len(t) <= 32 for t in offre["resource"]["tags"])
+    # nginx refuse une reponse dont les en-tetes depassent son tampon (4 Ko par defaut).
+    assert sum(len(k) + len(v) + 4 for k, v in response.headers.items()) < 3800
+
+
+def test_bazaar_card_matches_the_route():
+    """D77 : la fiche dit comment appeler `/validate`, et son exemple est accepte par la route."""
+    from app.schemas import ValidationRequest
+
+    bazaar = _decoded_header(client.post("/validate", json=PAYLOAD).headers["PAYMENT-REQUIRED"])["extensions"]["bazaar"]
+    entree, schema = bazaar["info"]["input"], bazaar["schema"]["properties"]["input"]
+    assert set(entree) <= set(schema["properties"]) and set(schema["required"]) <= set(entree)
+    assert entree["type"] == schema["properties"]["type"]["const"] == "http"
+    assert entree["method"] in schema["properties"]["method"]["enum"] and entree["bodyType"] == "json"
+    ValidationRequest.model_validate(entree["body"])
+    assert "$ref" not in json.dumps(bazaar), "Bazaar refuse les references hors du document"
+    # Bazaar rejoue l'exemple sans payer : il doit recevoir le 402, pas une erreur.
+    assert client.post("/validate", json=entree["body"]).status_code == 402
+
+
+def test_unpaid_request_gets_402_even_with_an_empty_body():
+    """D77 : le controle Coinbase envoie un corps vide ; sans moyen de paiement, c'est 402."""
+    vide = client.post("/validate", json={})
+    assert vide.status_code == 402 and "PAYMENT-REQUIRED" in vide.headers
+    # Qui paie ou presente une cle garde le 422 : rien n'est encaisse sur un corps faux.
+    assert client.post("/validate", json={}, headers={"X-PAYMENT": _header()}).status_code == 422
+    assert client.post("/validate", json={}, headers={"X-API-Key": "av_inconnue"}).status_code == 422
+
+
+def test_strict_v2_payment_is_settled_with_the_v2_offer(facilitator):
+    """D77 : payload v2 de la spec -> facilitateur en v2, recu dans `PAYMENT-RESPONSE`."""
+    entete = _v2_header()
+    response = client.post("/validate", json=PAYLOAD, headers={"PAYMENT-SIGNATURE": entete})
+    assert response.status_code == 200, response.text
+    for suffix, body in facilitator:
+        assert body["x402Version"] == 2
+        assert body["paymentPayload"] == _decoded_header(entete), f"{suffix} : payload modifie"
+        assert body["paymentRequirements"]["amount"] == "20000" and "maxAmountRequired" not in body["paymentRequirements"]
+        assert body["paymentRequirements"]["network"] == "eip155:8453"
+    recu = _decoded_header(response.headers["PAYMENT-RESPONSE"])
+    assert recu["success"] is True and recu["transaction"] == TX and recu["network"] == "eip155:8453"
+    assert "X-PAYMENT-RESPONSE" not in response.headers
+
+
+def test_refused_v2_payment_says_why_in_v2(facilitator):
+    """D77 : un montant trop bas est refuse avant le facilitateur, et le refus parle v2."""
+    entete = _v2_header(_authorization(value="1"))
+    response = client.post("/validate", json=PAYLOAD, headers={"PAYMENT-SIGNATURE": entete})
+    assert response.status_code == 402 and facilitator == []
+    recu = _decoded_header(response.headers["PAYMENT-RESPONSE"])
+    assert recu["success"] is False and "montant insuffisant" in recu["errorReason"]
+    assert "montant insuffisant" in _decoded_header(response.headers["PAYMENT-REQUIRED"])["error"]
+
+
+@pytest.mark.parametrize("accepte", [{"network": "base"}, {"amount": "1"}, {"payTo": "0x" + "00" * 20}])
+def test_v2_payment_for_another_offer_is_refused_locally(facilitator, accepte):
+    """D77 : l'offre `accepted` doit etre celle publiee ; sinon refus avant le facilitateur."""
+    response = client.post("/validate", json=PAYLOAD, headers={"PAYMENT-SIGNATURE": _v2_header(**accepte)})
+    assert response.status_code == 402 and facilitator == []
+    assert "offre acceptee differente" in _decoded_header(response.headers["PAYMENT-RESPONSE"])["errorReason"]
+
+
+def test_refusal_402_stays_under_the_nginx_buffer(facilitator, monkeypatch):
+    """D77 : un motif long (facilitateur bavard, champ client geant) ne fait pas deborder les en-tetes."""
+
+    def bavard(suffix: str, body: dict) -> dict:
+        raise RuntimeError("facilitateur /verify HTTP 400 : " + "é" * 200)
+
+    monkeypatch.setattr(x402, "_post_facilitator", bavard)
+    geant = base64.b64encode(json.dumps({"x402Version": "9" * 3000}).encode()).decode()
+    for entetes in ({"PAYMENT-SIGNATURE": _v2_header()}, {"X-PAYMENT": _header()}, {"X-PAYMENT": geant}):
+        response = client.post("/validate", json=PAYLOAD, headers={**entetes, "Origin": "https://agent.example"})
+        assert response.status_code == 402
+        assert sum(len(k) + len(v) + 4 for k, v in response.headers.items()) < 3800, entetes
+        assert all(v.isascii() for v in response.headers.values())

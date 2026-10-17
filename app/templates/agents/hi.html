@@ -372,6 +372,50 @@ p,li,dd{line-height:1.75}
   "asset": "USDC", "payTo": "0x…"
 }]</pre>
   </section>
+  <section aria-labelledby="code-agent">
+    <h2 id="code-agent">अपने कोड से भुगतान करें</h2>
+    <p class="sub">x402 की आधिकारिक लाइब्रेरी ऑफ़र पढ़ती हैं, हस्ताक्षर करती हैं और अपने आप भुगतान करती हैं, x402 v1 और v2 दोनों में। खर्च की सीमा तय करें, फिर API को किसी भी दूसरे API की तरह कॉल करें।</p>
+    <p class="code-l">Python · x402 + httpx</p>
+    <pre class="code"># pip install "x402[httpx,evm]"
+import asyncio, os
+from eth_account import Account
+from x402 import x402Client
+from x402.http.clients import x402HttpxClient
+from x402.mechanisms.evm import EthAccountSigner
+from x402.mechanisms.evm.exact.register import register_exact_evm_client
+
+async def main():
+    client = x402Client().set_spend_controls({"max_amount_per_payment": "$0.05"})
+    signer = EthAccountSigner(Account.from_key(os.environ["EVM_PRIVATE_KEY"]))
+    register_exact_evm_client(client, signer)
+    async with x402HttpxClient(client) as http:
+        response = await http.post("{{base}}/validate", json={"address": {
+            "street": "1600 Amphitheatre Parkway", "city": "Mountain View",
+            "state": "CA", "zip": "94043", "country": "US"}})
+        await response.aread()
+        print(response.status_code, response.json())
+
+asyncio.run(main())</pre>
+    <p class="code-l">JavaScript · @x402/fetch</p>
+    <pre class="code">// npm install @x402/fetch @x402/evm viem, then run as an ES module (pay.mjs)
+import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+
+const client = new x402Client();
+client.setSpendControls({ maxAmountPerPayment: "$0.05" });
+client.register("eip155:*", new ExactEvmScheme(privateKeyToAccount(process.env.EVM_PRIVATE_KEY)));
+
+const pay = wrapFetchWithPayment(fetch, client);
+const response = await pay("{{base}}/validate", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ address: {
+    street: "1600 Amphitheatre Parkway", city: "Mountain View",
+    state: "CA", zip: "94043", country: "US" } }),
+});
+console.log(response.status, await response.json());</pre>
+  </section>
   <section aria-labelledby="recu">
     <h2 id="recu">एजेंट को क्या मिलता है</h2>
     <p class="sub">एक JSON जवाब, हमेशा एक ही रूप में।</p>

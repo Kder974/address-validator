@@ -52,7 +52,6 @@ from app import audience
 from app.config import get_settings
 from app.observability import log_unpaid_attempt
 from app.payment import (
-    PAYMENT_RESPONSE_HEADER,
     generate_payment_required_response,
     payment_result,
     record_transaction,
@@ -169,8 +168,7 @@ def _payment_error(request_id: Any, request: Request, decision) -> JSONResponse:
     """Refus 402 : erreur JSON-RPC **et** offre lisible par un client x402."""
     log_unpaid_attempt(request, settings.x402_price, decision.reason)
     headers = {"MCP-Protocol-Version": MCP_PROTOCOL_VERSION}
-    if decision.response_header:
-        headers[PAYMENT_RESPONSE_HEADER] = decision.response_header
+    headers.update(decision.response_headers)
     return JSONResponse(
         status_code=402,
         headers=headers,

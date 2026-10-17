@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D76, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D77, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 76
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 77
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -6247,7 +6247,85 @@ def d76() -> None:
     guard("D76" in read("DECISIONS.md"), "la decision D76 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 77)}
+def d77() -> None:
+    """Un agent x402 v2 lit l'offre, paie et recoit son recu en v2 ; le controle Coinbase trouve la fiche."""
+    import base64
+    import json as jsonlib
+
+    from fastapi.testclient import TestClient
+    from pydantic import ValidationError
+
+    from app.main import app
+    from app.schemas import ValidationRequest
+    from app.x402 import (
+        EXAMPLE_REQUEST,
+        PAYMENT_REQUIRED_HEADER,
+        PAYMENT_RESPONSE_HEADER_V2,
+        PAYMENT_SIGNATURE_HEADER,
+        network_v2,
+        reset_nonce_cache,
+    )
+
+    def lire(valeur: str) -> dict:
+        return jsonlib.loads(base64.b64decode(valeur + "=" * (-len(valeur) % 4)))
+
+    client = TestClient(app)
+    # 1. Corps vide et aucun moyen de paiement (le controle Coinbase) : 402, pas 422.
+    vide = client.post("/validate", json={})
+    guard(vide.status_code == 402, f"un corps vide sans paiement repond {vide.status_code} au lieu de 402")
+    guard(PAYMENT_REQUIRED_HEADER in vide.headers, "le 402 ne publie pas l'offre v2 dans PAYMENT-REQUIRED")
+    taille = sum(len(k) + len(v) + 4 for k, v in vide.headers.items())
+    guard(taille < 3800, f"en-tetes du 402 : {taille} octets, trop pres du tampon de 4 Ko de nginx")
+    # Un refus porte son motif dans les en-tetes : borne, meme si le client envoie un champ geant.
+    geant = base64.b64encode(jsonlib.dumps({"x402Version": "9" * 3000}).encode()).decode()
+    refus = client.post("/validate", json=EXAMPLE_REQUEST, headers={"X-PAYMENT": geant, "Origin": "https://agent.example"})
+    taille = sum(len(k) + len(v) + 4 for k, v in refus.headers.items())
+    guard(refus.status_code == 402 and taille < 3800, f"en-tetes d'un refus : {taille} octets, nginx rendrait un 502")
+    offre, v1 = lire(vide.headers[PAYMENT_REQUIRED_HEADER]), vide.json()["accepts"][0]
+    guard(offre.get("x402Version") == 2 and len(offre.get("accepts", [])) == 1, "PAYMENT-REQUIRED n'est pas un PaymentRequired v2")
+    v2 = offre["accepts"][0]
+    guard(v2["network"] == network_v2() == "eip155:8453", f"reseau v2 publie : {v2['network']}")
+    guard((v2["amount"], v2["payTo"], v2["asset"]) == (v1["maxAmountRequired"], v1["payTo"], v1["asset"]), "l'offre v2 differe de l'offre v1")
+
+    # 2. La fiche du catalogue dit comment appeler /validate, et son exemple mene au 402.
+    entree = offre.get("extensions", {}).get("bazaar", {}).get("info", {}).get("input", {})
+    guard((entree.get("type"), entree.get("method"), entree.get("bodyType")) == ("http", "POST", "json"), "fiche bazaar absente ou incomplete")
+    try:
+        ValidationRequest.model_validate(entree.get("body"))
+    except ValidationError:
+        guard(False, "l'exemple de la fiche bazaar n'est pas un corps accepte par /validate")
+    guard("$ref" not in jsonlib.dumps(offre["extensions"]), "la fiche bazaar cite une reference hors du document")
+    guard(client.post("/validate", json=entree["body"]).status_code == 402, "l'exemple de la fiche ne mene pas au 402")
+
+    # 3. Un paiement v2 strict part tel quel au facilitateur, avec l'offre v2, et son recu revient en v2.
+    signe = lire(x402_payload())
+    paiement = {"x402Version": 2, "resource": offre["resource"], "accepted": v2, "payload": signe["payload"], "extensions": offre["extensions"]}
+    recus: list[dict] = []
+
+    def _post(suffix: str, body: dict) -> dict:
+        recus.append(body)
+        payeur = body["paymentPayload"]["payload"]["authorization"]["from"]
+        if suffix == "/verify":
+            return {"isValid": True, "payer": payeur}
+        return {"success": True, "transaction": ORACLE_TX, "network": network_v2(), "payer": payeur}
+
+    reset_nonce_cache()
+    with mock.patch("app.x402._post_facilitator", _post), offline_route():
+        paye = client.post("/validate", json=entree["body"],
+                           headers={PAYMENT_SIGNATURE_HEADER: base64.b64encode(jsonlib.dumps(paiement).encode()).decode()})
+    reset_nonce_cache()
+    guard(paye.status_code == 200, f"un paiement v2 regle est refuse (HTTP {paye.status_code})")
+    guard(len(recus) == 2 and all(b["paymentPayload"] == paiement for b in recus), "le paiement v2 est modifie avant le facilitateur")
+    guard(all(b["x402Version"] == 2 and "amount" in b["paymentRequirements"] and "maxAmountRequired" not in b["paymentRequirements"]
+              for b in recus), "le facilitateur recoit une offre v1 pour un paiement v2")
+    guard(PAYMENT_RESPONSE_HEADER_V2 in paye.headers, "un paiement v2 regle ne recoit pas PAYMENT-RESPONSE")
+    recu = lire(paye.headers[PAYMENT_RESPONSE_HEADER_V2])
+    guard(recu.get("success") is True and recu.get("transaction") == ORACLE_TX and recu.get("network") == network_v2(),
+          f"le recu v2 est absent ou faux : {recu}")
+    guard("D77" in read("DECISIONS.md"), "la decision D77 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 78)}
 
 
 def catalog() -> list[tuple[str, str]]:
