@@ -402,3 +402,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D76: the /compare Smarty card lists Smarty's published plans ($17/month for 1,000, $50/month for 5,000, $552/year for 60,000) and a per-validation range that equals the cheapest and dearest of those plans, in all six languages; the former "$552 for 12,000" figure is gone
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D76
   EXPECT: DECISION OK D76
+- [ ] D77: an unpaid POST /validate (even with an empty body) answers 402 with the v1 body plus the same offer in x402 v2 in PAYMENT-REQUIRED (eip155:8453, amount, bazaar card whose example body is accepted by the route), headers under nginx's 4 KB buffer; a strict v2 payment sent in PAYMENT-SIGNATURE reaches the facilitator unchanged with v2 requirements and its receipt comes back in PAYMENT-RESPONSE
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D77
+  EXPECT: DECISION OK D77

@@ -28,9 +28,14 @@ from app.payment import PROOF_HEADER, generate_payment_required_response
 from app.schemas import ValidationRequest, ValidationResponse
 from app.x402 import (
     PAYMENT_HEADER,
+    PAYMENT_REQUIRED_HEADER,
     PAYMENT_RESPONSE_HEADER,
+    PAYMENT_RESPONSE_HEADER_V2,
+    PAYMENT_SIGNATURE_HEADER,
     X402_VERSION,
+    network_v2,
     payment_requirements,
+    payment_requirements_v2,
 )
 
 router = APIRouter()
@@ -77,6 +82,14 @@ async def manifest():
             # L'offre publiée ici est *la même* que celle du corps 402 : une seule
             # fonction la produit, donc une seule vérité.
             "accepts": [payment_requirements(settings.x402_price)],
+            # D77 : la même offre en x402 v2, dans les en-têtes de `specs/transports-v2/http.md`.
+            "v2": {
+                "required_header": PAYMENT_REQUIRED_HEADER,
+                "header": PAYMENT_SIGNATURE_HEADER,
+                "response_header": PAYMENT_RESPONSE_HEADER_V2,
+                "network": network_v2(),
+                "accepts": [payment_requirements_v2(settings.x402_price)],
+            },
             "facilitator": settings.x402_facilitator_url,
             "settlement_required": bool(settings.x402_require_settlement),
             "settlement_confirmations": settings.x402_min_confirmations,
@@ -95,6 +108,8 @@ async def manifest():
                     "signature EIP-712 TransferWithAuthorization (EIP-3009) verifiee hors ligne",
                     "reglement par facilitateur (/verify puis /settle) avant tout service",
                     "en-tete X-PAYMENT-RESPONSE publie sur les appels payes",
+                    "x402 v2 : offre dans PAYMENT-REQUIRED, paiement par PAYMENT-SIGNATURE, recu dans PAYMENT-RESPONSE",
+                    "extension bazaar (catalogue Coinbase) dans l'offre v2",
                 ],
             },
         },

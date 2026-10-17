@@ -15,6 +15,12 @@ que décrit par `specs/transports-v1/http.md` du dépôt `coinbase/x402` :
 * le serveur répond avec **`X-PAYMENT-RESPONSE`** : base64 d'un
   `SettlementResponse` `{success, transaction, network, payer}`.
 
+Depuis D77, la même offre est aussi publiée en **x402 v2**
+(`specs/transports-v2/http.md`) : en-tête `PAYMENT-REQUIRED` sur le `402`
+(réseau CAIP-2, `amount`, extension `bazaar` du catalogue Coinbase), paiement
+dans `PAYMENT-SIGNATURE`, règlement dans `PAYMENT-RESPONSE`. Le corps du `402`
+reste en v1 : un client v1 et un client v2 lisent chacun leur version.
+
 Deux contrôles **indépendants**, dans cet ordre (D35, D36) :
 
 1. **local** — la signature EIP-712 `TransferWithAuthorization` (EIP-3009) est
@@ -43,7 +49,7 @@ import logging
 import threading
 import time
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
 
@@ -63,8 +69,28 @@ SCHEME = "exact"
 #: En-tête client (base64 du PaymentPayload) et en-tête serveur (règlement).
 PAYMENT_HEADER = "X-PAYMENT"
 PAYMENT_RESPONSE_HEADER = "X-PAYMENT-RESPONSE"
-#: Réseau accepté en entrée : nom v1 et identifiant CAIP-2 (clients v2).
-NETWORKS = ("base", "eip155:8453")
+#: x402 v2 (D77) : l'offre, le paiement et le règlement passent par des en-têtes.
+PAYMENT_REQUIRED_HEADER = "PAYMENT-REQUIRED"
+PAYMENT_SIGNATURE_HEADER = "PAYMENT-SIGNATURE"
+PAYMENT_RESPONSE_HEADER_V2 = "PAYMENT-RESPONSE"
+#: Réseau accepté en entrée : nom v1 et identifiant CAIP-2 (clients v2), tirés de la configuration.
+NETWORKS = (settings.x402_network, f"eip155:{settings.x402_chain_id}")
+#: Un motif de refus voyage dans des en-têtes : borné et ASCII, sinon nginx (tampon de
+#: 4 Ko) rendrait un 502 à la place du 402. Le motif peut venir du client ou du facilitateur.
+MOTIF_MAX = 120
+#: Fiche du catalogue Coinbase (`resource` v2) : ASCII, 32 caractères, 5 étiquettes au plus.
+SERVICE_NAME = "Address Validator"
+TAGS = ["address-validation", "geocoding", "shipping", "e-commerce", "ai-agents"]
+#: Exemple publié dans la fiche : Bazaar le rejoue tel quel pour vérifier le `402`.
+EXAMPLE_REQUEST = {
+    "address": {
+        "street": "1600 Amphitheatre Parkway",
+        "city": "Mountain View",
+        "state": "CA",
+        "zip": "94043",
+        "country": "US",
+    }
+}
 
 #: Timeout borné, comme le fournisseur (D23) : le règlement ne doit pas
 #: transformer une requête payante en attente longue.
@@ -85,6 +111,25 @@ def resource_url(path: str = "/validate") -> str:
     return f"{settings.public_base_url.rstrip('/')}{path}"
 
 
+def motif(reason: str | None) -> str | None:
+    """Motif de refus publiable en en-tête : ASCII, `MOTIF_MAX` caractères au plus."""
+    return reason.encode("ascii", "replace").decode()[:MOTIF_MAX] if reason else reason
+
+
+def network_v2() -> str:
+    """Réseau au format CAIP-2 (`eip155:8453` pour Base), dérivé de la chaîne configurée."""
+    return f"eip155:{settings.x402_chain_id}"
+
+
+def description(price: float) -> str:
+    """Ce que l'agent achète, en anglais : la langue que les agents lisent le mieux."""
+    return (
+        "Validate and standardize a delivery address: parsing, provider verification "
+        f"(US-optimized), geocoding and a deliverability score, as JSON. {price:g} USDC "
+        "per call on Base. Useful before shipping to or storing an address."
+    )
+
+
 def payment_requirements(price: float, resource: str | None = None) -> dict[str, Any]:
     """Offre de paiement x402 v1, dérivée de la configuration réelle.
 
@@ -97,10 +142,7 @@ def payment_requirements(price: float, resource: str | None = None) -> dict[str,
         "network": settings.x402_network,
         "maxAmountRequired": str(usdc_units(price)),
         "resource": resource or resource_url(),
-        "description": (
-            "Validation d'une adresse de livraison (parsing, standardisation, "
-            "verification fournisseur, geocodage, score de livrabilite)"
-        ),
+        "description": description(price),
         "mimeType": "application/json",
         "outputSchema": None,
         "payTo": settings.cdp_wallet_address,
@@ -124,6 +166,117 @@ def payment_required_body(
     }
 
 
+def payment_requirements_v2(price: float) -> dict[str, Any]:
+    """La même offre au format v2 : `amount` au lieu de `maxAmountRequired`, réseau CAIP-2."""
+    v1 = payment_requirements(price)
+    return {
+        "scheme": SCHEME,
+        "network": network_v2(),
+        "amount": v1["maxAmountRequired"],
+        "asset": v1["asset"],
+        "payTo": v1["payTo"],
+        "maxTimeoutSeconds": v1["maxTimeoutSeconds"],
+        "extra": v1["extra"],
+    }
+
+
+def _inline(schema: dict[str, Any]) -> dict[str, Any]:
+    """Schéma Pydantic sans `$defs` : Bazaar refuse toute référence hors du document."""
+    defs = schema.get("$defs", {})
+
+    def walk(node: Any, noms: bool = False) -> Any:
+        # `noms` : on est dans un dictionnaire `properties`, dont les clés sont des noms de champs.
+        if isinstance(node, dict):
+            if "$ref" in node and not noms:
+                return walk(defs[node["$ref"].rsplit("/", 1)[-1]])
+            return {k: walk(v, k == "properties" and not noms) for k, v in node.items()
+                    if noms or k not in ("$defs", "title", "description")}
+        if isinstance(node, list):
+            return [walk(v) for v in node]
+        return node
+
+    return walk(schema)
+
+
+def bazaar_extension(price: float) -> dict[str, Any]:
+    """Extension `bazaar` (specs/extensions/bazaar.md) : comment appeler `/validate`, et ce qui revient.
+
+    Le schéma du corps est celui du modèle Pydantic de la route : la fiche ne peut
+    pas promettre un autre format que celui que le service accepte.
+    """
+    from app.schemas import ValidationRequest
+
+    exemple_reponse = {
+        "result": {
+            "validated": True,
+            "standardized": {"line1": "1600 Amphitheatre Parkway", "line2": "", "city": "Mountain View",
+                             "state": "CA", "zip": "94043", "country": "US"},
+            "latitude": 37.422,
+            "longitude": -122.084,
+            "deliverability": "residential",
+            "confidence": 1.0,
+            "degraded": False,
+            "cache_key": "<sha256>",
+        },
+        "price_paid": price,
+        "transaction_id": "0x<settlement transaction hash>",
+    }
+    return {
+        "info": {
+            "input": {"type": "http", "method": "POST", "bodyType": "json", "body": EXAMPLE_REQUEST},
+            "output": {"type": "json", "example": exemple_reponse},
+        },
+        "schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+                "input": {
+                    "type": "object",
+                    "properties": {
+                        "type": {"type": "string", "const": "http"},
+                        "method": {"type": "string", "enum": ["POST"]},
+                        "bodyType": {"type": "string", "enum": ["json"]},
+                        "body": _inline(ValidationRequest.model_json_schema()),
+                    },
+                    "required": ["type", "method", "bodyType", "body"],
+                    "additionalProperties": False,
+                },
+                "output": {
+                    "type": "object",
+                    "properties": {"type": {"type": "string"}, "example": {"type": "object"}},
+                    "required": ["type"],
+                },
+            },
+            "required": ["input"],
+        },
+    }
+
+
+def payment_required_v2(price: float, error: str | None = None, fiche: bool = True) -> dict[str, Any]:
+    """`PaymentRequired` v2 de `/validate` ; la fiche du catalogue seulement si `fiche`."""
+    offre = {
+        "x402Version": 2,
+        "error": motif(error) or "Payment required to access this resource",
+        "resource": {
+            "url": resource_url(),
+            "description": description(price),
+            "mimeType": "application/json",
+            "serviceName": SERVICE_NAME,
+            "tags": TAGS,
+        },
+        "accepts": [payment_requirements_v2(price)],
+    }
+    if fiche:
+        offre["extensions"] = {"bazaar": bazaar_extension(price)}
+    return offre
+
+
+def payment_required_header(price: float, error: str | None = None, fiche: bool = True) -> str:
+    """Valeur de `PAYMENT-REQUIRED` : base64 du `PaymentRequired` v2, JSON compact."""
+    corps = json.dumps(payment_required_v2(price, error, fiche), separators=(",", ":"), ensure_ascii=True)
+    return base64.b64encode(corps.encode()).decode()
+
+
 class InvalidPayment(ValueError):
     """En-tête `X-PAYMENT` illisible ou hors schéma : refus immédiat."""
 
@@ -140,10 +293,9 @@ def _b64decode(value: str) -> bytes:
 def parse_payment_header(value: str | None) -> dict[str, Any]:
     """Décode `X-PAYMENT` et renvoie le payload **brut** (v1 ou v2).
 
-    Le payload brut est conservé tel quel : c'est lui qui part au facilitateur.
-    Une variante v2 (`accepted` + `amount`, en-tête `PAYMENT-SIGNATURE`) est
-    acceptée et normalisée, mais la réponse du service reste en v1 : une seule
-    version annoncée, donc aucune ambiguïté sur ce qui a été facturé.
+    Le payload brut est rendu tel quel : c'est lui qui part au facilitateur. En
+    v2 (D77), le schéma et le réseau choisis sont dans `accepted` ; ils sont lus
+    là, sans rien ajouter au payload (un facilitateur v2 refuse les clés inconnues).
     """
     if not value:
         raise InvalidPayment("en-tete X-PAYMENT absent")
@@ -158,24 +310,25 @@ def parse_payment_header(value: str | None) -> dict[str, Any]:
     if version not in (1, 2):
         raise InvalidPayment(f"x402Version non supportee : {version!r}")
 
-    if version == 2:
-        accepted = payload.get("accepted") or {}
-        normalized = dict(payload)
-        normalized["scheme"] = accepted.get("scheme", payload.get("scheme"))
-        normalized["network"] = accepted.get("network", payload.get("network"))
-    else:
-        normalized = payload
-
-    if normalized.get("scheme") != SCHEME:
-        raise InvalidPayment(f"schema de paiement non supporte : {normalized.get('scheme')!r}")
-    network = str(normalized.get("network", ""))
+    offre = offer_of(payload)
+    if offre.get("scheme") != SCHEME:
+        raise InvalidPayment(f"schema de paiement non supporte : {offre.get('scheme')!r}")
+    network = str(offre.get("network", ""))
     if network not in NETWORKS:
         raise InvalidPayment(f"reseau non supporte : {network!r}")
 
-    payload_data = normalized.get("payload")
+    payload_data = payload.get("payload")
     if not isinstance(payload_data, dict):
         raise InvalidPayment("champ payload absent du PaymentPayload")
-    return normalized
+    return payload
+
+
+def offer_of(payload: dict[str, Any]) -> dict[str, Any]:
+    """Schéma et réseau choisis : dans `accepted` en v2, à la racine en v1."""
+    if payload.get("x402Version") == 2:
+        accepted = payload.get("accepted")
+        return accepted if isinstance(accepted, dict) else {}
+    return payload
 
 
 def authorization_of(payload: dict[str, Any]) -> dict[str, Any]:
@@ -353,7 +506,7 @@ def verify_authorization(
 
     try:
         value = int(authorization["value"])
-        minimum = int(requirements["maxAmountRequired"])
+        minimum = int(requirements.get("amount") or requirements["maxAmountRequired"])
         valid_after = int(authorization["validAfter"])
         valid_before = int(authorization["validBefore"])
     except (KeyError, TypeError, ValueError):
@@ -370,8 +523,14 @@ def verify_authorization(
     if now >= valid_before:
         return False, f"autorisation expiree (validBefore={valid_before})", {}
 
-    if str(payload.get("network", "")) not in NETWORKS:
-        return False, f"reseau non supporte : {payload.get('network')!r}", {}
+    offre = offer_of(payload)
+    if "amount" in requirements:
+        # v2 : l'offre que le client dit accepter doit être celle que nous publions (comme le SDK officiel).
+        for champ in ("scheme", "network", "amount", "asset", "payTo"):
+            if str(offre.get(champ, "")).lower() != str(requirements[champ]).lower():
+                return False, f"offre acceptee differente de l'offre publiee ({champ})", {}
+    elif str(offre.get("network", "")) not in NETWORKS:
+        return False, f"reseau non supporte : {offre.get('network')!r}", {}
 
     try:
         signer = recover_signer(requirements, authorization, signed["signature"])
@@ -490,17 +649,27 @@ def settlement_header(
     payer: str | None,
     success: bool = True,
     error_reason: str | None = None,
+    version: int = 1,
 ) -> str:
-    """`X-PAYMENT-RESPONSE` : base64 d'un `SettlementResponse`."""
+    """`X-PAYMENT-RESPONSE` (v1) ou `PAYMENT-RESPONSE` (v2) : base64 d'un `SettlementResponse`."""
     body: dict[str, Any] = {
         "success": success,
         "transaction": transaction or "",
-        "network": settings.x402_network,
-        "payer": payer,
+        "network": settings.x402_network if version == 1 else network_v2(),
     }
+    if payer:
+        body["payer"] = payer
     if not success:
-        body["errorReason"] = error_reason or "payment_failed"
+        body["errorReason"] = motif(error_reason) or "payment_failed"
     return base64.b64encode(json.dumps(body).encode()).decode()
+
+
+def settlement_headers(version: int | None, transaction: str | None, payer: str | None,
+                       success: bool = True, error_reason: str | None = None) -> dict[str, str]:
+    """Le règlement dans l'en-tête de la version du client ; dans les deux si elle est inconnue."""
+    noms = {1: PAYMENT_RESPONSE_HEADER, 2: PAYMENT_RESPONSE_HEADER_V2}
+    return {noms[v]: settlement_header(transaction, payer, success, error_reason, v)
+            for v in ((version,) if version in noms else (1, 2))}
 
 
 @dataclass
@@ -513,17 +682,15 @@ class PaymentDecision:
     transaction: str | None = None
     payer: str | None = None
     amount_usdc: str | None = None
-    response_header: str | None = None
+    response_headers: dict[str, str] = field(default_factory=dict)
 
-    def refusal(self, reason: str, protocol: str = "x402") -> "PaymentDecision":
-        """Verdict de refus, avec l'en-tête de règlement en échec (spec v1)."""
+    def refusal(self, reason: str, protocol: str = "x402", version: int | None = None) -> "PaymentDecision":
+        """Verdict de refus, avec l'en-tête de règlement en échec (v1, v2, ou les deux)."""
         return PaymentDecision(
             paid=False,
             reason=reason,
             protocol=protocol,
-            response_header=settlement_header(
-                None, None, success=False, error_reason=reason
-            ),
+            response_headers=settlement_headers(version, None, None, success=False, error_reason=reason),
         )
 
 
@@ -548,22 +715,24 @@ def authorize_and_settle(
     except InvalidPayment as exc:
         return absent.refusal(str(exc))
 
-    requirements = payment_requirements(price, resource)
+    # D77 : le facilitateur reçoit l'offre dans la version du payload.
+    version = payload["x402Version"]
+    requirements = payment_requirements_v2(price) if version == 2 else payment_requirements(price, resource)
     ok, reason, details = verify_authorization(payload, requirements)
     if not ok:
         logger.warning("paiement x402 refuse (local) : %s", reason)
-        return absent.refusal(reason)
+        return absent.refusal(reason, version=version)
 
     nonce = details["nonce"]
     with _SETTLED_LOCK:
         if nonce in _SETTLED:
-            return absent.refusal(f"autorisation deja reglee (nonce {nonce[:18]}...)")
+            return absent.refusal(f"autorisation deja reglee (nonce {nonce[:18]}...)", version=version)
 
     if settings.x402_facilitator_verify:
         ok, reason = facilitator_verify(payload, requirements)
         if not ok:
             logger.warning("paiement x402 refuse (facilitateur) : %s", reason)
-            return absent.refusal(reason)
+            return absent.refusal(reason, version=version)
 
     transaction: str | None = None
     payer = details["payer"]
@@ -571,7 +740,7 @@ def authorize_and_settle(
         ok, reason, transaction, payer = facilitator_settle(payload, requirements)
         if not ok:
             logger.warning("paiement x402 refuse (reglement) : %s", reason)
-            return absent.refusal(reason)
+            return absent.refusal(reason, version=version)
     else:  # pragma: no cover - mode diagnostic, jamais en production
         logger.warning("X402_REQUIRE_SETTLEMENT=false : service rendu sans encaissement")
 
@@ -589,5 +758,5 @@ def authorize_and_settle(
         transaction=transaction,
         payer=payer or details["payer"],
         amount_usdc=details["amount_usdc"],
-        response_header=settlement_header(transaction, payer or details["payer"]),
+        response_headers=settlement_headers(version, transaction, payer or details["payer"]),
     )

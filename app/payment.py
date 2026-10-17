@@ -82,6 +82,7 @@ from app.onchain import check_usdc_transfer
 from app.x402 import (
     PAYMENT_HEADER,
     PAYMENT_RESPONSE_HEADER,
+    PAYMENT_SIGNATURE_HEADER,
     PaymentDecision,
     authorize_and_settle,
     payment_required_body,
@@ -263,7 +264,7 @@ def payment_result(request: Request) -> PaymentDecision:
     absence, ce qui interdit de faire passer une preuve HMAC pour un paiement
     x402 — et inversement.
     """
-    header = request.headers.get(PAYMENT_HEADER) or request.headers.get("PAYMENT-SIGNATURE")
+    header = request.headers.get(PAYMENT_HEADER) or request.headers.get(PAYMENT_SIGNATURE_HEADER)
     if header:
         path = getattr(getattr(request, "url", None), "path", "") or "/validate"
         return authorize_and_settle(header, settings.x402_price, resource_url(path))

@@ -32,6 +32,10 @@ qu'avec l'en-tete `X-PAYMENT` (payant).
   (`TransferWithAuthorization`, EIP-3009) de ces champs.
 - L'offre exacte (reseau, jeton, montant, destination, domaine `name`/`version`)
   est publiee dans `accepts[]` du 402 : la recopier telle quelle, ne rien deviner.
+- Un client x402 v2 lit la meme offre dans l'en-tete `PAYMENT-REQUIRED` du 402
+  (reseau `eip155:8453`, champ `amount`, extension `bazaar`), paie par l'en-tete
+  `PAYMENT-SIGNATURE` et recoit le reglement dans `PAYMENT-RESPONSE`. Le corps du
+  402 reste en v1 pour les clients v1.
 - Le service ne rend le resultat qu'apres reglement : la reponse 200 porte
   `X-PAYMENT-RESPONSE` (base64 de `{success, transaction, network, payer}`).
 - Un 402 n'est pas une erreur de l'agent : c'est l'absence de paiement valide, et

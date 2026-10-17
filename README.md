@@ -486,6 +486,12 @@ Le client renvoie sa signature dans `X-PAYMENT` (base64 d'un `PaymentPayload`
 `{signature, authorization:{from,to,value,validAfter,validBefore,nonce}}`) et
 reçoit `X-PAYMENT-RESPONSE` (base64 de `{success, transaction, network, payer}`).
 
+**x402 v2 aussi (D77).** Le même `402` porte l'offre en v2 dans l'en-tête
+`PAYMENT-REQUIRED` (réseau `eip155:8453`, champ `amount`, extension `bazaar` du
+catalogue Coinbase). Un client v2 paie par `PAYMENT-SIGNATURE` et reçoit
+`PAYMENT-RESPONSE`. Sans aucun moyen de paiement, `/validate` répond `402` même
+si le corps est vide : c'est ce que le contrôle du catalogue Coinbase attend.
+
 **Deux contrôles, dans cet ordre** (`app/x402.py`) :
 
 1. **local, hors ligne** — le digest EIP-712 (`TransferWithAuthorization`,

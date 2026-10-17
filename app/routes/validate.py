@@ -61,7 +61,6 @@ from app.config import get_settings
 from app.database import SessionLocal
 from app.observability import log_unpaid_attempt
 from app.payment import (
-    PAYMENT_RESPONSE_HEADER,
     PROOF_HEADER,
     generate_payment_required_response,
     payment_result,
@@ -71,6 +70,7 @@ from app.payment import (
 from app.routes.metrics import metrics
 from app.schemas import AddressOutput, ValidationRequest, ValidationResponse
 from app.validation import validate_full
+from app.x402 import PAYMENT_REQUIRED_HEADER, payment_required_header
 
 router = APIRouter()
 settings = get_settings()
@@ -280,6 +280,28 @@ def serve_with_api_key(raw: dict, response: Response, cle: str):
     return build_response(result, key, price_paid=0.0)
 
 
+def paiement_requis(request: Request, decision) -> JSONResponse:
+    """Le `402` de `/validate` : corps x402 v1, offre v2 dans `PAYMENT-REQUIRED` (D77)."""
+    metrics.incr("unpaid_requests")
+    # D30 : tracer la tentative non payée. L'entrée ne contient que des
+    # métadonnées de requête (aucune adresse, IP pseudonymisée par défaut),
+    # et un journal indisponible ne doit jamais casser la réponse.
+    log_unpaid_attempt(request, settings.x402_price, decision.reason)
+    # L'échec de paiement est aussi porté par `X-PAYMENT-RESPONSE` / `PAYMENT-RESPONSE`
+    # (`success: false`, `errorReason`).
+    headers = dict(decision.response_headers)
+    # Sans aucun moyen de paiement (le cas du catalogue Coinbase) : message standard et fiche
+    # du catalogue. Un paiement refusé reçoit son motif, sans la fiche qu'il a déjà lue.
+    sans_paiement = decision.protocol == "none"
+    headers[PAYMENT_REQUIRED_HEADER] = payment_required_header(
+        settings.x402_price, None if sans_paiement else decision.reason, fiche=sans_paiement)
+    return JSONResponse(
+        status_code=402,
+        headers=headers,
+        content=generate_payment_required_response(settings.x402_price, decision.reason),
+    )
+
+
 @router.post("/validate", response_model=ValidationResponse)
 async def validate_address(request: Request, body: ValidationRequest, response: Response):
     metrics.incr("requests_total")
@@ -298,21 +320,7 @@ async def validate_address(request: Request, body: ValidationRequest, response: 
     # D15/D27). `payment_result` choisit, `/validate` ne décide pas du protocole.
     decision = payment_result(request)
     if not decision.paid:
-        metrics.incr("unpaid_requests")
-        # D30 : tracer la tentative non payée. L'entrée ne contient que des
-        # métadonnées de requête (aucune adresse, IP pseudonymisée par défaut),
-        # et un journal indisponible ne doit jamais casser la réponse.
-        log_unpaid_attempt(request, settings.x402_price, decision.reason)
-        headers = {}
-        if decision.response_header:
-            # Spec x402 v1 : l'échec de paiement est aussi porté par
-            # `X-PAYMENT-RESPONSE` (`success: false`, `errorReason`).
-            headers[PAYMENT_RESPONSE_HEADER] = decision.response_header
-        return JSONResponse(
-            status_code=402,
-            headers=headers,
-            content=generate_payment_required_response(settings.x402_price, decision.reason),
-        )
+        return paiement_requis(request, decision)
 
     metrics.incr("paid_requests")
     if decision.protocol == "x402":
@@ -359,8 +367,7 @@ async def validate_address(request: Request, body: ValidationRequest, response: 
 
     # D67 : le revenu par pays ne compte que l'encaissé réel (hors recette, D40).
     audience.noter(mode=decision.protocol, amount_usdc=None if settings.test_mode or not ledger_key else settings.x402_price)
-    if decision.response_header:
-        response.headers[PAYMENT_RESPONSE_HEADER] = decision.response_header
+    response.headers.update(decision.response_headers)
     # D45 : tout appel payé dit *comment* il l'a été. Sans cela, un client ne peut
     # pas distinguer un abonnement d'un encaissement en USDC.
     response.headers[PAYMENT_MODE_HEADER] = decision.protocol
