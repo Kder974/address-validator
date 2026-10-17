@@ -798,3 +798,52 @@ fichiers racine — `AGENTS.md` et `llms.txt` ont dû être copiés à la main (
 le dossier `/opt/address-validator-nouveau` reste sur le serveur (écrasé à la
 prochaine mise à jour) ; l'ancienne archive
 `address-validator-backup-20261013_033928.tgz` (49 Mo) n'a pas été supprimée.
+
+## 15. Mise en production de D79/D80 (17/10/2026) — BAN et contrat du 402
+
+Compte rendu de la mise en ligne des commits `88d2239` (D79, D80) et `5ec03e9`
+(D79 précisée) sur `87.76.197.38`, par `deploy-kder-ai.sh --maj` (section 13).
+
+| Élément | Mesure du 17/10/2026 |
+|---|---|
+| Archive | `av-maj-d79d80.tgz` puis `av-maj-d79b.tgz` (6 741 Ko, 124 fichiers `app/`, 72 gabarits) ; `sha256 f9336b47…f76dd5f` puis `2025e87c…a55d81e` |
+| Source | `main` après PR #34 (D79/D80) puis PR #35 (lancement du script de purge) |
+| Sauvegardes | `/opt/address-validator-avant-20261017-211957` (252 fichiers, avant D79/D80), `/opt/address-validator-avant-20261017-212623` (254 fichiers, après le correctif de lancement) |
+| M7 (santé) | `{"status":"ok","database":"ok","redis":"ok"}`, `0` redémarrage systemd, `.env` conforme (`root:www-data 640`, lu par `www-data`) |
+| M9 (public) | `/health`, `/manifest`, `/`, `/en/pricing` → `200` ; M5 : aucun fichier en trop |
+| Fichiers racine | `AGENTS.md`, `llms.txt`, `README.md`, `DECISIONS.md`, `GATES.md` copiés à la main (§13.5), hashes identiques au dépôt |
+
+**Incident de déploiement, mesuré et corrigé** : le premier `--maj` a réussi, mais
+`venv/bin/python scripts/purger_cache_ban.py` a échoué en
+`ModuleNotFoundError: No module named 'app'` (le script n'ajoutait pas la racine
+du dépôt à `sys.path`, contrairement à `scripts/e2e_check.py`). Corrigé par la
+PR #35 (commit `5ec03e9`, un test lance réellement le script depuis la racine),
+puis redéployé : le second `--maj` est passé sans incident.
+
+**Purge du cache France/outre-mer** (obligatoire : les verdicts faux d'avant D79
+vivaient 30 jours) :
+
+    venv/bin/python scripts/purger_cache_ban.py            # simulation : 4 entrées
+    venv/bin/python scripts/purger_cache_ban.py --apply    # 4 supprimées
+    venv/bin/python scripts/purger_cache_ban.py            # vérification : 0
+
+Détail des 4 entrées supprimées (toutes `validated: true`,
+`deliverability: unknown`, calculées avant le correctif) : `addr:8780d1…` Lyon
+75005 (l'adresse signalée « 8 rue madelaine »), `addr:5c93e5…` Paris 75005,
+`addr:789192…` et `addr:d2d9f5…` Le Port 97420.
+
+**Vérifications en direct après déploiement** :
+
+| Contrôle | Mesure |
+|---|---|
+| Formulaire `/validate-form`, adresse signalée | HTTP `200`, « Adresse non reconnue », 1,52 s |
+| Pipeline déployé (BAN réelle, depuis le VPS) | `8 rue madelaine Lyon 75005` → `validated: false` (0,33 s) ; `8 Rue de la Paix 75002` → `validated: true` ; `10 Rue de la République 69001` → `true` ; `1 Rue de Paris 97400 Saint-Denis` → `true` ; `8 Rue de la Paix` en 75005 → `false` |
+| `402` public (D80) | `network` racine `base`, `outputSchema` objet de 1 066 octets (`result` présent), corps 1 872 octets, en-têtes 3 101 octets (< 4 Ko), `PAYMENT-REQUIRED` présent, offre v1 `maxAmountRequired=20000` |
+| Découverte | `/AGENTS.md` et `/llms.txt` citent la Base Adresse Nationale et `outputSchema` ; `/manifest.verification` publié ; les six langues de `/agents` citent la BAN |
+| Service | `active`, `0` redémarrage systemd, `/health` `200` |
+
+Limites dites : le plafond d'essai gratuit (10 par IP et par jour) a été atteint
+pendant les vérifications (les adresses valides ont donc été vérifiées par le
+pipeline déployé sur le VPS, pas par le formulaire) ; trois sauvegardes
+`/opt/address-validator-avant-*` cohabitent (201253, 211957, 212623) — en garder
+une ou deux ; `/opt/address-validator-nouveau` reste sur le serveur.
