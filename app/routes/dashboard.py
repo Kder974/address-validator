@@ -40,10 +40,10 @@ import time
 import html
 import secrets
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
-from app import pilotage_page, ratelimit
+from app import accounts, pilotage_comptes, pilotage_page, ratelimit
 from app.config import get_settings
 from app.exploitation import PERIODES, collecter, maintenant
 from app.observability import client_ip
@@ -114,19 +114,61 @@ def _cle_session(reglages) -> bytes:
     return hashlib.sha256(f"{reglages.api_secret_key}|{reglages.dashboard_user}|{reglages.dashboard_password}".encode()).digest()
 
 
-def jeton_session(reglages, maintenant: float | None = None) -> str:
+def _cle_operateur(reglages, operateur) -> bytes:
+    # Changer son mot de passe change la clé : toutes les sessions de ce compte tombent (D74).
+    return hashlib.sha256(f"{reglages.api_secret_key}|op|{operateur.id}|{operateur.password_hash}|{operateur.password_changed_at}".encode()).digest()
+
+
+def jeton_session(reglages, maintenant: float | None = None, operateur=None) -> str:
     # ponytail: session sans état ; la déconnexion efface le cookie, un cookie volé reste valable
     # jusqu'à son échéance (SESSION_HOURS) ou au changement de mot de passe. Table de sessions si besoin.
     fin = int((maintenant or time.time()) + reglages.session_hours * 3600)
-    return f"{fin}.{hmac.new(_cle_session(reglages), str(fin).encode(), hashlib.sha256).hexdigest()}"
+    if operateur is None:
+        return f"{fin}.{hmac.new(_cle_session(reglages), str(fin).encode(), hashlib.sha256).hexdigest()}"
+    corps = f"{fin}.op{operateur.id}"
+    return f"{corps}.{hmac.new(_cle_operateur(reglages, operateur), corps.encode(), hashlib.sha256).hexdigest()}"
+
+
+def _session():
+    """Session de base du pilotage : le point unique que les tests remplacent."""
+    from app.database import SessionLocal
+
+    return SessionLocal()
+
+
+def session_qui(valeur: str | None, reglages, maintenant: float | None = None) -> str | None:
+    """Le nom de la personne connectée (« Fzed », « kder »…), ou `None` si le cookie ne vaut rien."""
+    morceaux = (valeur or "").split(".")
+    if not morceaux[0].isdigit() or int(morceaux[0]) < (maintenant or time.time()):
+        return None
+    if len(morceaux) == 2:
+        attendu = hmac.new(_cle_session(reglages), morceaux[0].encode(), hashlib.sha256).hexdigest()
+        bon = bool(reglages.dashboard_password) and secrets.compare_digest(morceaux[1].encode(), attendu.encode())
+        return reglages.dashboard_user if bon else None
+    if len(morceaux) == 3 and morceaux[1].startswith("op") and morceaux[1][2:].isdigit():
+        from app.models import Operator
+
+        try:
+            # ponytail: une petite requête par page du pilotage pour relire l'empreinte du compte.
+            with _session() as base:
+                operateur = base.get(Operator, int(morceaux[1][2:]))
+        except Exception:  # noqa: BLE001 - base muette : la session ne s'ouvre pas, l'identifiant partagé reste
+            return None
+        if operateur is None or not operateur.password_hash or operateur.email not in pilotage_comptes.autorises(reglages):
+            return None
+        corps = f"{morceaux[0]}.{morceaux[1]}"
+        attendu = hmac.new(_cle_operateur(reglages, operateur), corps.encode(), hashlib.sha256).hexdigest()
+        return operateur.name if secrets.compare_digest(morceaux[2].encode(), attendu.encode()) else None
+    return None
 
 
 def session_valide(valeur: str | None, reglages, maintenant: float | None = None) -> bool:
-    fin, _, signature = (valeur or "").partition(".")
-    if not fin.isdigit() or int(fin) < (maintenant or time.time()):
-        return False
-    attendu = hmac.new(_cle_session(reglages), fin.encode(), hashlib.sha256).hexdigest()
-    return secrets.compare_digest(signature.encode(), attendu.encode())
+    return session_qui(valeur, reglages, maintenant) is not None
+
+
+def pilotage_ouvert(reglages) -> bool:
+    """Fermé par défaut (D32) : il faut l'identifiant partagé ou au moins un compte autorisé (D74)."""
+    return bool(reglages.dashboard_password or pilotage_comptes.autorises(reglages))
 
 
 def _veut_page(request: Request) -> bool:
@@ -134,6 +176,11 @@ def _veut_page(request: Request) -> bool:
 
 
 def refus_acces(request: Request) -> Response | None:
+    """Voir `_refus` : la même garde, pour /dashboard et /prospection."""
+    return _refus(request)[0]
+
+
+def _refus(request: Request) -> tuple[Response | None, str | None]:
     """`None` si la session ou l'identifiant et le mot de passe sont bons ; sinon le refus.
 
     Un navigateur sans session va à la page de connexion (D69) ; un script reçoit
@@ -141,8 +188,9 @@ def refus_acces(request: Request) -> Response | None:
     L'appelant a déjà vérifié qu'un mot de passe est configuré (fermé par défaut).
     """
     reglages = get_settings()
-    if session_valide(request.cookies.get(COOKIE), reglages):
-        return None
+    qui = session_qui(request.cookies.get(COOKIE), reglages)
+    if qui is not None:
+        return None, qui
     fenetre = reglages.login_lock_minutes * 60
     cle = f"exploitation:ip:{client_ip(request)}"
     if ratelimit.blocked(cle, reglages.login_max_failures, fenetre):
@@ -152,20 +200,20 @@ def refus_acces(request: Request) -> Response | None:
             content=f"Trop de mots de passe faux. Réessayez dans {max(1, (attente + 59) // 60)} min.",
             media_type="text/plain; charset=utf-8",
             headers={**BASE_HEADERS, "Retry-After": str(attente)},
-        )
+        ), None
     entete = request.headers.get("authorization", "")
-    if _authorized(entete, reglages.dashboard_user, reglages.dashboard_password):
-        return None
+    if reglages.dashboard_password and _authorized(entete, reglages.dashboard_user, reglages.dashboard_password):
+        return None, reglages.dashboard_user
     if entete:
         ratelimit.allow(cle, reglages.login_max_failures, fenetre)
     elif _veut_page(request):
-        return RedirectResponse(CONNEXION, status_code=303, headers=BASE_HEADERS)
+        return RedirectResponse(CONNEXION, status_code=303, headers=BASE_HEADERS), None
     return Response(
         status_code=401,
         content="Authentification requise.",
         media_type="text/plain; charset=utf-8",
         headers=UNAUTHORIZED_HEADERS,
-    )
+    ), None
 
 
 def _bar(label: str, value: float, ceiling: float) -> str:
@@ -182,14 +230,14 @@ def _origine(item: dict) -> str:
     return "recette, exclue" if item.get("test_mode") else "client"
 
 
-def _page(stats: dict, pilotage: dict | None = None, sante: dict | None = None, vue: str = "ensemble") -> str:
+def _page(stats: dict, pilotage: dict | None = None, sante: dict | None = None, vue: str = "ensemble", nom: str | None = None) -> str:
     """Construit la page. Aucune ressource externe, aucune donnee inventee.
 
     Avec `pilotage`, c'est le tableau de bord v2 (D69, `app/pilotage_page.py`) ;
     sans, la page du registre d'origine (D32), que les portes relisent telle quelle.
     """
     if pilotage is not None:
-        return pilotage_page.page(pilotage, sante or {}, stats, vue)
+        return pilotage_page.page(pilotage, sante or {}, stats, vue, nom)
     ledger = stats.get("ledger", {})
     windows = stats.get("windows", {})
     recent = stats.get("recent", [])
@@ -300,7 +348,7 @@ for _vue_cle, _vue_chemin, *_reste in pilotage_page.VUES[1:]:
 
 async def _tableau(request: Request, vue: str) -> Response:
     settings = get_settings()
-    if not settings.dashboard_password:
+    if not pilotage_ouvert(settings):
         return JSONResponse(
             status_code=503,
             headers=BASE_HEADERS,
@@ -309,13 +357,13 @@ async def _tableau(request: Request, vue: str) -> Response:
                 "detail": "DASHBOARD_PASSWORD absent : /dashboard est fermé par défaut (D32).",
             },
         )
-    refus = refus_acces(request)
+    refus, qui = _refus(request)
     if refus is not None:
         return refus
     stats = await safe_revenue_stats(include_recent=True)
     periode = request.query_params.get("p", "mois")
     pilotage, sante = await _pilotage_donnees(periode if periode in PERIODES else "mois", stats)
-    return HTMLResponse(content=_page(stats, pilotage, sante, vue), status_code=200, headers=PAGE_HEADERS)
+    return HTMLResponse(content=_page(stats, pilotage, sante, vue, qui), status_code=200, headers=PAGE_HEADERS)
 
 
 def _page_connexion(erreur: str = "", identifiant: str = "", statut: int = 200, entetes: dict | None = None) -> HTMLResponse:
@@ -335,7 +383,7 @@ def _ferme() -> JSONResponse:
 async def connexion_page(request: Request) -> Response:
     """La page de connexion du pilotage (D69) ; une session valide va droit au tableau de bord."""
     reglages = get_settings()
-    if not reglages.dashboard_password:
+    if not pilotage_ouvert(reglages):
         return _ferme()
     if session_valide(request.cookies.get(COOKIE), reglages):
         return RedirectResponse("/dashboard", status_code=303, headers=BASE_HEADERS)
@@ -346,7 +394,7 @@ async def connexion_page(request: Request) -> Response:
 async def connexion_envoi(request: Request) -> Response:
     """Vérifie les identifiants : bon couple = cookie de session ; 5 faux par IP = 15 min de pause."""
     reglages = get_settings()
-    if not reglages.dashboard_password:
+    if not pilotage_ouvert(reglages):
         return _ferme()
     if origine_etrangere(request):
         return _page_connexion("Formulaire refusé : il ne vient pas de ce site.", statut=403)
@@ -359,13 +407,114 @@ async def connexion_envoi(request: Request) -> Response:
     # Un code copié depuis le Terminal arrive souvent avec un espace autour (D70) ;
     # les identifiants du pilotage n'en contiennent jamais.
     utilisateur, mot_de_passe = str(formulaire.get("user", "") or "").strip(), str(formulaire.get("password", "") or "").strip()
-    if secrets.compare_digest(utilisateur.encode(), reglages.dashboard_user.encode()) and secrets.compare_digest(mot_de_passe.encode(), reglages.dashboard_password.encode()):
-        reponse = RedirectResponse("/dashboard", status_code=303, headers=BASE_HEADERS)
-        reponse.set_cookie(COOKIE, jeton_session(reglages), max_age=reglages.session_hours * 3600,
-                           path="/", secure=True, httponly=True, samesite="strict")
-        return reponse
+    if "@" in utilisateur:
+        # Compte personnel (D74) : email autorisé et mot de passe choisi par la personne.
+        def verifier():
+            with _session() as base:
+                operateur = pilotage_comptes.authentifier(base, utilisateur, mot_de_passe)
+                return jeton_session(reglages, operateur=operateur) if operateur else None
+        try:
+            jeton = await asyncio.to_thread(verifier)
+        except Exception:  # noqa: BLE001
+            logger.exception("pilotage : connexion par compte impossible")
+            jeton = None
+        if jeton is not None:
+            return _ouvrir_session(reglages, jeton)
+    elif reglages.dashboard_password and secrets.compare_digest(utilisateur.encode(), reglages.dashboard_user.encode()) and secrets.compare_digest(mot_de_passe.encode(), reglages.dashboard_password.encode()):
+        return _ouvrir_session(reglages, jeton_session(reglages))
     ratelimit.allow(cle, reglages.login_max_failures, fenetre)
     return _page_connexion("Identifiant ou mot de passe incorrect.", identifiant=utilisateur, statut=401)
+
+
+def _ouvrir_session(reglages, jeton: str) -> Response:
+    reponse = RedirectResponse("/dashboard", status_code=303, headers=BASE_HEADERS)
+    reponse.set_cookie(COOKIE, jeton, max_age=reglages.session_hours * 3600,
+                       path="/", secure=True, httponly=True, samesite="strict")
+    return reponse
+
+
+def _page_formulaire(texte: str, statut: int = 200, entetes: dict | None = None) -> HTMLResponse:
+    return HTMLResponse(texte, status_code=statut, headers={**PRIVATE_HEADERS, **(entetes or {})})
+
+
+@router.get("/dashboard/mot-de-passe")
+async def lien_page() -> Response:
+    """Demander un lien pour créer ou changer son mot de passe (D74)."""
+    if not pilotage_comptes.autorises():
+        return _ferme()
+    return _page_formulaire(pilotage_page.page_lien())
+
+
+@router.post("/dashboard/mot-de-passe")
+async def lien_envoi(request: Request, taches: BackgroundTasks) -> Response:
+    """Même réponse que l'adresse soit autorisée ou non ; le mail part en tâche de fond."""
+    reglages = get_settings()
+    if not pilotage_comptes.autorises(reglages):
+        return _ferme()
+    if origine_etrangere(request):
+        return _page_formulaire(pilotage_page.page_lien(erreur="Formulaire refusé : il ne vient pas de ce site."), 403)
+    cle = f"pilotage-lien:ip:{client_ip(request)}"
+    permis, _reste = ratelimit.allow(cle, reglages.password_reset_per_hour, 3600)
+    if not permis:
+        attente = ratelimit.retry_after(cle, 3600)
+        return _page_formulaire(pilotage_page.page_lien(erreur=f"Trop de demandes. Réessayez dans {max(1, (attente + 59) // 60)} min."), 429, {"Retry-After": str(attente)})
+    email = str((await request.form()).get("email", "") or "").strip()
+
+    def creer():
+        with _session() as base:
+            return pilotage_comptes.creer_lien(base, email, reglages=reglages)
+    try:
+        resultat = await asyncio.to_thread(creer)
+    except Exception:  # noqa: BLE001 - la page répond pareil ; le journal garde la trace
+        logger.exception("pilotage : création du lien impossible")
+        resultat = None
+    if resultat is not None:
+        jeton, nom = resultat
+        lien = f"{reglages.public_base_url.rstrip('/')}/dashboard/nouveau-mot-de-passe?jeton={jeton}"
+        corps = (f"Bonjour {nom},\n\nPour créer ou changer votre mot de passe du tableau de bord Address Validator, "
+                 f"ouvrez ce lien (valable {reglages.password_reset_minutes} minutes, une seule fois) :\n{lien}\n\n"
+                 "Si vous n'avez rien demandé, ignorez ce message : rien ne change.\n\nAddress Validator")
+        from app.routes import mot_de_passe  # import tardif : mot_de_passe importe signup, qui importe ce module
+
+        taches.add_task(mot_de_passe.envoyer_mail, accounts.normalize_email(email), "Votre mot de passe du tableau de bord Address Validator", corps)
+    return _page_formulaire(pilotage_page.page_lien(info=f"Si cette adresse a un compte, un email vient de partir. Le lien vaut {reglages.password_reset_minutes} minutes."))
+
+
+@router.get("/dashboard/nouveau-mot-de-passe")
+async def nouveau_page(jeton: str = "") -> Response:
+    def lire():
+        with _session() as base:
+            operateur = pilotage_comptes.operateur_du_lien(base, jeton)
+            return operateur.name if operateur else None
+    nom = await asyncio.to_thread(lire) if jeton else None
+    if nom is None:
+        return _page_formulaire(pilotage_page.page_lien(erreur="Ce lien a expiré ou a déjà servi. Demandez-en un nouveau."), 410)
+    return _page_formulaire(pilotage_page.page_nouveau(jeton, nom, accounts.PASSWORD_MIN_LENGTH))
+
+
+@router.post("/dashboard/nouveau-mot-de-passe")
+async def nouveau_envoi(request: Request) -> Response:
+    reglages = get_settings()
+    if origine_etrangere(request):
+        return _page_formulaire(pilotage_page.page_lien(erreur="Formulaire refusé : il ne vient pas de ce site."), 403)
+    formulaire = await request.form()
+    jeton = str(formulaire.get("jeton", "") or "")
+    mot_de_passe, confirmation = str(formulaire.get("password", "") or ""), str(formulaire.get("confirmation", "") or "")
+    probleme = accounts.password_problem(mot_de_passe) or (None if mot_de_passe == confirmation else "Les deux mots de passe ne sont pas identiques.")
+
+    def faire():
+        with _session() as base:
+            if probleme:
+                operateur = pilotage_comptes.operateur_du_lien(base, jeton)
+                return None, (operateur.name if operateur else None)
+            operateur = pilotage_comptes.definir_mot_de_passe(base, jeton, mot_de_passe)
+            return (jeton_session(reglages, operateur=operateur) if operateur else None), None
+    session_ouverte, nom = await asyncio.to_thread(faire)
+    if probleme and nom:
+        return _page_formulaire(pilotage_page.page_nouveau(jeton, nom, accounts.PASSWORD_MIN_LENGTH, erreur=probleme), 400)
+    if session_ouverte is None:
+        return _page_formulaire(pilotage_page.page_lien(erreur="Ce lien a expiré ou a déjà servi. Demandez-en un nouveau."), 410)
+    return _ouvrir_session(reglages, session_ouverte)
 
 
 @router.post("/dashboard/deconnexion")

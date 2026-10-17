@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D71, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D74, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 71
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 74
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -6100,7 +6100,95 @@ def d71() -> None:
     guard("D71" in read("DECISIONS.md"), "la decision D71 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 72)}
+def d72() -> None:
+    """Les agents IA sont observes, jamais bloques : six familles, journal des seuls agents, mesures publiees."""
+    from fastapi.testclient import TestClient
+
+    from app import observability as o
+    from app.main import app
+
+    guard(o.CLASSES_APPELANTS == ("agent_ia", "annuaire_mcp", "moteur", "outil", "navigateur", "inconnu"), "les six familles d'appelants ont change")
+    attendus = {"Mozilla/5.0 (compatible; GPTBot/1.1)": "agent_ia", "Mozilla/5.0 (compatible; bingbot/2.0)": "moteur",
+                "curl/8.4.0": "outil", "Mozilla/5.0 (Macintosh) Safari/605.1": "navigateur", "": "inconnu"}
+    for ua, classe in attendus.items():
+        guard(o.agent_class(ua) == classe, f"{ua!r} classe {o.agent_class(ua)} au lieu de {classe}")
+    reponse = TestClient(app).get("/metrics/agents")
+    guard(reponse.status_code == 200 and {"agents", "top_ip", "top_agents", "top_pages", "whitelist"} <= set(reponse.json()), "GET /metrics/agents ne publie plus ses mesures")
+    robots = TestClient(app).get("/robots.txt").text
+    guard("User-agent: GPTBot\nAllow: /" in robots and "Disallow: /\n" not in robots, "un agent IA est bloque dans robots.txt")
+    guard("D72" in read("DECISIONS.md") and "D72" in read("docs/AGENTS-IA.md"), "la decision D72 n'est plus consignee")
+
+
+def d73() -> None:
+    """Le rapport de visites lit le journal Nginx en sept sections ; une fuite est un chemin sensible servi en 2xx."""
+    from app import observability as o
+
+    lignes = ['203.0.113.5 - - [16/Oct/2026:10:00:00 +0000] "GET /.env HTTP/1.1" 200 12 "-" "curl/8"',
+              '203.0.113.6 - - [16/Oct/2026:10:01:00 +0000] "GET /.git/HEAD HTTP/1.1" 301 0 "-" "curl/8"',
+              '203.0.113.7 - - [16/Oct/2026:10:02:00 +0000] "GET /pricing HTTP/1.1" 200 900 "-" "Mozilla/5.0"']
+    rapport = o.visites_report([o.parse_nginx_line(l) for l in lignes])
+    ids = [s["id"] for s in rapport["sections"]]
+    guard(ids == ["chiffres_cles", "par_jour", "top_pages", "top_ip", "codes_statut", "clients", "anomalies"], f"sections du rapport : {ids}")
+    anomalies = rapport["sections"][-1]["donnees"]
+    guard([f["chemin"] for f in anomalies["fuites"]] == ["/.env"], "une fuite n'est pas un chemin sensible servi en 2xx (un 301 n'expose rien)")
+    guard(rapport["ip_pseudonymised"] and all("203.0.113" not in str(s["donnees"]) for s in rapport["sections"]), "le rapport montre des IP en clair par defaut")
+    guard("D73" in read("DECISIONS.md"), "la decision D73 n'est plus consignee dans DECISIONS.md")
+
+
+def d74() -> None:
+    """Un compte par personne : lien par mail aux seules adresses autorisees, mot de passe choisi, session nominative."""
+    import re as _re
+    import tempfile
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine, select
+    from sqlalchemy.orm import sessionmaker
+
+    from app import pilotage_comptes
+    from app.config import get_settings
+    from app.main import app
+    from app.models import Operator, OperatorToken
+    from app.routes import dashboard, mot_de_passe
+
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp()) / 'd74.sqlite'}")
+    Operator.__table__.create(moteur)
+    OperatorToken.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+    reglages = get_settings()
+    envoyes = []
+    chrome = {"Origin": "null", "Sec-Fetch-Site": "same-origin"}
+    client = TestClient(app)
+    with mock.patch.object(dashboard, "_session", fabrique), mock.patch.object(reglages, "pilotage_comptes", "Fzed=fzed@exemple.re"), \
+            mock.patch.object(reglages, "dashboard_user", "kder"), mock.patch.object(reglages, "dashboard_password", "code-partage-porte-d74"), \
+            mock.patch.object(mot_de_passe, "envoyer_mail", lambda dest, sujet, corps: envoyes.append((dest, corps))):
+        inconnue = client.post("/dashboard/mot-de-passe", data={"email": "intrus@exemple.re"}, headers={**chrome, "X-Forwarded-For": "192.0.2.174"})
+        connue = client.post("/dashboard/mot-de-passe", data={"email": "fzed@exemple.re"}, headers={**chrome, "X-Forwarded-For": "192.0.2.175"})
+        guard(inconnue.status_code == connue.status_code == 200 and [d for d, _c in envoyes] == ["fzed@exemple.re"], "une adresse inconnue recoit un lien, ou la page dit qui a un compte")
+        lien = _re.search(r"(\S+/dashboard/nouveau-mot-de-passe\?jeton=(\S+))", envoyes[0][1])
+        guard(lien is not None and lien.group(1).startswith(reglages.public_base_url.rstrip("/")), "le lien n'est pas bati sur PUBLIC_BASE_URL")
+        jeton = lien.group(2)
+        with fabrique() as s:
+            guard(s.scalars(select(OperatorToken)).one().token_hash != jeton, "le jeton du lien est stocke en clair")
+        pose = client.post("/dashboard/nouveau-mot-de-passe", data={"jeton": jeton, "password": "mot-de-passe-porte-d74", "confirmation": "mot-de-passe-porte-d74"}, headers=chrome, follow_redirects=False)
+        guard(pose.status_code == 303 and "__Host-av_pilotage=" in pose.headers.get("set-cookie", ""), "le nouveau mot de passe n'ouvre pas de session")
+        guard(client.get(f"/dashboard/nouveau-mot-de-passe?jeton={jeton}").status_code == 410, "le lien resert")
+        entree = client.post("/dashboard/connexion", data={"user": "fzed@exemple.re", "password": "mot-de-passe-porte-d74"}, headers={**chrome, "X-Forwarded-For": "192.0.2.176"}, follow_redirects=False)
+        cookie = entree.headers.get("set-cookie", "").split("=", 1)[-1].split(";", 1)[0]
+        guard(entree.status_code == 303 and dashboard.session_qui(cookie, reglages) == "Fzed", "l'email et le mot de passe n'ouvrent pas une session nominative")
+        with fabrique() as s:
+            compte = s.scalars(select(Operator)).one()
+            guard(compte.password_hash.startswith("$2"), "le mot de passe n'est pas garde en empreinte bcrypt")
+            jeton2, _nom = pilotage_comptes.creer_lien(s, "fzed@exemple.re")
+            pilotage_comptes.definir_mot_de_passe(s, jeton2, "autre-mot-de-passe-d74")
+        guard(dashboard.session_qui(cookie, reglages) is None, "changer de mot de passe ne ferme pas les sessions d'avant")
+        partage = client.post("/dashboard/connexion", data={"user": "kder", "password": "code-partage-porte-d74"}, headers={**chrome, "X-Forwarded-For": "192.0.2.177"}, follow_redirects=False)
+        guard(partage.status_code == 303, "l'identifiant partage ne marche plus pendant la transition")
+    guard("PILOTAGE_COMPTES" in read(".env.example") and "@" not in read("app/pilotage_comptes.py").split('"""', 2)[2].split("def autorises")[0], "une adresse est ecrite dans le code")
+    guard("D74" in read("DECISIONS.md"), "la decision D74 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 75)}
 
 
 def catalog() -> list[tuple[str, str]]:

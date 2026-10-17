@@ -387,3 +387,12 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D71: the dashboard shows the live block (visitors and calls of the last 5 minutes, latest events, scrolling ticker), the clicked menu entry lights up, the page refreshes every 30 s without replaying entrance animations and says when tracking is younger than the period; sparklines have a stroke; an accented login gives 401, not 500; a crashing tracked route is recorded as 500; in-site navigation is recognised through Sec-Fetch-Site and scripts are counted apart from visitors; country percentages use the real total; the success rate excludes 402 refusals
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D71
   EXPECT: DECISION OK D71
+- [ ] D72: callers are classified into the six families (agent_ia, annuaire_mcp, moteur, outil, navigateur, inconnu), GET /metrics/agents publishes the agents, top IP, top agents, top pages and whitelist, and robots.txt blocks no AI agent
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D72
+  EXPECT: DECISION OK D72
+- [ ] D73: the visit report reads the Nginx combined log into the seven sections, flags as a leak only a sensitive path served in 2xx (a 301 exposes nothing) and pseudonymises IPs by default
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D73
+  EXPECT: DECISION OK D73
+- [ ] D74: only a PILOTAGE_COMPTES address receives a password link (an unknown address gets the same page and no mail), the link is built on PUBLIC_BASE_URL, stored as a hash, single-use, and opens a named session after a valid new password; the account then logs in with its email and sees "Bonjour <name>"; changing the password or removing the address from the list closes its sessions; the shared DASHBOARD_USER login still works
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D74
+  EXPECT: DECISION OK D74

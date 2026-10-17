@@ -495,7 +495,7 @@ VUES = (
 )
 
 
-def page(d: dict, sante: dict, stats: dict, vue: str = "ensemble") -> str:
+def page(d: dict, sante: dict, stats: dict, vue: str = "ensemble", nom: str | None = None) -> str:
     """Une page du pilotage. `d` vient de `exploitation.collecter` (ou porte `erreur`)."""
     vue = vue if vue in {v[0] for v in VUES} else "ensemble"
     moment = d.get("moment")
@@ -515,6 +515,9 @@ def page(d: dict, sante: dict, stats: dict, vue: str = "ensemble") -> str:
             f'<div class="etat {etat[0]}"><i></i><div>{e(etat[1])}<small>{e(etat[2])}</small></div></div>'
             f'<form class="nav" method="post" action="/dashboard/deconnexion"><button type="submit">{ico("sortie")}Se déconnecter</button></form></div></aside>')
     titre_page = next(titre for cle, _c, _i, _t, titre in VUES if cle == vue)
+    if vue == "ensemble" and nom:
+        # « Bonjour Fzed » : la personne connectée avec son compte (D74).
+        titre_page = f"Bonjour {e(nom)}, voici <span>votre activité</span>."
     haut = (f'<header class="top" id="vue"><div><p class="sur">{e(entete_date)}</p><h1>{titre_page}</h1></div>'
             f'<div class="outils"><nav class="seg" aria-label="Période">{periodes}</nav><span class="live"><i></i>En direct · {e(f"{moment:%H:%M:%S}" if moment else "")} UTC · toutes les 30 s</span></div></header>')
     if "erreur" in d:
@@ -658,17 +661,43 @@ button{width:100%;height:50px;margin-top:6px;border:0;border-radius:12px;cursor:
 button:hover{transform:translateY(-1px)}button:focus-visible{outline:2px solid #fff;outline-offset:3px}
 .erreur{display:flex;gap:10px;align-items:center;margin:0 0 18px;padding:11px 14px;border-radius:12px;background:rgba(251,113,133,.1);border:1px solid rgba(251,113,133,.35);color:#ffd1d9;font-size:14px}
 .note{display:flex;align-items:center;gap:8px;margin-top:20px;color:var(--fa);font-size:12.5px}.note .ico{color:var(--c3)}
+.succes{display:flex;gap:10px;align-items:center;margin:0 0 18px;padding:11px 14px;border-radius:12px;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.35);color:#bdf5dc;font-size:14px}
+.lien{margin:18px 0 0;text-align:center;font-size:14px}.lien a{color:#9fb0ff}
 """
 
 
-def connexion(erreur: str = "", identifiant: str = "", essais: int = 5, minutes: int = 15) -> str:
-    """La page de connexion du pilotage (D69), à la place de la fenêtre grise du navigateur."""
+def _carte(titre: str, intro: str, action: str, champs: str, bouton: str, alerte: str = "", info: str = "", pied: str = "") -> str:
+    """Une carte de formulaire sur le fond de carte du monde : connexion, lien, nouveau mot de passe."""
     fond = carte_monde([]).replace('class="map"', 'class="fond" preserveAspectRatio="xMidYMid slice"', 1).replace('role="img" aria-label="Visites par pays"', 'aria-hidden="true"', 1)
-    alerte = f'<p class="erreur" role="alert">{ico("alerte", 18)}{e(erreur)}</p>' if erreur else ""
+    bloc_alerte = f'<p class="erreur" role="alert">{ico("alerte", 18)}{e(alerte)}</p>' if alerte else ""
+    bloc_info = f'<p class="succes" role="status">{ico("ok", 18)}{e(info)}</p>' if info else ""
     return (f'<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            f'<meta name="robots" content="noindex, nofollow"><title>Connexion · Pilotage</title><style>{CSS}{CSS_CONNEXION}</style></head><body>{fond}'
-            f'<form class="boite" method="post" action="/dashboard/connexion"><div class="logo"><span class="orbe"></span><div><b>Address Validator</b><small>Pilotage</small></div></div>'
-            f'<h1>Accès réservé</h1><p>Le tableau de bord de l\'exploitation. Entrez vos identifiants.</p>{alerte}'
-            f'<label for="u">Identifiant</label><input id="u" name="user" value="{e(identifiant)}" autocomplete="username" required autofocus>'
-            f'<label for="p">Mot de passe</label><input id="p" name="password" type="password" autocomplete="current-password" required>'
-            f'<button type="submit">Se connecter</button><div class="note">{ico("cadenas", 15)}Connexion chiffrée · {e(essais)} essais, puis {e(minutes)} minutes de pause</div></form></body></html>')
+            f'<meta name="robots" content="noindex, nofollow"><title>{e(titre)} · Pilotage</title><style>{CSS}{CSS_CONNEXION}</style></head><body>{fond}'
+            f'<form class="boite" method="post" action="{action}"><div class="logo"><span class="orbe"></span><div><b>Address Validator</b><small>Pilotage</small></div></div>'
+            f'<h1>{e(titre)}</h1><p>{e(intro)}</p>{bloc_alerte}{bloc_info}{champs}<button type="submit">{e(bouton)}</button>{pied}</form></body></html>')
+
+
+def connexion(erreur: str = "", identifiant: str = "", essais: int = 5, minutes: int = 15) -> str:
+    """La page de connexion du pilotage (D69) ; depuis D74, l'email d'un compte ou l'identifiant partagé."""
+    champs = (f'<label for="u">Email</label><input id="u" name="user" value="{e(identifiant)}" autocomplete="username" required autofocus>'
+              f'<label for="p">Mot de passe</label><input id="p" name="password" type="password" autocomplete="current-password" required>')
+    pied = (f'<p class="lien"><a href="/dashboard/mot-de-passe">Créer ou changer mon mot de passe</a></p>'
+            f'<div class="note">{ico("cadenas", 15)}Connexion chiffrée · {e(essais)} essais, puis {e(minutes)} minutes de pause</div>')
+    return _carte("Accès réservé", "Le tableau de bord de l'exploitation. Entrez votre email et votre mot de passe.", "/dashboard/connexion", champs, "Se connecter", erreur, pied=pied)
+
+
+def page_lien(erreur: str = "", info: str = "") -> str:
+    """Demander par email un lien pour créer ou changer son mot de passe (D74)."""
+    champs = '<label for="m">Votre email</label><input id="m" name="email" type="email" autocomplete="email" required autofocus>'
+    pied = '<p class="lien"><a href="/dashboard/connexion">Retour à la connexion</a></p>'
+    return _carte("Mon mot de passe", "Recevez par email un lien pour créer ou changer votre mot de passe. Seules les adresses autorisées en reçoivent un.",
+                  "/dashboard/mot-de-passe", champs, "Recevoir le lien", erreur, info, pied)
+
+
+def page_nouveau(jeton: str, nom: str, minimum: int, erreur: str = "") -> str:
+    """Choisir son mot de passe, depuis le lien reçu par email (D74)."""
+    champs = (f'<input type="hidden" name="jeton" value="{e(jeton)}">'
+              f'<label for="p">Nouveau mot de passe ({e(minimum)} caractères au moins)</label><input id="p" name="password" type="password" autocomplete="new-password" minlength="{e(minimum)}" required autofocus>'
+              f'<label for="c">Le même, une seconde fois</label><input id="c" name="confirmation" type="password" autocomplete="new-password" minlength="{e(minimum)}" required>')
+    return _carte(f"Bonjour {nom}", "Choisissez votre mot de passe. Il sera gardé illisible, même pour nous.", "/dashboard/nouveau-mot-de-passe", champs,
+                  "Enregistrer et entrer", erreur, pied=f'<div class="note">{ico("cadenas", 15)}Le lien ne sert qu\'une fois.</div>')

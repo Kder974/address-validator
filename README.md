@@ -99,6 +99,7 @@ Toutes les valeurs viennent de l'environnement ou de `.env` (pydantic-settings,
 | `discovery_log_*` | `DISCOVERY_LOG_ENABLED`, `DISCOVERY_LOG_PATH`, `DISCOVERY_LOG_RAW_IP`, `DISCOVERY_LOG_SALT`, `DISCOVERY_LOG_RETENTION_DAYS` | journal actif, chemin vide (journald), IP pseudonymisee, 30 j | journal des refus `402` et retention appliquee (`PRIVACY.md` 3) |
 | `dashboard_user` / `dashboard_password` | `DASHBOARD_USER` / `DASHBOARD_PASSWORD` | `kder` / vide | `/dashboard` - vide = endpoint **ferme** (`503`) ; `LOGIN_MAX_FAILURES` mots de passe faux par IP bloquent `LOGIN_LOCK_MINUTES` min (D67) |
 | `geoip_db_path` / `audience_retention_days` | `GEOIP_DB_PATH` / `AUDIENCE_RETENTION_DAYS` | `/var/lib/address-validator/dbip-country.mmdb` / `400` | suivi d'audience (D67) : base des pays DB-IP Lite posée par `scripts/maj_geoip.sh` (absente = pays inconnu) ; conservation des lignes `page_visits` et `api_calls` |
+| `pilotage_comptes` | `PILOTAGE_COMPTES` | vide | comptes du tableau de bord (D74), « Nom=email » séparés par des virgules ; jamais dans le code (dépôt public) |
 | `cost_server_eur` / `cost_smarty_eur` / `cost_smarty_per_call_usd` / `cost_mail_eur` | `COST_SERVER_EUR` / `COST_SMARTY_EUR` / `COST_SMARTY_PER_CALL_USD` / `COST_MAIL_EUR` | `0` | coûts lus par le tableau de bord (D68) : tous à `0` = résultat du mois non calculé |
 | `test_mode` / `test_mode_cutoff_utc` | `TEST_MODE` / `TEST_MODE_CUTOFF_UTC` | `false` / `2026-10-11T12:00:00+00:00` | une transaction marquée `test_mode` est un essai de recette : exclue de `real_*`, comptée dans `test_*` et `total_*` (D40) |
 | `environment` / `log_level` | `ENVIRONMENT` / `LOG_LEVEL` | `development` / `INFO` | contexte et verbosité |
@@ -114,6 +115,7 @@ Toutes les valeurs viennent de l'environnement ou de `.env` (pydantic-settings,
 | `GET` | `/metrics/revenue` | revenu agrégé 24 h / 7 j / 30 j — `real_*` hors recette, `total_*` registre entier (D40) — et disponibilité du registre | `app/routes/revenue.py` |
 | `GET` | `/dashboard` | tableau de bord d'exploitation — **privé** (Basic Auth ; `503` si `DASHBOARD_PASSWORD` est absent ; 5 mots de passe faux par IP bloquent 15 min, D67) ; depuis D67, chaque visite d'une page publique et chaque appel d'API laissent une ligne de suivi (pays, origine, durée, statut ; ni IP ni cookie) ; depuis D69, dessin v2 (barre latérale, grande carte du résultat, carte du monde en points, Site et SEO avec sources, robots et pages, parcours visite → payant) ; depuis D68, écrans **argent** (encaissé réel, abonnements à facturer, coûts, résultat, prévision, revenu par pays et par canal), **API** (statuts, temps de réponse, cache, canaux, pays) et **clients** (essais qui finissent, quotas, jamais appelé), alertes, périodes `?p=jour|7j|30j|mois`, rafraîchie chaque minute | `app/routes/dashboard.py`, `app/audience.py`, `app/exploitation.py` |
 | `GET` | `/dashboard/argent`, `/dashboard/api`, `/dashboard/clients`, `/dashboard/site`, `/dashboard/registre` | pages du pilotage, une par section (D71), mêmes accès que `/dashboard`, période gardée par `?p=` | `app/routes/dashboard.py`, `app/pilotage_page.py` |
+| `GET` `POST` | `/dashboard/mot-de-passe`, `/dashboard/nouveau-mot-de-passe` | comptes du tableau de bord (D74) : une adresse de `PILOTAGE_COMPTES` reçoit par mail un lien (30 min, une fois, empreinte seule en base) pour choisir son mot de passe (empreinte bcrypt) ; même réponse pour une adresse inconnue ; 3 liens par compte et par heure ; connexion ensuite par email | `app/pilotage_comptes.py`, `app/routes/dashboard.py` |
 | `GET` `POST` | `/dashboard/connexion`, `/dashboard/deconnexion` | page de connexion du tableau de bord (D69), à la place de la fenêtre du défi Basic : cookie `__Host-av_pilotage` signé (HMAC, 12 h, HttpOnly, Secure, SameSite=Strict), mêmes 5 essais puis 15 min de pause, formulaire d'un autre site refusé ; un navigateur sans session y est renvoyé, un script garde le défi Basic | `app/routes/dashboard.py`, `app/pilotage_page.py` |
 | `GET` | `/prospection` | CRM de prospection (liste, filtres, marquage, export) — **privé**, même garde que `/dashboard` (`503` si le mot de passe est absent ou si `PROSPECTION_DB` n'existe pas) | `app/routes/prospection.py`, `prospection/README.md` |
 | `GET` | `/pricing` | page publique de l'offre commerciale (D43) — **publique**, indexable, cachée 5 min ; aucune ressource externe, feuille de style partagée avec `/dashboard` (`app/web.py`) | `app/routes/pricing.py` |
@@ -349,6 +351,34 @@ curl.exe -sI https://kder-ai.com/images/commercante-colis.jpg    # image/jpeg, n
 ```
 
 Vérification : `.\.venv\Scripts\python.exe scripts\decisions_check.py D57`.
+
+### 4.9 Agents IA et visites : mesurer au lieu de bloquer (D72, D73)
+
+Le service **classe** chaque appelant en six familles (`agent_ia`,
+`annuaire_mcp`, `moteur`, `outil`, `navigateur`, `inconnu`), **journalise** les
+agents IA et les annuaires MCP dans le journal JSONL de D30 — jamais les visites
+humaines — et **publie** cinq mesures (`agents`, `top_ip`, `top_agents`,
+`top_pages`, `conversion`). Aucun agent n'est bloqué : un agent qui lit
+`/pricing` est un prospect sans navigateur. La liste blanche des 25 agents IA
+publiés par leurs éditeurs est dans `docs/AGENTS-IA.md` et dans la réponse de
+`/metrics/agents`.
+
+```powershell
+curl.exe -s https://kder-ai.com/metrics/agents                        # en direct (compteurs du processus)
+.\.venv\Scripts\python.exe scripts\analyser_agents.py --since 7d      # ce qui est écrit (journal JSONL)
+.\.venv\Scripts\python.exe scripts\analyser_visites.py --since 24h    # tout le trafic (journal Nginx), 7 sections
+```
+
+`scripts/analyser_visites.py` rend sept sections — chiffres clés, temps, top
+pages, top IP, codes de statut, clients, anomalies (sondes, chemins sensibles,
+fuites). Les adresses y sont **pseudonymisées** (SHA-256 + sel, D30) sauf
+`--ip-en-clair` demandé explicitement ; une fuite est un chemin sensible servi en
+`2xx` (un `301` renvoie ailleurs, il n'expose rien). Les deux analyseurs lisent la
+**même** table de classification : l'endpoint et les rapports ne peuvent pas se
+contredire sur ce qu'est un agent.
+
+Vérification : `.\\.venv\\Scripts\\python.exe scripts\\run_tests.py tests\\test_agents_ia.py tests\\test_visites.py`.
+
 
 ## 5. Exemple d'appel payant
 

@@ -2,15 +2,20 @@
 
 Objectif : la suite mesure ce que le script **declare**, sans toucher au reseau.
 Les reponses DNS utilisees ici sont des sorties `nslookup` reelles, relevees le
-13/10/2026 (etat avant migration, puis etat attendu apres migration), passees au
-script par une table `(nom, type) -> sortie brute` : c'est donc l'analyseur qui
-est mesure, pas une reponse inventee enregistrement par enregistrement.
+13/10/2026 puis le 15/10/2026 (etat avant migration, etat attendu apres
+migration), passees au script par une table `(nom, type) -> sortie brute` :
+c'est donc l'analyseur qui est mesure, pas une reponse inventee enregistrement
+par enregistrement. Le datacenter controle par defaut est **celui du domaine**
+(`kder-ai.com` est sur Zoho monde, `mx.zoho.com`) ; la variante `zoho.eu` est
+mesuree sur la meme table, car un defaut fige dans le mauvais datacenter fait
+signaler trois MX manquants sur un domaine correct.
 
 Ce qui est verifie :
 
   * une sortie `nslookup` (MX, TXT, valeur DKIM decoupee en fragments) ;
   * un domaine **non migre** est signale manquant/ecart, jamais « pret » ;
-  * un domaine correctement configure sort en `0` et « DNS prets » ;
+  * un domaine correctement configure sort en `0` et « DNS prets », dans le
+    datacenter monde (defaut) comme dans la variante `--dc eu` ;
   * un DKIM non fourni est « non verifie », jamais « different » ;
   * le DMARC pose par Brevo (`rua=mailto:rua@dmarc.brevo.com`) est **accepte** ;
   * les codes de retour `1` / `2` / `3` et la sortie `--json` ;
@@ -116,15 +121,26 @@ def _etat_avant_migration():
     }
 
 
-def _etat_configure():
-    """Table DNS de l'etat attendu apres migration (docs/commercial, section 3)."""
+def _etat_configure(dc="com"):
+    """Table DNS de l'etat attendu apres migration (docs/commercial, section 3).
+
+    Les hotes et le `include` SPF sont donnes **en dur** : lire les constantes du
+    script ne prouverait rien, c'est le script qui est mesure. Datacenter monde
+    (`.com`) par defaut, comme `kder-ai.com` ; `dc="eu"` sert la variante d'un
+    domaine heberge par `zoho.eu`.
+    """
+    suffixe = "zoho.com" if dc == "com" else "zoho.eu"
     return {
         (DOMAINE, "MX"): _sortie_mx(
-            (("mx.zoho.eu", 10), ("mx2.zoho.eu", 20), ("mx3.zoho.eu", 50))
+            (
+                (f"mx.{suffixe}", 10),
+                (f"mx2.{suffixe}", 20),
+                (f"mx3.{suffixe}", 50),
+            )
         ),
         (DOMAINE, "TXT"): _sortie_txt(
             (
-                "v=spf1 include:zoho.eu include:spf.brevo.com ~all",
+                f"v=spf1 include:{suffixe} include:spf.brevo.com ~all",
                 "zoho-verification=zb82668052.zmverify.zoho.com",
             )
         ),
@@ -135,7 +151,7 @@ def _etat_configure():
             f"mail._domainkey.{DOMAINE}\tcanonical name = mail._domainkey.brevo.com"
         ),
         (f"_dmarc.{DOMAINE}", "TXT"): _sortie_txt(
-            ["v=DMARC1; p=none; rua=mailto:address-validator@kder-ai.com; fo=1"],
+            [f"v=DMARC1; p=none; rua=mailto:address-validator@{DOMAINE}; fo=1"],
             f"_dmarc.{DOMAINE}",
         ),
     }
@@ -212,7 +228,7 @@ def test_domaine_non_migre_nest_jamais_pret(monkeypatch):
 
 
 def test_domaine_configure_sort_en_zero(monkeypatch, capsys):
-    """Etat attendu apres migration : tout est vert, code 0, « DNS prets »."""
+    """Datacenter monde (le defaut) : tout est vert, code 0, « DNS prets »."""
     module = _module()
     _simuler(monkeypatch, module, _etat_configure())
     code = module.main(["--dkim", CLE_DKIM])
@@ -223,6 +239,20 @@ def test_domaine_configure_sort_en_zero(monkeypatch, capsys):
     assert "0 manquant(s)" in sortie
     assert "0 ecart(s)" in sortie
     assert "MANQUANT" not in sortie
+
+
+def test_domaine_configure_eu_sort_aussi_en_zero(monkeypatch, capsys):
+    """`--dc eu` pilote les hotes europeens : meme domaine, meme sortie verte."""
+    module = _module()
+    _simuler(monkeypatch, module, _etat_configure("eu"))
+    code = module.main(["--dc", "eu", "--dkim", CLE_DKIM])
+    sortie = capsys.readouterr().out
+
+    assert code == 0
+    assert "✅ DNS prets." in sortie
+    assert "0 manquant(s)" in sortie
+    assert "mx.zoho.eu" in sortie
+    assert "mx.zoho.com" not in sortie
 
 
 def test_dkim_non_fourni_est_non_verifie(monkeypatch, capsys):
@@ -287,7 +317,7 @@ def test_main_json_porte_les_memes_constats(monkeypatch, capsys):
     assert code == 1
     assert rapport["code"] == 1
     assert rapport["domaine"] == DOMAINE
-    assert rapport["datacenter"] == "eu"
+    assert rapport["datacenter"] == module.DC_DEFAUT  # `.com`, celui du domaine
     assert any(
         constat["libelle"] == "DKIM Zoho" and constat["gravite"] == "manquant"
         for constat in rapport["constats"]
@@ -309,11 +339,28 @@ def test_main_sort_en_3_quand_le_dns_est_inutilisable(monkeypatch, capsys):
     assert "nslookup" in capture.out
 
 
-def test_datacenter_com_change_les_hotes_attendus(monkeypatch):
-    """La variante `.com` attend `mx.zoho.com` : un `.eu` en place est un ecart."""
+def test_datacenter_par_defaut_est_le_monde(monkeypatch):
+    """`kder-ai.com` est sur Zoho monde : sans option, le script attend `.com`."""
     module = _module()
     _simuler(monkeypatch, module, _etat_avant_migration())
-    gravites = _gravites(module.controler(DOMAINE, "com"))
-    assert gravites["MX mx.zoho.com"] == "manquant"
+
+    assert module.DC_DEFAUT == "com"
+    assert module.parseur().parse_args([]).dc == module.DC_DEFAUT
     assert module.MX_ATTENDUS["com"][0] == ("mx.zoho.com", 10)
-    assert module.INCLUDE_SPF["com"] == "include:zohomail.com"
+    assert module.INCLUDE_SPF["com"] == "include:zoho.com"
+
+    libelles = {constat.libelle for constat in module.controler(DOMAINE)}
+    assert "MX mx.zoho.com" in libelles
+    assert "MX mx.zoho.eu" not in libelles  # le defaut ne bascule pas en Europe
+
+
+def test_datacenter_eu_change_les_hotes_attendus(monkeypatch):
+    """La variante `.eu` reste pilotable : un domaine europeen est controle juste."""
+    module = _module()
+    _simuler(monkeypatch, module, _etat_avant_migration())
+    gravites = _gravites(module.controler(DOMAINE, "eu"))
+
+    assert gravites["MX mx.zoho.eu"] == "manquant"
+    assert "MX mx.zoho.com" not in gravites
+    assert module.MX_ATTENDUS["eu"][0] == ("mx.zoho.eu", 10)
+    assert module.INCLUDE_SPF["eu"] == "include:zoho.eu"
