@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D75, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D76, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 75
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 76
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -6223,7 +6223,31 @@ def d75() -> None:
     guard("D75" in read("DECISIONS.md"), "la decision D75 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 76)}
+def d76() -> None:
+    """Le comparatif donne le vrai prix de Smarty, et le prix par validation affiché découle des forfaits cités."""
+    from fastapi.testclient import TestClient
+
+    from app import i18n, seo
+    from app.main import app
+
+    client = TestClient(app)
+    entier = re.compile(r"\d{1,3}(?:[   .,]\d{3})+|\d+")
+    for lang in i18n.LANGUES:
+        adresse = i18n.chemin(lang, "compare")
+        page = seo.hors_bloc(client.get(adresse).text)
+        carte = re.search(r"<h3>Smarty.*?</article>", page, re.S)
+        guard(carte is not None, f"{adresse} : carte Smarty introuvable")
+        payant, unitaire = re.findall(r"<dd[^>]*>(.*?)</dd>", carte.group(0), re.S)[1:3]
+        nombres = [int(re.sub(r"\D", "", n)) for n in entier.findall(re.sub(r"<[^>]+>", " ", payant))]
+        forfaits = list(zip(nombres[0::2], nombres[1::2]))
+        guard((552, 60000) in forfaits and (552, 12000) not in forfaits, f"{adresse} : Smarty vend 552 $ pour 60 000 recherches, pas {forfaits}")
+        prix = sorted(float(p.replace(",", ".")) for p in re.findall(r"\d+[.,]\d+", unitaire))
+        ratios = sorted(round(montant / volume, 6) for montant, volume in forfaits)
+        guard(len(prix) == 2 and prix == [ratios[0], ratios[-1]], f"{adresse} : prix par validation {prix} au lieu de {ratios[0]} a {ratios[-1]}")
+    guard("D76" in read("DECISIONS.md"), "la decision D76 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 77)}
 
 
 def catalog() -> list[tuple[str, str]]:

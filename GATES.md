@@ -399,3 +399,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D75: free MCP discovery calls are counted apart from validation requests (card "Validations demandées" with "+ N découvertes MCP gratuites", success rate and live block on validations only), an amber banner says how long tracking has been running when it is younger than the chosen period, and a script is labelled "Programme", not "Robot Programme"
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D75
   EXPECT: DECISION OK D75
+- [ ] D76: the /compare Smarty card lists Smarty's published plans ($17/month for 1,000, $50/month for 5,000, $552/year for 60,000) and a per-validation range that equals the cheapest and dearest of those plans, in all six languages; the former "$552 for 12,000" figure is gone
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D76
+  EXPECT: DECISION OK D76
