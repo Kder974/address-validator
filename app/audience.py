@@ -75,7 +75,7 @@ APPELS = {
     **{i18n.chemin(lang, "validate-form"): "validate-form" for lang in i18n.LANGUES},
 }
 #: Ce que les routes peuvent noter sur la ligne de l'appel.
-CHAMPS = ("method", "mode", "cache_hit", "degraded", "address_country", "amount_usdc", "customer_id")
+CHAMPS = ("method", "mode", "refus", "cache_hit", "degraded", "address_country", "amount_usdc", "customer_id")
 
 #: Familles de robots, cherchées dans cet ordre dans le `User-Agent`.
 ROBOTS = (

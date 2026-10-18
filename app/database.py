@@ -145,6 +145,7 @@ CREATE TABLE IF NOT EXISTS api_calls (
     endpoint VARCHAR(20) NOT NULL,
     method VARCHAR(40),
     mode VARCHAR(10),
+    refus VARCHAR(20),
     status INTEGER NOT NULL,
     duration_ms INTEGER NOT NULL,
     country VARCHAR(2),
@@ -157,6 +158,8 @@ CREATE TABLE IF NOT EXISTS api_calls (
 );
 CREATE INDEX IF NOT EXISTS idx_api_calls_created_at ON api_calls(created_at);
 CREATE INDEX IF NOT EXISTS idx_api_calls_customer ON api_calls(customer_id);
+-- D82 : motif des refus de paiement, ajouté à une table déjà en production.
+ALTER TABLE api_calls ADD COLUMN IF NOT EXISTS refus VARCHAR(20);
 
 -- D74 : comptes du tableau de bord d'exploitation. Seules les adresses de PILOTAGE_COMPTES
 -- en ont un ; le mot de passe n'existe qu'en empreinte bcrypt, choisi par la personne via un

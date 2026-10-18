@@ -274,6 +274,33 @@ def payment_result(request: Request) -> PaymentDecision:
     return legacy_proof_result(request)
 
 
+#: D82 : du motif interne d'un refus à un code court, dans l'ordre où on les teste. Le
+#: tableau de bord sépare « aucun paiement présenté » (`absent`) des paiements refusés.
+# ponytail: classement par morceaux du motif ; un code posé à la source si les motifs se multiplient.
+MOTIFS_REFUS = (
+    ("rejeu", ("deja reglee",)),
+    ("montant", ("montant insuffisant",)),
+    ("delai", ("pas encore valide", "expiree")),
+    ("offre", ("offre acceptee differente", "destinataire incorrect", "reseau non supporte",
+               "schema de paiement", "x402version non supportee", "transport mcp")),
+    ("reglement", ("reglement",)),
+    ("facilitateur", ("facilitateur",)),
+    ("config", ("adresse d'encaissement",)),
+    ("illisible", ("en-tete", "absent", "malforme", "non entier", "illisible", "json")),
+    ("signature", ("signature",)),
+)
+
+
+def motif_refus(decision: PaymentDecision) -> str:
+    """Code court d'un refus : `absent` sans paiement présenté, sinon ce qui a manqué."""
+    if decision.protocol == "none":
+        return "absent"
+    if decision.protocol != "x402":
+        return "preuve"
+    texte = decision.reason.lower()
+    return next((code for code, morceaux in MOTIFS_REFUS if any(m in texte for m in morceaux)), "autre")
+
+
 def verify_payment(request: Request) -> bool:
     """Vérifie la preuve de paiement x402. Fail-closed : False par défaut."""
     return payment_result(request).paid

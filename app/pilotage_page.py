@@ -19,7 +19,7 @@ import math
 
 from app import accounts, i18n
 from app.carte_monde import HAUTEUR, LARGEUR, POINTS, PRECIS
-from app.exploitation import PERIODES
+from app.exploitation import LIBELLES_REFUS, PERIODES
 
 CSS = """
 :root{--bg:#050a16;--s1:#0a1326;--s2:#0e1a33;--ln:rgba(120,150,255,.12);--ln2:rgba(120,150,255,.22);--tx:#eaf0ff;--mu:#8b9bc0;--fa:#5d6d93;
@@ -180,6 +180,7 @@ a:focus-visible{outline:2px solid var(--c3);outline-offset:2px}
 .portee{margin:-12px 0 14px;color:var(--mu);font-size:13px}
 .bandeau-periode{display:flex;gap:12px;align-items:flex-start;margin:0 0 20px;padding:13px 16px;border-radius:14px;border:1px solid rgba(251,191,36,.35);background:linear-gradient(90deg,rgba(251,191,36,.12),rgba(251,191,36,.03));color:#fde9b0;font-size:14px}
 .bandeau-periode .ico{color:var(--wa);margin-top:1px}.bandeau-periode b{color:#fff}
+.refus{margin:12px 0 0;padding-top:10px;border-top:1px solid rgba(255,255,255,.07);font-size:13px;line-height:1.5}.refus.ko{color:var(--wa)}.refus.ko b{color:#fff}.refus.ok{color:var(--ok)}
 /* D71 : ça bouge — bloc En direct, bande défilante, pays qui s'allument, menu qui suit */
 html{scroll-behavior:smooth}
 @property --ang{syntax:'<angle>';initial-value:0deg;inherits:false}
@@ -584,12 +585,17 @@ def page(d: dict, sante: dict, stats: dict, vue: str = "ensemble", nom: str | No
 
     statuts = api["statuts"]
     erreurs = statuts.get("client", 0) + statuts.get("serveur", 0)
+    # D82 : les prospects (aucun paiement présenté) d'un côté, les paiements refusés et leur motif de l'autre.
+    rates = api["paiements_refuses"]
+    refus_html = (f'<p class="refus ko"><b>{e(pl(sum(n for _, n in rates), "paiement présenté refusé", "paiements présentés refusés"))}</b> : '
+                  f'{e(", ".join(LIBELLES_REFUS.get(m, m) + f" ({n})" for m, n in rates))}</p>' if rates
+                  else '<p class="refus ok">Aucun paiement présenté n\'a été refusé.</p>')
     api_html = (f'<section class="sec" id="api"><div class="sec-h"><span class="pastille">{ico("api")}</span><h2>API</h2><p>Appels de /validate, du serveur MCP et de l\'essai gratuit</p></div>'
                 f'<div class="quad"><article class="carte"><p class="lbl">Réussite</p><div class="rings">{anneau(api["taux_reussite"], "#34d399")}<div class="sous">Validations servies sans erreur, refus sans paiement à part · {e(pl(erreurs, "erreur", "erreurs"))}</div></div></article>'
                 f'<article class="carte"><p class="lbl">Cache</p><div class="rings">{anneau(api["taux_cache"], "#2fd4c4")}<div class="sous">{e("Économie : " + euros(api["economie_cache_eur"]) if api["economie_cache_eur"] is not None else "Vérifications évitées au fournisseur")}</div></div></article>'
                 f'<article class="carte"><p class="lbl">{ico("horloge", 16)}Temps de réponse</p><div class="val">{e("—" if api["duree_moyenne_ms"] is None else fr(api["duree_moyenne_ms"]))}<small>ms</small></div>'
                 f'<div class="sous">{e("" if api["duree_p95_ms"] is None else "95 % des appels sous " + fr(api["duree_p95_ms"]) + " ms")}</div></article>'
-                f'<article class="carte"><p class="lbl">{ico("bouclier", 16)}Refusés sans paiement</p><div class="val">{e(fr(statuts.get("paiement", 0)))}</div><div class="sous">agents qui ont trouvé le service sans payer : vos prospects</div></article></div>'
+                f'<article class="carte"><p class="lbl">{ico("bouclier", 16)}Sans paiement</p><div class="val">{e(fr(api["sans_paiement"]))}</div><div class="sous">agents qui ont trouvé le service sans payer : vos prospects</div>{refus_html}</article></div>'
                 f'<div class="duo" style="margin-top:20px"><article class="carte"><h3>Validations par jour</h3><p class="aide">Demandes de validation sur 30 jours, sans les découvertes MCP gratuites.</p>{barres_jour(api["courbe_appels"])}</article>'
                 f'<article class="carte"><h3>Par où arrivent les appels</h3><p class="aide">Canal de chaque appel sur la période.</p>{barres(api["canaux"], "Aucun appel sur la période.")}</article></div>'
                 f'<div class="duo" style="margin-top:20px"><article class="carte"><h3>Pays d\'où viennent les appels</h3><p class="aide">Pays de connexion (un agent tourne souvent dans un centre de données).</p>{liste_pays(api["pays_appels"], "", "Aucun appel sur la période.")}</article>'

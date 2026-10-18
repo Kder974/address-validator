@@ -60,6 +60,7 @@ from app import audience
 from app.config import get_settings
 from app.observability import log_unpaid_attempt
 from app.payment import (
+    motif_refus,
     payment_result,
     record_transaction,
 )
@@ -226,6 +227,8 @@ def _refus_paiement(request_id: Any, request: Request, decision) -> JSONResponse
     règlement).
     """
     log_unpaid_attempt(request, settings.x402_price, decision.reason)
+    # D82 : ce refus répond 200 (résultat `isError`) ; sans ce motif, il compterait comme une validation servie.
+    audience.noter(mode=decision.protocol[:10], refus=motif_refus(decision))
     document = payment_required_mcp(
         TOOL_NAME,
         settings.x402_price,

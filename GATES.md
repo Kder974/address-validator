@@ -448,3 +448,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D81: the IndexNow key is served as plain text at /<key>.txt, the IndexNow payload lists exactly the sitemap URLs on the public host, and the English home, pricing, guide and free-test titles carry "Address Validation API" / "Free address validation" within 60 characters
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D81
   EXPECT: DECISION OK D81
+- [ ] D82: every payment refusal records a short reason (absent, offre, montant, delai, signature, rejeu, facilitateur, reglement, quota...) on /validate, on the MCP tool (200 + isError counts as a refusal, not a served validation) and on the API-key quota; the API card shows "Sans paiement" plus the refused payments and their reasons, and an alert fires when a presented payment is refused within 24 h
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D82
+  EXPECT: DECISION OK D82

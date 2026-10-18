@@ -63,6 +63,7 @@ from app.observability import log_unpaid_attempt
 from app.payment import (
     PROOF_HEADER,
     generate_payment_required_response,
+    motif_refus,
     payment_result,
     record_transaction,
     tx_hash_from_proof,
@@ -238,6 +239,8 @@ def serve_with_api_key(raw: dict, response: Response, cle: str):
                 )
                 # Le préfixe affichable suffit à retrouver le compte dans un
                 # journal ; la clé présentée n'y entre jamais, même tronquée.
+                if motif == accounts.REFUS_QUOTA_ATTEINT:
+                    audience.noter(refus="quota")  # D82 : un abonné au plafond, pas un agent sans paiement
                 logger.info(
                     "cle API refusee (%s) prefixe=%s",
                     motif,
@@ -287,6 +290,8 @@ def paiement_requis(request: Request, decision) -> JSONResponse:
     # métadonnées de requête (aucune adresse, IP pseudonymisée par défaut),
     # et un journal indisponible ne doit jamais casser la réponse.
     log_unpaid_attempt(request, settings.x402_price, decision.reason)
+    # D82 : le tableau de bord distingue « aucun paiement présenté » d'un paiement refusé, et pourquoi.
+    audience.noter(mode=decision.protocol[:10], refus=motif_refus(decision))
     # L'échec de paiement est aussi porté par `X-PAYMENT-RESPONSE` / `PAYMENT-RESPONSE`
     # (`success: false`, `errorReason`).
     headers = dict(decision.response_headers)
