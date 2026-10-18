@@ -148,3 +148,37 @@ def test_icone_et_adresse_unique():
     www = client.get("/pricing?x=1", headers={"Host": f"www.{hote}"}, follow_redirects=False)
     assert www.status_code == 301 and www.headers["location"] == f"{BASE}/pricing?x=1"
     assert client.get("/pricing", headers={"Host": hote}).status_code == 200
+
+
+# --- D81 : Bing (IndexNow) et titres anglais sur « address validation API » ----
+
+
+def test_la_cle_indexnow_est_servie_et_annonce_les_pages_du_plan():
+    """D81 : IndexNow relit la cle a `keyLocation` ; la liste envoyee est celle du plan du site."""
+    import re as re_
+
+    from app.seo import INDEXNOW_CLE, indexnow_corps
+
+    assert re_.fullmatch(r"[a-zA-Z0-9-]{8,128}", INDEXNOW_CLE), "format de cle IndexNow"
+    servie = TestClient(app).get(f"/{INDEXNOW_CLE}.txt")
+    assert servie.status_code == 200 and servie.text == INDEXNOW_CLE
+    assert servie.headers["content-type"].startswith("text/plain")
+    corps = indexnow_corps("https://kder-ai.com")
+    plan = re_.findall(r"<loc>(.*?)</loc>", TestClient(app).get("/sitemap.xml").text)
+    assert corps["urlList"] == plan, "IndexNow doit annoncer exactement les pages du plan du site"
+    assert corps["host"] == "kder-ai.com" and corps["keyLocation"] == f"https://kder-ai.com/{INDEXNOW_CLE}.txt"
+    assert all(u.startswith("https://kder-ai.com/") for u in corps["urlList"])
+
+
+@pytest.mark.parametrize("chemin, mots", [
+    ("/en/", "Address Validation API"),
+    ("/en/pricing", "Address Validation API pricing"),
+    ("/en/guide", "Address Validation API docs"),
+    ("/en/validate-form", "Free address validation"),
+])
+def test_les_titres_anglais_visent_les_mots_cles(chemin, mots):
+    """D81 : chaque titre anglais porte le mot-cle de l'etude DataForSEO, en 60 caracteres au plus."""
+    import re as re_
+
+    titre = re_.search(r"<title>(.*?)</title>", TestClient(app).get(chemin, headers={"Accept": "text/html"}).text).group(1)
+    assert titre.startswith(mots) and len(titre) <= 60, titre

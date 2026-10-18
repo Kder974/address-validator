@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D80, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D81, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 77
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 81
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -6854,7 +6854,30 @@ def d80() -> None:
     guard("D80" in read("DECISIONS.md"), "la decision D80 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 81)}
+def d81() -> None:
+    """Bing apprend les pages par IndexNow, et les titres anglais visent « address validation API »."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.seo import INDEXNOW_CLE, indexnow_corps
+
+    client = TestClient(app)
+    guard(re.fullmatch(r"[a-zA-Z0-9-]{8,128}", INDEXNOW_CLE) is not None, "la cle IndexNow n'a pas le format du protocole")
+    servie = client.get(f"/{INDEXNOW_CLE}.txt")
+    guard(servie.status_code == 200 and servie.text == INDEXNOW_CLE, f"/{INDEXNOW_CLE}.txt ne sert pas la cle ({servie.status_code})")
+    corps = indexnow_corps("https://kder-ai.com")
+    plan = re.findall(r"<loc>(.*?)</loc>", client.get("/sitemap.xml").text)
+    guard(corps["urlList"] == plan and len(plan) >= 42, "IndexNow n'annonce pas exactement les pages du plan du site")
+    guard(corps["host"] == "kder-ai.com" and corps["keyLocation"].endswith(f"/{INDEXNOW_CLE}.txt"), "hote ou emplacement de cle IndexNow faux")
+    for chemin, mots in (("/en/", "Address Validation API"), ("/en/pricing", "Address Validation API"),
+                         ("/en/guide", "Address Validation API"), ("/en/validate-form", "Free address validation")):
+        page = client.get(chemin, headers={"Accept": "text/html"}).text
+        titre = (re.search(r"<title>(.*?)</title>", page) or [None, ""])[1]
+        guard(titre.startswith(mots) and len(titre) <= 60, f"{chemin} : titre « {titre} » sans « {mots} » ou trop long")
+    guard("D81" in read("DECISIONS.md"), "la decision D81 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 82)}
 
 
 def catalog() -> list[tuple[str, str]]:
