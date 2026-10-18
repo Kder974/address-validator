@@ -150,6 +150,9 @@ class ApiCall(Base):
     method = Column(String(40))
     mode = Column(String(10))
     status = Column(Integer, nullable=False)
+    #: D82 : motif court d'un refus de paiement (`payment.motif_refus`), vide sinon. Un refus
+    #: MCP v2 répond 200 (résultat `isError`, D78) : c'est ce champ, pas le statut, qui le dit.
+    refus = Column(String(20))
     duration_ms = Column(Integer, nullable=False)
     country = Column(String(2))
     address_country = Column(String(2))

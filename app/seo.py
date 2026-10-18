@@ -11,7 +11,10 @@ Ce que les moteurs lisent, et ce que le site leur donne :
   du plan du site) et `sitemap.xml` (les pages publiques × six langues, avec leurs
   versions de langue `hreflang` en adresses complètes) ;
 * une seule adresse : `www.` renvoie en `301` vers `public_base_url` (Google avait
-  indexé les deux).
+  indexé les deux) ;
+* **IndexNow** (D81) : la clé est servie à `/<clé>.txt`, et `scripts/indexnow.py`
+  signale les pages publiques à Bing, Yandex, Seznam et Naver, qui les apprennent
+  sans attendre leur prochain passage (Bing n'indexait aucune page le 18/10/2026).
 
 Deux règles des pages publiques sont **précisées**, pas abandonnées : « aucun
 script » devient « aucun script exécutable » (le seul `<script>` admis est un bloc
@@ -31,6 +34,7 @@ import html
 import json
 import re
 from functools import lru_cache
+from urllib.parse import urlparse
 
 from fastapi import APIRouter
 from fastapi.responses import RedirectResponse, Response
@@ -44,6 +48,10 @@ _BLOC = re.compile(re.escape(DEBUT) + r".*?" + re.escape(FIN) + r"\n?", re.S)
 #: Les pages publiques, indexables, par leur adresse française (`""` = l'accueil).
 PUBLIQUES = ("", "pricing", "guide", "validate-form", "signup", "agents", "compare")
 LOCALES = {"fr": "fr_FR", "en": "en_US", "zh": "zh_CN", "hi": "hi_IN", "es": "es_ES", "ar": "ar_AR"}
+#: Clé IndexNow : publique par conception. Elle prouve seulement que l'expéditeur
+#: contrôle le site (IndexNow la relit à `keyLocation`) et n'ouvre que les adresses
+#: de ce site : la publier dans un dépôt public ne permet rien d'autre.
+INDEXNOW_CLE = "819a36fb2a9140f4f142b6e80ae19cc3"
 IMAGE = "/images/commercante-colis.jpg"
 ICONE = "/images/favicon.svg"
 
@@ -181,7 +189,23 @@ def _sitemap(base: str) -> str:
     )
 
 
+def urls_publiques(base: str) -> list[str]:
+    """Les adresses du plan du site, dans le même ordre : pages publiques × six langues."""
+    return [f"{base}{i18n.chemin(lang, page)}" for page in PUBLIQUES for lang in i18n.LANGUES]
+
+
+def indexnow_corps(base: str) -> dict:
+    """Corps de `POST https://api.indexnow.org/indexnow` (protocole IndexNow)."""
+    return {"host": urlparse(base).netloc, "key": INDEXNOW_CLE,
+            "keyLocation": f"{base}/{INDEXNOW_CLE}.txt", "urlList": urls_publiques(base)}
+
+
 router = APIRouter()
+
+
+@router.get(f"/{INDEXNOW_CLE}.txt", include_in_schema=False)
+async def indexnow_cle() -> Response:
+    return Response(INDEXNOW_CLE, media_type="text/plain; charset=utf-8")
 
 
 @router.get("/robots.txt", include_in_schema=False)

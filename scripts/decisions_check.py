@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D80, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D82, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 77
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 82
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -6854,7 +6854,85 @@ def d80() -> None:
     guard("D80" in read("DECISIONS.md"), "la decision D80 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 81)}
+def d81() -> None:
+    """Bing apprend les pages par IndexNow, et les titres anglais visent « address validation API »."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.seo import INDEXNOW_CLE, indexnow_corps
+
+    client = TestClient(app)
+    guard(re.fullmatch(r"[a-zA-Z0-9-]{8,128}", INDEXNOW_CLE) is not None, "la cle IndexNow n'a pas le format du protocole")
+    servie = client.get(f"/{INDEXNOW_CLE}.txt")
+    guard(servie.status_code == 200 and servie.text == INDEXNOW_CLE, f"/{INDEXNOW_CLE}.txt ne sert pas la cle ({servie.status_code})")
+    corps = indexnow_corps("https://kder-ai.com")
+    plan = re.findall(r"<loc>(.*?)</loc>", client.get("/sitemap.xml").text)
+    guard(corps["urlList"] == plan and len(plan) >= 42, "IndexNow n'annonce pas exactement les pages du plan du site")
+    guard(corps["host"] == "kder-ai.com" and corps["keyLocation"].endswith(f"/{INDEXNOW_CLE}.txt"), "hote ou emplacement de cle IndexNow faux")
+    for chemin, mots in (("/en/", "Address Validation API"), ("/en/pricing", "Address Validation API"),
+                         ("/en/guide", "Address Validation API"), ("/en/validate-form", "Free address validation")):
+        page = client.get(chemin, headers={"Accept": "text/html"}).text
+        titre = (re.search(r"<title>(.*?)</title>", page) or [None, ""])[1]
+        guard(titre.startswith(mots) and len(titre) <= 60, f"{chemin} : titre « {titre} » sans « {mots} » ou trop long")
+    guard("D81" in read("DECISIONS.md"), "la decision D81 n'est plus consignee dans DECISIONS.md")
+
+
+def d82() -> None:
+    """Chaque refus de paiement porte son motif, et le tableau de bord separe prospects et paiements rates."""
+    import tempfile
+    from datetime import datetime, timedelta
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import audience, exploitation
+    from app.config import get_settings
+    from app.database import DDL
+    from app.main import app
+    from app.models import ApiCall, Customer, CustomerValidation, PageVisit, PaymentTransaction
+    from app.payment import motif_refus
+    from app.x402 import PaymentDecision
+
+    for raison, protocole, code in (("aucune preuve", "none", "absent"), ("montant insuffisant : 1 < 2", "x402", "montant"),
+                                    ("reglement refuse par le facilitateur (x)", "x402", "reglement"),
+                                    ("facilitateur : paiement invalide (y)", "x402", "facilitateur"),
+                                    ("offre acceptee differente de l'offre publiee (network)", "x402", "offre")):
+        obtenu = motif_refus(PaymentDecision(paid=False, reason=raison, protocol=protocole))
+        guard(obtenu == code, f"motif « {raison} » classe {obtenu} au lieu de {code}")
+    guard("ALTER TABLE api_calls ADD COLUMN IF NOT EXISTS refus" in DDL, "la colonne refus n'est pas ajoutee a la table deja en production")
+
+    client = TestClient(app)
+    corps = {"address": {"street": "1600 Amphitheatre Parkway", "city": "Mountain View", "state": "CA", "zip": "94043", "country": "US"}}
+    audience._FILE.clear()
+    with mock.patch.object(audience, "_demarrer", lambda: None):
+        client.post("/validate", json=corps)
+        client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "validate_address", "arguments": corps}})
+    appels = [l for l in audience._FILE if isinstance(l, ApiCall)]
+    audience._FILE.clear()
+    guard([(a.endpoint, a.status, a.refus) for a in appels[-2:]] == [("validate", 402, "absent"), ("mcp", 200, "absent")],
+          f"motifs notes : {[(a.endpoint, a.status, a.refus) for a in appels[-2:]]}")
+
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp()) / 'd82.sqlite'}")
+    for modele in (Customer, CustomerValidation, PaymentTransaction, ApiCall, PageVisit):
+        modele.__table__.create(moteur)
+    moment = datetime(2026, 10, 18, 12)
+    with sessionmaker(bind=moteur)() as s:
+        s.add_all([ApiCall(endpoint="mcp", method="tools/call", status=200, refus="absent", duration_ms=3, created_at=moment - timedelta(minutes=2)),
+                   ApiCall(endpoint="validate", status=402, mode="x402", refus="montant", duration_ms=9, created_at=moment - timedelta(minutes=3))])
+        s.commit()
+        d = exploitation.collecter(s, moment, "jour", get_settings())
+        guard(d["api"]["statuts"].get("ok", 0) == 0 and d["api"]["statuts"].get("paiement") == 2, f"un refus MCP compte comme servi : {d['api']['statuts']}")
+        guard(d["api"]["sans_paiement"] == 1 and dict(d["api"]["paiements_refuses"]) == {"montant": 1}, "prospects et paiements rates melanges")
+        guard(any("montant trop bas (1)" in a for a in exploitation.alertes(d, moment, s)), "aucune alerte pour un paiement presente refuse")
+        from app.routes.dashboard import _page
+        page = _page({"ledger": {"available": True}, "windows": {}, "recent": []}, d, {"Base de données": True}, "api")
+        guard("Sans paiement</p>" in page and 'class="refus ko"' in page and "montant trop bas (1)" in page, "la carte ne dit pas les paiements refuses")
+    guard("D82" in read("DECISIONS.md"), "la decision D82 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 83)}
 
 
 def catalog() -> list[tuple[str, str]]:

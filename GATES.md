@@ -445,3 +445,9 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D80
   EXPECT: DECISION OK D80
   EVIDENCE: automatic-evidence=v1; definition-sha256=7ea83e65aed940b827ae52e89eb6285058c93a04f382d96f6baec32283b12ab8; exit=0; EXPECT=matched; output-sha256=4b9fa7f79a6d7c1267ec7910ff4fe900394855f2af2fa1b9d2bc0bc00a93b743; output-bytes=501; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\Documents\PDF Suite Files\Surveillant PC\Plan de richesse\address-validator; path=7b70d0fe75c0/27 entries
+- [ ] D81: the IndexNow key is served as plain text at /<key>.txt, the IndexNow payload lists exactly the sitemap URLs on the public host, and the English home, pricing, guide and free-test titles carry "Address Validation API" / "Free address validation" within 60 characters
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D81
+  EXPECT: DECISION OK D81
+- [ ] D82: every payment refusal records a short reason (absent, offre, montant, delai, signature, rejeu, facilitateur, reglement, quota...) on /validate, on the MCP tool (200 + isError counts as a refusal, not a served validation) and on the API-key quota; the API card shows "Sans paiement" plus the refused payments and their reasons, and an alert fires when a presented payment is refused within 24 h
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D82
+  EXPECT: DECISION OK D82

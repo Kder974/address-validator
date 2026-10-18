@@ -36,7 +36,7 @@ client = TestClient(app)
 
 TITRES = {
     "fr": "Tarifs",
-    "en": "Pricing",
+    "en": "Address Validation API pricing",  # D81 : le mot-cle de l'etude DataForSEO
     "zh": "价格",
     "hi": "कीमतें",
     "es": "Precios",
