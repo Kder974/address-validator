@@ -909,3 +909,56 @@ Hygiène des secrets : le wallet acheteur et les scripts de recette restent **ho
 du dépôt** (dossier local ignoré) ; `.env` est couvert par `.gitignore` (`*.env`)
 et les 337 fichiers suivis ont été audités avant ce commit — aucune clé privée,
 aucune clé d'API réelle (`.env.example` ne contient que des placeholders).
+
+## 17. Mise à jour D81/D82 et inscription au catalogue Coinbase (18/10/2026)
+
+État constaté et vérifié après les fusions #38 (référencement, D81) et #40
+(motifs de refus, D82) : le code et les documents racine étaient déjà déployés
+sur le VPS (déploiement du 18/10 à 09:01 UTC, fichiers identiques au dépôt,
+colonne `api_calls.refus` présente). Aucune nouvelle mise à jour de code n'était
+donc nécessaire ; ce compte rendu consigne la vérification et les actions
+d'exploitation menées depuis.
+
+### Vérifications (mesurées le 18/10/2026)
+
+| Contrôle | Mesure |
+|---|---|
+| Code déployé == dépôt | hashes identiques pour `app/seo.py`, `app/exploitation.py`, `app/pilotage_page.py`, `app/payment.py`, `app/models.py`, `app/database.py`, `scripts/indexnow.py`, `DECISIONS.md`, `GATES.md`, `README.md` |
+| Portes unlazy | D81 et D82 approuvées et **vertes : ALL MET (83 portes)** |
+| Oracles | **82/82 OK** (`scripts/decisions_check.py --all`, second passage ; le premier a rendu un échec D67 transitoire, non reproduit) |
+| Tests | **862 passés, 0 échec, 1 ignoré** (863 collectés, `scripts/run_tests.py`) |
+| IndexNow | clé servie `200` à `/819a36fb2a9140f4f142b6e80ae19cc3.txt` ; `scripts/indexnow.py --envoyer` → **HTTP 202**, 42 pages signalées |
+| Titres D81 | accueil français 57 car., accueil anglais 59, tarifs 50, guide 47, essai gratuit 60 — tous ≤ 60 |
+| D82 en production | colonne `api_calls.refus` créée (`VARCHAR(20)`) ; aucun 402 depuis le déploiement, donc pas encore de motif observé en production |
+
+### Inscription au catalogue Coinbase (Bazaar)
+
+L'issue #37 demandait un paiement **v2** pour déclencher l'inscription (le
+paiement v1 du 18/10, §16, ne porte ni `resource` ni `extensions`). Un appel
+payant v2 a été exécuté le 18/10/2026 à 14:15 UTC avec le `PaymentPayload` v2
+complet (`accepted`, `resource`, `extensions.bazaar`) :
+
+| Élément | Mesure |
+|---|---|
+| Transaction | `0x0ea8c6f9788c90cf690d93608e20c7a1b56bbf4f77bdcb7fe949717605cd283a` |
+| Explorateur | https://basescan.org/tx/0x0ea8c6f9788c90cf690d93608e20c7a1b56bbf4f77bdcb7fe949717605cd283a |
+| Réseau | Base Mainnet, `eip155:8453`, USDC mainnet |
+| Bloc / statut | 52 771 778, succès ; gaz payé par le facilitateur (acheteur sans ETH) |
+| Réponse API | `HTTP 200`, `result.validated = true`, `price_paid 0.02`, `transaction_id` ci-dessus |
+| En-tête | `PAYMENT-RESPONSE` : `success: true`, réseau `eip155:8453` |
+| Registre | `payment_transactions` : 0,02 USDC, `test_mode = false` (14:15:02 UTC) |
+| Soldes | wallet du service 1,06 → **1,08 USDC** ; acheteur 0,48 → 0,46 USDC |
+
+Effet vérifié dans le catalogue : `GET /v2/x402/discovery/search?query=kder-ai.com`
+rend **1 ressource** — `https://kder-ai.com/validate`,
+`serviceName: Address Validator`, `payTo 0x0fE9…2d339`, `amount 20000`,
+`network eip155:8453`, `extensions.bazaar` avec l'exemple d'entrée/sortie,
+`lastUpdated 2026-10-18T14:15:03.004Z` ; et
+`GET /v2/x402/discovery/merchant?payTo=0x0fE9…2d339` rend `total: 1`. L'issue
+#37 est donc satisfaite.
+
+Limites dites : l'erreur D67 du premier passage d'oracles n'a pas été reproduite
+(deuxième passage 82/82) ; les 402 et leurs motifs restent à observer en
+production ; l'import du site dans **Bing Webmaster Tools** (issue #39) reste
+une action humaine (connexion au compte Google/Microsoft), l'IndexNow ne fait
+qu'accélérer la découverte.
