@@ -847,3 +847,65 @@ pendant les vérifications (les adresses valides ont donc été vérifiées par 
 pipeline déployé sur le VPS, pas par le formulaire) ; trois sauvegardes
 `/opt/address-validator-avant-*` cohabitent (201253, 211957, 212623) — en garder
 une ou deux ; `/opt/address-validator-nouveau` reste sur le serveur.
+
+## 16. Recette réelle x402 sur Base Mainnet (18/10/2026)
+
+Première validation de bout en bout du paiement **en conditions réelles**, sur le
+réseau principal Base, contre le service en production
+`https://kder-ai.com/validate`. Aucun changement de code n'a été nécessaire :
+c'est le `402` livré par D80 (`outputSchema` + `network` à la racine) qui a servi.
+
+| Élément | Mesure |
+|---|---|
+| Transaction | `0x47370e66ca49e5a01c80b5afdde727c858b612ac1437628d7d2ef2786b28aece` |
+| Explorateur | https://basescan.org/tx/0x47370e66ca49e5a01c80b5afdde727c858b612ac1437628d7d2ef2786b28aece (secours vérifié : https://base.blockscout.com/tx/0x47370e66ca49e5a01c80b5afdde727c858b612ac1437628d7d2ef2786b28aece) |
+| Réseau | Base Mainnet (chainId 8453), USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| Bloc | 52 756 000, statut succès |
+| Gaz | payé par le facilitateur-relais `0x64cc42b1ce598e3abcfbb64df4688521ddbf1f0a` ; l'acheteur n'avait **aucun ETH** — paiement **gasless** confirmé |
+| Transfert | 0,02 USDC de l'acheteur `0xfd165b321F36cF443a0Ca50db2E7EC5539fB0D91` vers le wallet du service `0x0fE9AFb42021Cbcbed9Da7473f619026Fe42d339` |
+| Soldes | wallet du service 1,04 → **1,06 USDC** ; acheteur 0,50 → 0,48 USDC |
+| Durée | `402` → signature EIP-3009 → règlement on-chain → `200` en **2,76 s** |
+
+Offre publiée dans le `402` : `network: "base"`, `maxAmountRequired: "20000"`
+(0,02 USDC), asset USDC mainnet, `payTo: 0x0fE9…2d339`, domaine EIP-712
+`USD Coin v2`, `outputSchema` non nul (schéma Pydantic de `ValidationResponse`).
+
+Réponse de l'API (`HTTP 200`), telle que le client la reçoit :
+
+```json
+{
+  "result": {
+    "validated": true,
+    "standardized": {
+      "line1": "8 Rue de la Paix",
+      "line2": "",
+      "city": "Paris",
+      "state": "IDF",
+      "zip": "75002",
+      "country": "FR"
+    },
+    "latitude": 48.8688085,
+    "longitude": 2.3309554,
+    "deliverability": "residential",
+    "confidence": 1.0,
+    "degraded": false,
+    "cache_key": "b1934eb5dbe6e509bb57aecf9b6fb635291070d73c749b99842f989bc5c641a0"
+  },
+  "price_paid": 0.02,
+  "transaction_id": "0x47370e66ca49e5a01c80b5afdde727c858b612ac1437628d7d2ef2786b28aece"
+}
+```
+
+En-tête `X-PAYMENT-RESPONSE` : `{"success": true, "transaction": "0x4737…b28aece", "network": "base", "payer": "0xfd16…0D91"}`.
+
+Comptabilité côté production, mesurée en base après le règlement :
+
+- `payment_transactions` : `0x4737…b28aece`, 0,02 USDC, `test_mode = false` —
+  **revenu réel** (18/10/2026 05:29:07 UTC), et non une recette marquée ;
+- `api_calls` : `402` à 05:29:04, puis `200` mode `x402` pour 0,02 USDC à
+  05:29:07.
+
+Hygiène des secrets : le wallet acheteur et les scripts de recette restent **hors
+du dépôt** (dossier local ignoré) ; `.env` est couvert par `.gitignore` (`*.env`)
+et les 337 fichiers suivis ont été audités avant ce commit — aucune clé privée,
+aucune clé d'API réelle (`.env.example` ne contient que des placeholders).
