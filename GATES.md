@@ -459,3 +459,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D84: a recognised address (DPV Y/S/D, or accepted by the BAN) is returned as the provider corrected it (spelling, city, ZIP or postcode added), formatted by the same parse + standardize as the input; a refused address or an unreachable provider keeps the formatted input
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D84
   EXPECT: DECISION OK D84
+- [ ] D85: for a recognised US address, residential/commercial comes from SmartyStreets RDI (metadata.rdi), not from the DPV code; DPV D (secondary missing) gets the confidence of S; no RDI keeps residential; refused stays invalid; the manifest explains commercial by RDI
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D85
+  EXPECT: DECISION OK D85

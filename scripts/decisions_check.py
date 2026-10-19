@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D84, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D85, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 84
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 85
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7007,7 +7007,32 @@ def d84() -> None:
     guard("D84" in read("DECISIONS.md"), "la decision D84 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 85)}
+def d85() -> None:
+    """Maison ou entreprise : c'est le RDI de SmartyStreets qui le dit, pas le code DPV."""
+    from fastapi.testclient import TestClient
+
+    import app.validation as validation
+    from app.main import app
+    from app.validation import verifier
+    from app.validation.scorer import score_deliverability
+
+    sans_gps = {"lat": None, "lng": None}
+    cas = {("Y", "Commercial"): ("commercial", 0.99), ("Y", "Residential"): ("residential", 0.99),
+           ("D", "Residential"): ("residential", 0.95), ("Y", ""): ("residential", 0.99), ("N", "Commercial"): ("invalid", 0.0)}
+    for (dpv, rdi), attendu in cas.items():
+        score = score_deliverability({"valid": dpv != "N", "deliverability": dpv, "metadata": {"rdi": rdi}}, sans_gps)
+        guard((score["deliverability"], score["confidence"]) == attendu, f"DPV {dpv} + RDI {rdi!r} -> {score}, attendu {attendu}")
+    candidat = {"delivery_line_1": "100 Stewart St", "metadata": {"rdi": "Commercial"}, "analysis": {"dpv_match_code": "Y"},
+                "components": {"city_name": "Seattle", "state_abbreviation": "WA", "zipcode": "98101"}}
+    with mock.patch.object(validation, "geocode", lambda s: sans_gps), mock.patch.object(verifier, "_call_smarty", lambda *a, **k: [candidat]):
+        sortie = validation.validate_full({"street": "100 stewart st", "city": "seattle", "state": "wa", "zip": "98101", "country": "US"})
+    guard(sortie["deliverability"] == "commercial", f"un bureau sort {sortie['deliverability']!r}")
+    valeurs = TestClient(app).get("/manifest").json()["deliverability_values"]
+    guard("DPV D" not in valeurs["commercial"] and "RDI" in valeurs["commercial"], f"le manifeste explique encore commercial par le DPV : {valeurs['commercial']!r}")
+    guard(re.search(r"^\| D85 \|", read("DECISIONS.md"), re.M) is not None, "la decision D85 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 86)}
 
 
 def catalog() -> list[tuple[str, str]]:
