@@ -962,3 +962,33 @@ Limites dites : l'erreur D67 du premier passage d'oracles n'a pas été reprodui
 production ; l'import du site dans **Bing Webmaster Tools** (issue #39) reste
 une action humaine (connexion au compte Google/Microsoft), l'IndexNow ne fait
 qu'accélérer la découverte.
+
+## 18. Le VPS passe à la BAN Geoplateforme (19/10/2026)
+
+Mise en ligne du commit mergé `911667b` (PR #45, D79 précisée) : l'ancienne
+adresse `api-adresse.data.gouv.fr` (Sunset annoncé au 31/01/2026) est remplacée
+par la Géoplateforme de l'IGN, `data.geopf.fr/geocodage/search/`.
+
+| Élément | Mesure |
+|---|---|
+| Archive | `av-maj-ban.tgz` (6 744 Ko, 124 fichiers `app/`, 72 gabarits), `sha256 65a4ca80…bb9b6` |
+| Sauvegarde | `/opt/address-validator-avant-20261019-112921` (260 fichiers) |
+| Déploiement | `deploy-kder-ai.sh --maj` : M1 à M9 OK, M5 « mêmes fichiers » |
+| Santé | `/health` 200, base et Redis joignables, `.env` conforme, **0 redémarrage systemd** |
+| Docs racine | `DECISIONS.md` (`637a3853…`) et `README.md` (`54b350c6…`) synchronisés, hashes identiques au dépôt |
+
+Vérifications en réel après redémarrage :
+
+- URL effectivement chargée : `https://data.geopf.fr/geocodage/search/` ;
+- cas signalé « 8 rue madelaine, Lyon, 75005 » → `validated: false`, `invalid` ;
+- « 8 Rue de la Paix, Paris, 75002 » → `validated: true`, `residential` ;
+- « 1 Rue de Paris, Saint-Denis, 97400 » → `validated: true`, `residential` ;
+- `degraded: false` partout (la BAN répond) ; hashes `ban.py`, `manifest.py`,
+  `decisions_check.py` identiques à `main`.
+
+État d'avant le déploiement, dit : la production tournait encore sur `e437c18`
+(ancienne URL BAN, `DECISIONS.md`/`README.md` d'avant) — un seul commit mergé de
+retard, désormais résorbé. Les PR ouvertes #41 à #44 et #46 (D83 à D87) ne sont
+pas déployées : elles ne sont pas mergées, c'est voulu.
+
+Retour arrière : `cd /opt/address-validator-avant-20261019-112921 && tar -cf - app scripts docs | tar -C /opt/address-validator -xf - && systemctl restart address-validator`.
