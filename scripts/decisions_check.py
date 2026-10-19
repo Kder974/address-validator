@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D86, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D87, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 86
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 87
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -4929,7 +4929,6 @@ def d53() -> None:
     from app.config import get_settings
     from app.main import app
     from app.routes import accueil
-    from app.routes.validate_form import CHAMPS
 
     client = TestClient(app)
     navigateur = client.get("/", headers={"Accept": "text/html,application/xhtml+xml,*/*;q=0.8"})
@@ -4955,7 +4954,8 @@ def d53() -> None:
         "la vitrine charge une ressource par <link>",
     )
     noms = re.findall(r'<input[^>]*\bname="(\w+)"', texte)
-    guard(noms == [nom for nom, _, _ in CHAMPS], f"champs du formulaire de la vitrine : {noms}")
+    # D87 : la vitrine envoie le champ unique de l'essai gratuit (D86).
+    guard(noms == ["address"], f"champs du formulaire de la vitrine : {noms}")
 
     programme = client.get("/")
     guard(programme.headers.get("content-type") == "application/json", "un programme ne recoit plus du JSON sur /")
@@ -5133,7 +5133,7 @@ def d57() -> None:
             f"{adresse} : hreflang inattendus : {alternatives}",
         )
         sources = re.findall(r'<img\b[^>]*\bsrc="([^"]*)"', texte)
-        guard(len(sources) == 4, f"{adresse} montre {len(sources)} photos au lieu de 4")
+        guard(len(sources) >= 3, f"{adresse} montre {len(sources)} photos au lieu d'au moins 3")  # D87 : la vitrine animee en montre 3
         for src in sources:
             guard(src.startswith("/images/"), f"{adresse} charge une image hors du site : {src}")
             photo = client.get(src)
@@ -7078,7 +7078,43 @@ def d86() -> None:
     guard(re.search(r"^\| D86 \|", read("DECISIONS.md"), re.M) is not None, "la decision D86 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 87)}
+def d87() -> None:
+    """La vitrine animée, dans les six langues : champ unique, chiffres du code, aucune promesse fausse."""
+    from fastapi.testclient import TestClient
+
+    from app import i18n
+    from app.cache import CACHE_TTL
+    from app.config import get_settings
+    from app.main import app
+    from app.routes import accueil
+
+    client = TestClient(app)
+    # Ce que l'ancienne vitrine promettait à tort (un abonné paie aussi une adresse servie par le cache),
+    # et ce que la maquette disait sans preuve : aucune langue ne doit le redire.
+    faux = {"en": ("not billed again", "Most shops", "fraction of a second", "ready-made script", "is not stored", "plugin"),
+            "fr": ("refacturée",), "es": ("no se vuelve a cobrar",), "zh": ("不会重复计费",), "hi": ("दोबारा बिल नहीं",),
+            "ar": ("لا يُحتسب مرة أخرى",)}
+    for lang in i18n.LANGUES:
+        adresse = i18n.chemin(lang)
+        page = hors_bloc(client.get(adresse, headers={"Accept": "text/html"}).text)
+        formulaire = re.search(r'<form class="try" id="essai" method="post" action="([^"]+)"[^>]*>(.*?)</form>', page, re.S)
+        guard(formulaire is not None and formulaire.group(1) == i18n.chemin(lang, "validate-form"), f"{adresse} : le champ unique n'envoie pas a l'essai gratuit")
+        guard(re.findall(r'<input[^>]*\bname="(\w+)"', formulaire.group(2)) == ["address"] and 'maxlength="200"' in formulaire.group(2),
+              f"{adresse} : le formulaire n'est pas le champ unique de D86")
+        guard("@keyframes tape" in page and "animation-timeline:view()" in page and "prefers-reduced-motion:reduce" in page,
+              f"{adresse} : animations absentes ou sans repli pour qui les refuse")
+        valeurs = accueil.valeurs(get_settings(), lang)
+        for cle in ("prix_essai", "prix_starter", "prix_pro", "unite_starter", "unite_pro", "moins_de", "quota_starter", "quota_pro"):
+            guard(valeurs[cle] in page, f"{adresse} : {cle} ({valeurs[cle]!r}) n'est pas celui du code")
+        guard(i18n.nombre(lang, CACHE_TTL // 86400) in page, f"{adresse} : la duree du cache n'est pas celle du code")
+        guard(i18n.DEVISE[lang] == "USD" or "¢" not in page, f"{adresse} : des cents sur une page qui n'est pas en dollars")
+        for phrase in faux[lang]:
+            guard(phrase not in page, f"{adresse} : promesse fausse ou non prouvee : {phrase!r}")
+        guard(lang != "ar" or ('dir="rtl"' in page and '[dir="rtl"] .mapmini{right:auto;left:-26px}' in page and '[dir="rtl"] .photo .badge{left:auto;right:-18px}' in page), f"{adresse} : la mise en page de droite a gauche manque")
+    guard(re.search(r"^\| D87 \|", read("DECISIONS.md"), re.M) is not None, "la decision D87 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 88)}
 
 
 def catalog() -> list[tuple[str, str]]:
