@@ -1004,7 +1004,7 @@ précédentes : l'ordre de fusion #41 → #42 → #43 → #44 → #46 est sans c
 | Fusion | `main` = `cb8797b` (5 merge commits, PR #41–#44 et #46) |
 | Portes | D83 à D87 **PASS**, `ALL MET (88)` ; preuves automatiques enregistrées ; commit `cb8797b` |
 | Tests | **898 passés, 0 échec, 1 ignoré** (899 collectés) |
-| Oracles | 86/87 en passage complet ; **D67 instable** (échec d'ordonnancement, isolement et porte OK, non reproduit sur un passage précédent) — à stabiliser |
+| Oracles | 86/87 en passage complet ; **D67 instable, désormais reproductible** en passage complet (deux passages consécutifs), alors qu'il passe isolé et par sa porte : dépendance d'ordre entre oracles (état/thread de test), sans incidence sur le service ; à corriger dans un lot d'hygiène |
 | Archive | `av-maj-d83-d87.tgz`, `sha256 ed40a69c…8858d2`, 124 fichiers `app/`, 72 gabarits |
 | Sauvegarde | `/opt/address-validator-avant-20261019-135141` (260 fichiers) |
 | Santé | `/health` 200, base et Redis OK, `.env` conforme, **0 redémarrage systemd** |
