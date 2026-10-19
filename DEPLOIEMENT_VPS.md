@@ -992,3 +992,36 @@ retard, désormais résorbé. Les PR ouvertes #41 à #44 et #46 (D83 à D87) ne 
 pas déployées : elles ne sont pas mergées, c'est voulu.
 
 Retour arrière : `cd /opt/address-validator-avant-20261019-112921 && tar -cf - app scripts docs | tar -C /opt/address-validator -xf - && systemctl restart address-validator`.
+
+## 19. Fusion D83→D87 et déploiement (19/10/2026)
+
+Fusion des cinq PR empilées de Fzed (#41 à #44, #46) sur `main`, puis mise en
+ligne par `deploy-kder-ai.sh --maj`. Les branches contenaient chacune les
+précédentes : l'ordre de fusion #41 → #42 → #43 → #44 → #46 est sans conflit.
+
+| Élément | Mesure |
+|---|---|
+| Fusion | `main` = `cb8797b` (5 merge commits, PR #41–#44 et #46) |
+| Portes | D83 à D87 **PASS**, `ALL MET (88)` ; preuves automatiques enregistrées ; commit `cb8797b` |
+| Tests | **898 passés, 0 échec, 1 ignoré** (899 collectés) |
+| Oracles | 86/87 en passage complet ; **D67 instable** (échec d'ordonnancement, isolement et porte OK, non reproduit sur un passage précédent) — à stabiliser |
+| Archive | `av-maj-d83-d87.tgz`, `sha256 ed40a69c…8858d2`, 124 fichiers `app/`, 72 gabarits |
+| Sauvegarde | `/opt/address-validator-avant-20261019-135141` (260 fichiers) |
+| Santé | `/health` 200, base et Redis OK, `.env` conforme, **0 redémarrage systemd** |
+| Docs racine | `DECISIONS.md` `55ac2f11…`, `README.md` `73bc8ea2…`, `GATES.md` `51ffc962…` synchronisés |
+
+Vérifications en réel après redémarrage (hashes des fichiers identiques à `main`) :
+
+- **D87** : `/` répond 200 avec la nouvelle vitrine (CSS animé + `prefers-reduced-motion`),
+  champ unique `address`, prix par adresse affichés ;
+- **D86** : `POST /validate-form` avec « 8 rue de la paix 75002 paris » → 200,
+  « Adresse reconnue », « Rue de la Paix » corrigée ;
+- **D84** : BAN « 8 rue de la paix / paris » → `8 Rue de la Paix / Paris` ;
+  Smarty « 1600 amphitheatre pkwy » → `1600 Amphitheatre Parkway / Mountain View` ;
+- **D85** : Apple HQ (1 Infinite Loop, Cupertino) → `deliverability: commercial`,
+  confiance 1.0 (RDI de SmartyStreets, plus le DPV) ;
+- **D83** : `/compare` affiche **19** prix convertis avec « ≈ » et le prix dollars
+  entre crochets ; `/en/compare` garde les prix dollars ;
+- **D79/D80/D82** inchangés (BAN Geoplateforme, 402, motifs de refus).
+
+Retour arrière : `cd /opt/address-validator-avant-20261019-135141 && tar -cf - app scripts docs | tar -C /opt/address-validator -xf - && systemctl restart address-validator`.
