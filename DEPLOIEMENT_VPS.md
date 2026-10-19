@@ -1025,3 +1025,35 @@ Vérifications en réel après redémarrage (hashes des fichiers identiques à `
 - **D79/D80/D82** inchangés (BAN Geoplateforme, 402, motifs de refus).
 
 Retour arrière : `cd /opt/address-validator-avant-20261019-135141 && tar -cf - app scripts docs | tar -C /opt/address-validator -xf - && systemctl restart address-validator`.
+
+## 20. Premier paiement d'un agent externe — SettledScout (19/10/2026)
+
+Le service a encaissé son **premier paiement d'un agent inconnu**, en USDC sur
+Base Mainnet.
+
+| Élément | Mesure |
+|---|---|
+| Date | 19/10/2026 13:19:52 UTC |
+| Transaction | `0x69823b0280d18e2d8f2eb99dca1aea7d01bb2affd97e197dcf780e0dcee63000` (bloc 52 813 323) |
+| Explorateur | https://basescan.org/tx/0x69823b0280d18e2d8f2eb99dca1aea7d01bb2affd97e197dcf780e0dcee63000 |
+| Payeur | `0xA1d1C0cF717402fF3651AA4873CCF96410b01978` (SettledScout) |
+| Montant | 0,02 USDC ; gaz payé par le facilitateur-relais `0x42dd…4b00` |
+| API | `/validate` → `200`, mode `x402`, pays d'appel **SG**, cache touché (`250a6087…`, l'exemple de la fiche Bazaar : 1600 Amphitheatre Parkway) |
+| Solde du service | 1,08 → **1,10 USDC** |
+| Revenu réel publié | **3 paiements réels / 0,06 USDC** (`/metrics/revenue` ; 24 h : 1 / 0,02) |
+| Registre | `payment_transactions` : 0,02 USDC, `test_mode = false` |
+
+L'agent est **SettledScout**, le « paid test purchase » de l'index x402
+[settled.tools](https://settled.tools/bot) : il achète une fois par semaine chez
+les vendeurs listés jusqu'à 0,25 $, en envoyant l'exemple d'entrée de la fiche
+Bazaar, et publie son verdict. Le nôtre, public :
+
+- livraison à `2026-10-19T13:19:52.856Z`, 453 octets de JSON, transaction ci-dessus ;
+- **`verdict: "as_advertised": true`** — 17 champs promis, 17 trouvés, 0 manquant,
+  0 mauvais type ; prix facturé 0,02 $ = prix affiché.
+
+Le catalogue Coinbase (Bazaar) a mis à jour la fiche à la seconde du paiement
+(`lastUpdated 2026-10-19T13:19:52.89Z`), ce qui confirme que l'agent nous a
+trouvés par ce catalogue. Prochaine étape pour l'exploitant : réclamer le wallet
+payTo sur Settled (`https://settled.tools/claim?wallet=0x0fE9…2d339`) pour
+activer la veille vendeur offerte.
