@@ -22,12 +22,14 @@ configuration. Un champ oublié lève une erreur au lieu de publier un `{{...}}`
 
 from __future__ import annotations
 
+from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
 from app import accounts, i18n, seo
+from app.cache import CACHE_TTL
 from app.config import get_settings
 from app.web import public_headers
 
@@ -46,6 +48,24 @@ def veut_html(accept: str, agent: str = "") -> bool:
     return "text/html" in accept or seo.est_robot(agent)
 
 
+def _par_adresse(lang: str, montant: Decimal) -> str:
+    """Un prix par adresse (D87) : « 0.9¢ » sur une page en dollars, sinon comme `i18n.prix`."""
+    devise = i18n.DEVISE[lang]
+    if devise == "USD":
+        centimes = (montant * 100).quantize(Decimal("0.1"), ROUND_HALF_UP)
+        if centimes == centimes.to_integral():
+            centimes = centimes.quantize(Decimal(1))
+        return f"{i18n.nombre(lang, centimes)}¢"
+    texte = i18n.nombre(lang, montant)
+    return f"{texte} €" if devise == "EUR" else i18n.SYMBOLE[devise] + texte
+
+
+def _plafond(montant: Decimal) -> Decimal:
+    """Arrondi au-dessus, à un chiffre significatif : 0,0165 -> 0,02 ; 1,58 -> 2."""
+    pas = Decimal(1).scaleb(montant.adjusted())
+    return (montant / pas).quantize(Decimal(1), ROUND_CEILING) * pas
+
+
 def valeurs(settings, lang: str = i18n.DEFAUT) -> dict[str, str]:
     """Les champs du gabarit, tous lus dans le code ou la configuration."""
     return {
@@ -60,6 +80,11 @@ def valeurs(settings, lang: str = i18n.DEFAUT) -> dict[str, str]:
         "quota_pro": i18n.nombre(lang, accounts.PLANS["pro"]),
         "prix_x402": i18n.nombre(lang, settings.x402_price),
         "contact": settings.contact_email,
+        # D87 : prix par adresse, dans la monnaie de la page (« 0.9¢ », « 0,0079 € »).
+        **{cle: _par_adresse(lang, i18n.MONTANTS[i18n.DEVISE[lang]][f"unitaire_{offre}"])
+           for cle, offre in (("unite_starter", "starter"), ("unite_pro", "pro"))},
+        "moins_de": _par_adresse(lang, _plafond(i18n.MONTANTS[i18n.DEVISE[lang]]["unitaire_starter"])),
+        "jours_cache": i18n.nombre(lang, CACHE_TTL // 86400),
     }
 
 
