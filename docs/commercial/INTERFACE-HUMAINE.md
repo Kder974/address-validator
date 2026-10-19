@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Destinataire** | Claude (Fzed), pour implémentation |
-| **Branche dédiée** | `fonctionnalite/interface-stripe` (rebasée sur `main` = `911667b`) |
+| **Branche dédiée** | `fonctionnalite/interface-stripe` (rebasée sur `main` = `c812935`) |
 | **Auteur du brief** | agent DSH, 19/10/2026 |
 | **Périmètre** | achat de crédits de validation par carte bancaire (Stripe Checkout) pour l'**interface humaine**, utilisables avec la clé API d'un compte |
 | **Statut** | spécification à implémenter — **aucun secret réel dans ce document** |
@@ -127,15 +127,19 @@ Ajouter dans `app/accounts.py` (même logique que `OFFRES` : la page lit le code
 #: Packs de crédits prépayés (D88). Prix en **centimes d'euro** (entiers : pas de
 #: flottant sur de l'argent). `stripe_price_id` seul fait foi chez Stripe.
 PACKS = (
-    {"id": "pack_5",   "validations": 5,   "prix_eur_cents": 149,  "devise": "eur"},
-    {"id": "pack_25",  "validations": 25,  "prix_eur_cents": 590,  "devise": "eur"},
-    {"id": "pack_100", "validations": 100, "prix_eur_cents": 1990, "devise": "eur"},
+    {"id": "pack_5",    "validations": 5,    "prix_eur_cents": 149,   "devise": "eur"},
+    {"id": "pack_25",   "validations": 25,   "prix_eur_cents": 590,   "devise": "eur"},
+    {"id": "pack_100",  "validations": 100,  "prix_eur_cents": 1990,  "devise": "eur"},
+    {"id": "pack_500",  "validations": 500,  "prix_eur_cents": 7900,  "devise": "eur"},
+    {"id": "pack_2000", "validations": 2000, "prix_eur_cents": 24900, "devise": "eur"},
 )
 #: Mapping id de pack → identifiant de prix Stripe (env, placeholders en mode test).
 PRIX_STRIPE = {
     "pack_5": "price_TEST_VOTRE_PACK_5",
     "pack_25": "price_TEST_VOTRE_PACK_25",
     "pack_100": "price_TEST_VOTRE_PACK_100",
+    "pack_500": "price_TEST_VOTRE_PACK_500",
+    "pack_2000": "price_TEST_VOTRE_PACK_2000",
 }
 ```
 
@@ -436,8 +440,9 @@ Avant de pousser, Claude doit :
 
 ## 10. Questions ouvertes — à valider par Kder avant de coder
 
-1. **Prix des packs** et TVA : les montants proposés (1,49 € / 5,90 € / 19,90 €
-   TTC) sont-ils les bons ? Faut-il Stripe Tax (TVA UE calculée à la caisse) ?
+1. **Prix des packs** et TVA : les montants proposés (1,49 € / 5,90 € / 19,90 € /
+   79,00 € / 249,00 € TTC) sont-ils les bons pour les **cinq** packs ? Faut-il
+   Stripe Tax (TVA UE calculée à la caisse) ?
 2. **Crédits et essai expiré** : un compte dont l'essai est terminé peut-il
    utiliser ses crédits (proposé : oui) ?
 3. **Remboursement d'un crédit déjà consommé** : solde négatif autorisé
@@ -461,3 +466,65 @@ Avant de pousser, Claude doit :
 - `DECISIONS.md` D40 (recette ≠ revenu), D44-D46 (comptes, quotas, clé API),
   D57 (tarifs = vérité), D71 (tableau de bord), D82 (motifs de refus).
 - `GATES.md` + `scripts/decisions_check.py` — porte et oracle de la future D88.
+
+---
+
+## 12. CE QUE DEEPSEEK A DÉJÀ FAIT (backend uniquement)
+
+> **Périmètre** : le contrat backend est prêt. Aucune page HTML/CSS ni code
+> d'intégration Stripe n'a été écrit par DeepSeek : c'est le périmètre de Claude.
+> DeepSeek s'arrête ici (consigne de Kder, 19/10/2026).
+
+- **Décision D88** actée dans ce document : crédits prépayés par carte pour
+  l'interface humaine ; x402 (agents) et abonnements par clé API inchangés.
+- **Contrat des routes API** (section 2) : `GET /compte`, `GET /compte/credits`,
+  `POST /compte/credits/acheter`, `GET /compte/credits/succes`, `GET /compte/credits/annule`,
+  `POST /stripe/webhook`, packs affichés sur `/pricing` — avec authentification
+  (session D62 + en-tête `Origin`), corps attendus, réponses et codes d'erreur.
+- **Catalogue des 5 packs** (section 3) : `pack_5`, `pack_25`, `pack_100`,
+  `pack_500`, `pack_2000` — prix en **centimes entiers**, mapping vers les Price
+  IDs Stripe (placeholders), prix jamais fournis par le client.
+- **Schéma PostgreSQL** (section 5) : DDL prêt à coller dans `app/database.py` pour
+  `credit_balance` (solde verrouillable) et `credit_transactions` (grand livre ;
+  `stripe_event_id` et `payment_intent_id` **UNIQUE** = anti-double-crédit), miroirs
+  SQLAlchemy, style idempotent du D82 (`CREATE TABLE IF NOT EXISTS`, index).
+- **Logique de quota arrêtée** (section 4) : ordre **quota mensuel du plan →
+  crédits → `402 quota_atteint`** ; débit atomique
+  `UPDATE … WHERE balance >= 1 RETURNING` ; achat/remboursement par webhook
+  uniquement ; montant recalculé côté serveur ; idempotence garantie par la base.
+- **Configuration et placeholders** (section 6) : `STRIPE_*` dans `app/config.py`
+  et `.env.example` ; clé publique `pk_test_VOTRE_CLE_PUBLIQUE` côté navigateur,
+  clé secrète `sk_test_VOTRE_CLE` côté serveur ; `.env` ignoré par git ; **aucune
+  clé réelle dans le dépôt**.
+- **Branche et audit** : `fonctionnalite/interface-stripe` rebasée sur
+  `main` = `c812935` ; brief relu (aucune clé réelle, aucun CRLF, placeholders
+  uniquement) ; ce document est la référence unique du chantier.
+
+## 13. TÂCHES POUR CLAUDE
+
+1. **Créer la page `/compte/credits`** avec **les 5 packs** : nom, nombre de
+   validations, prix TTC (lus dans `accounts.PACKS`, aucune recopie de prix),
+   bouton d'achat par pack ; gabarits dans les six langues, style du site.
+2. **Connecter les boutons au Stripe Checkout** : `POST /compte/credits/acheter`
+   crée une session `mode=payment` avec le `price_TEST_VOTRE_PACK_*` du pack, puis
+   redirige le navigateur vers `checkout_url`. Côté front, **uniquement la clé
+   publique** : `pk_test_VOTRE_CLE_PUBLIQUE`. La clé secrète `sk_test_VOTRE_CLE`
+   reste côté serveur (`.env`) ; jamais dans le HTML, le JS ou le dépôt.
+3. **Modifier la page `/compte`** pour afficher le **solde de crédits** (distinct
+   du « restant du mois » du plan), un lien vers `/compte/credits` et l'historique
+   court ; six langues.
+4. **Implémenter le backend selon le contrat** (specs figées aux sections 2 à 6) :
+   routes, tables `credit_balance`/`credit_transactions`, logique de quota,
+   webhook idempotent. Fichiers attendus : `app/routes/credits.py` (nouveau),
+   `app/accounts.py`, `app/database.py`, `app/models.py`, `app/config.py`,
+   `app/routes/validate.py`, tests.
+5. **Sécurité** : vérifier la signature du webhook, ne créditer que sur événement
+   signé, rejouer un événement = `200` sans double crédit, montant recalculé
+   serveur, `.env` jamais commité.
+6. **Tests et discipline** : `tests/test_credits.py` (achat, rejeu, montant
+   falsifié, signature invalide, quota → crédit → 402, page compte six langues,
+   packs `/pricing`), oracle `d88`, porte `D88`, `scripts/run_tests.py`,
+   `scripts/decisions_check.py --all` (88/88), `gate-check` ALL MET. Branche
+   dédiée uniquement, **pas de fusion dans `main` sans accord explicite de Kder**.
+7. **HTML/CSS et intégration Stripe : exclusivement Claude.** DeepSeek ne touche
+   pas à ces fichiers.
