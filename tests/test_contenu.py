@@ -85,3 +85,33 @@ def test_le_lien_serveur_mcp_mene_a_la_page_des_agents():
         for page in ("", "pricing", "guide", "validate-form", "signup"):
             texte = client.get(i18n.chemin(lang, page), headers={"Accept": "text/html"}).text
             assert f'href="{i18n.chemin(lang, "agents")}"' in texte and f'href="{i18n.chemin(lang, "compare")}"' in texte
+
+
+# D83 : les prix des autres services, publiés en dollars, sont montrés dans la
+# monnaie de la page, avec le prix publié entre parenthèses.
+@pytest.mark.parametrize("lang, attendu", [("fr", "≈\u00a015\u00a0€"), ("es", "≈\u00a015\u00a0€"), ("zh", "≈\u00a0¥115"),
+                                           ("hi", "≈\u00a0₹1,625"), ("en", "$17"), ("ar", "$17")])
+def test_un_prix_en_dollars_est_montre_dans_la_monnaie_de_la_page(lang, attendu):
+    assert contenu.converti(lang, "17") == attendu
+
+
+def test_l_arrondi_suit_la_taille_du_prix():
+    assert contenu.converti("fr", "552") == "≈\u00a0484\u00a0€"
+    assert contenu.converti("fr", "10.20") == "≈\u00a08,95\u00a0€"
+    assert contenu.converti("fr", "0.0002") == "≈\u00a00,00018\u00a0€"
+    assert contenu.converti("zh", "552") == "≈\u00a0¥3,728"
+    assert contenu.dollars("fr", "13.60") == "13,60\u00a0$" and contenu.dollars("hi", "13.60") == "$13.60"
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUES)
+def test_aucun_prix_en_dollars_sans_sa_conversion(lang):
+    texte = seo.hors_bloc(client.get(i18n.chemin(lang, "compare")).text)
+    cartes = texte[texte.index("<h3>Google"):texte.index('<section aria-labelledby="choix">')]
+    assert texte.count("<article") == texte.count("</article>") == 5 and texte.count("<dd") == texte.count("</dd>")
+    if i18n.DEVISE[lang] == "USD":
+        assert 'class="conv"' not in cartes
+        return
+    assert cartes.count('<bdi class="conv">≈') == len(contenu.CONCURRENTS_USD)
+    assert "$" not in re.sub(r'<small class="usd">.*?</small>', "", cartes)
+    calcul = re.search(r'<h2 id="calcul">.*?<p class="sub">(.*?)</p>', texte, re.S).group(1)
+    assert contenu.converti(lang, "1") in calcul

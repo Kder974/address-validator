@@ -453,3 +453,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D82
   EXPECT: DECISION OK D82
   EVIDENCE: automatic-evidence=v1; definition-sha256=7ff00a7b292c778e13916eaea540b382bc7de21467b1653dfc85dc2b715a12e5; exit=0; EXPECT=matched; output-sha256=07c5499bd53b66656407f66a987492632bbe3153120d755ff6b7ccdcd09bc4c0; output-bytes=810; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\Documents\PDF Suite Files\Surveillant PC\Plan de richesse\address-validator; path=7b70d0fe75c0/27 entries
+- [ ] D83: on /compare, competitor prices (published in US dollars) are shown in the page currency (euros, yuan, rupees) with "≈" and the published dollar price in brackets, converted at i18n.TAUX; dollar pages (en, ar) keep the published price; the method paragraph states the rate
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D83
+  EXPECT: DECISION OK D83
