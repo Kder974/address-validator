@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D83, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D84, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 83
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 84
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -6977,7 +6977,37 @@ def d83() -> None:
     guard("D83" in read("DECISIONS.md"), "la decision D83 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 84)}
+def d84() -> None:
+    """Une adresse reconnue sort telle que le fournisseur l'a corrigée ; une adresse refusée garde la saisie."""
+    import app.validation as validation
+    from app.validation import ban, verifier
+
+    saisie = {"street": "100 stewart st", "city": "seatle", "state": "wa", "zip": "", "country": "US"}
+    candidat = {"delivery_line_1": "100 Stewart St", "metadata": {}, "analysis": {"dpv_match_code": "Y"},
+                "components": {"city_name": "Seattle", "state_abbreviation": "WA", "zipcode": "98101"}}
+    francaise = {"street": "1 rue de paris", "city": "saint denis", "state": "RE", "zip": "97400", "country": "RE"}
+    feature = {"geometry": {"coordinates": [55.45, -20.88]}, "properties": {
+        "name": "1 Rue de Paris", "score": 0.95, "postcode": "97400", "city": "Saint-Denis", "type": "housenumber"}}
+    with mock.patch.object(validation, "geocode", lambda s: {"lat": None, "lng": None}):
+        with mock.patch.object(verifier, "_call_smarty", lambda *a, **k: [candidat]):
+            sortie = validation.validate_full(saisie)["standardized"]
+        guard((sortie["line1"], sortie["city"], sortie["zip"]) == ("100 Stewart Street", "Seattle", "98101"),
+              f"adresse reconnue rendue sans la correction du fournisseur : {sortie}")
+        refuse = {**candidat, "analysis": {"dpv_match_code": "N"}}
+        with mock.patch.object(verifier, "_call_smarty", lambda *a, **k: [refuse]):
+            sortie = validation.validate_full(saisie)["standardized"]
+        guard((sortie["city"], sortie["zip"]) == ("Seatle", ""), f"une adresse refusee prend la forme du fournisseur : {sortie}")
+        with mock.patch.object(ban, "_call_ban", lambda q, cp: [feature]):
+            sortie = validation.validate_full(francaise)["standardized"]
+        guard((sortie["line1"], sortie["city"]) == ("1 Rue de Paris", "Saint-Denis"), f"adresse BAN rendue sans sa correction : {sortie}")
+        rue = {**feature, "properties": {**feature["properties"], "name": "Rue de Paris", "type": "street"}}
+        with mock.patch.object(ban, "_call_ban", lambda q, cp: [rue]):
+            sortie = validation.validate_full(francaise)["standardized"]
+        guard(sortie["line1"] == "1 Rue de Paris", f"voie BAN sans numero : le numero saisi est perdu ({sortie['line1']!r})")
+    guard("D84" in read("DECISIONS.md"), "la decision D84 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 85)}
 
 
 def catalog() -> list[tuple[str, str]]:

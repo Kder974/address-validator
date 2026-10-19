@@ -105,3 +105,13 @@ def test_le_script_se_lance_comme_sur_le_vps():
     # Redis n'est pas joignable dans la suite -> code 2 (« cache injoignable »),
     # jamais un plantage d'import.
     assert resultat.returncode in (0, 2), resultat.stderr
+
+
+def test_tous_pays_purge_toutes_les_adresses_et_rien_d_autre():
+    """D84 : les résultats d'avant la correction sont purgés, quel que soit le pays."""
+    redis = _redis_de_test()
+
+    purger(redis, appliquer=True, tous_pays=True)
+
+    assert set(redis.supprimees) == {"addr:fr", "addr:re", "addr:us", "addr:de"}
+    assert "visite:1" in redis.donnees

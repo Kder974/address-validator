@@ -11,6 +11,11 @@ et renvoie la saisie sans code DPV pour une adresse étrangère (le pipeline la
 déclarait alors « validée ») ; les adresses françaises et d'outre-mer passent
 donc par la **Base Adresse Nationale** (`app/validation/ban.py`), jamais par
 SmartyStreets, et un échec BAN donne `degraded: true` sans repli.
+
+D84 — une adresse **reconnue** est rendue telle que le fournisseur l'a corrigée
+(`corrige` : orthographe, ville, ZIP ou code postal ajoutés), mise en forme par
+le même `parse` + `standardize` que la saisie ; une adresse refusée ou un
+fournisseur injoignable rendent la saisie mise en forme, comme avant.
 """
 
 from .ban import PAYS_BAN, verify_ban
@@ -39,6 +44,8 @@ def validate_full(raw_address: dict) -> dict:
         verification = verify_ban(standardized)
     else:
         verification = verify_address(standardized)
+    if verification.get("corrige"):
+        standardized = standardize_address(parse_address(verification["corrige"]))
     geo = geocode(standardized)
     score = score_deliverability(verification, geo)
 

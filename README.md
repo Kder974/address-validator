@@ -9,7 +9,8 @@ standardisée, ses coordonnées, un score de livrabilité et une clé de cache.
 - **Entrée unique payante** : `POST /validate` — refuse en `402 Payment Required`
   tant qu'aucune preuve de paiement valide n'est fournie.
 - **Sortie** : adresse standardisée (`line1`, `line2`, `city`, `state`, `zip`,
-  `country`), `latitude`/`longitude` (géocodage Nominatim), `deliverability`,
+  `country`), corrigée par le fournisseur quand l'adresse est reconnue (D84 :
+  orthographe, ville, code postal ajouté), `latitude`/`longitude` (géocodage Nominatim), `deliverability`,
   `confidence`, `degraded` et `cache_key`.
 - **Découverte** : `GET /manifest` décrit le service et son schéma pour un
   annuaire x402 / MCP.
@@ -171,7 +172,9 @@ Réponse (`app/schemas.py:19-37`) : `{"result": {"validated", "standardized",
 "cache_key"}, "price_paid", "transaction_id"}`.
 
 Pipeline de validation (`app/validation/__init__.py:26-41`) :
-`parse → standardize → verify (fournisseur) → geocode → score`.
+`parse → standardize → verify (fournisseur) → geocode → score`. Depuis D84, une
+adresse reconnue repasse par `parse → standardize` sous la forme corrigée par le
+fournisseur (`corrige`) avant le géocodage.
 
 | Sortie | Signification |
 |--------|---------------|
