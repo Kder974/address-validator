@@ -462,3 +462,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D85: for a recognised US address, residential/commercial comes from SmartyStreets RDI (metadata.rdi), not from the DPV code; DPV D (secondary missing) gets the confidence of S; no RDI keeps residential; refused stays invalid; the manifest explains commercial by RDI
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D85
   EXPECT: DECISION OK D85
+- [ ] D86: the free test accepts a one-line address (field address): a line ending with a US state is split into street, city, state, ZIP; a 5-digit postcode before the city means France or an overseas territory; otherwise the whole line goes to SmartyStreets as freeform; same pipeline and rate limit
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D86
+  EXPECT: DECISION OK D86

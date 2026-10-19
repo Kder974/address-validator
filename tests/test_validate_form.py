@@ -263,3 +263,50 @@ def test_un_resultat_degrade_n_est_pas_un_verdict(monkeypatch):
 def test_le_pipeline_est_celui_de_la_route_payante():
     """Un essai et un appel payé ne peuvent pas rendre deux verdicts différents."""
     assert validate_form_route.perform_validation is validate_route.perform_validation
+
+
+# --- D86 : une adresse tapée sur une seule ligne ---------------------------
+
+
+@pytest.mark.parametrize("ligne, attendu", [
+    ("100 stewart st, seatle wa", {"street": "100 stewart st", "city": "seatle", "state": "wa", "zip": "", "country": "US"}),
+    ("100 Stewart St, Seattle, WA 98101", {"street": "100 Stewart St", "city": "Seattle", "state": "WA", "zip": "98101", "country": "US"}),
+    ("1600 Amphitheatre Pkwy, Mountain View, CA 94043, USA",
+     {"street": "1600 Amphitheatre Pkwy", "city": "Mountain View", "state": "CA", "zip": "94043", "country": "US"}),
+    ("12345 Main St, Austin TX", {"street": "12345 Main St", "city": "Austin", "state": "TX", "zip": "", "country": "US"}),
+    ("100 stewart st seattle wa 98101", {"street": "100 stewart st seattle wa 98101", "city": "", "state": "", "zip": "", "country": "US"}),
+    ("10 rue de Rivoli 75001 Paris", {"street": "10 rue de Rivoli", "city": "Paris", "state": "", "zip": "75001", "country": "FR"}),
+    ("1 rue de Paris, 97400 Saint-Denis", {"street": "1 rue de Paris", "city": "Saint-Denis", "state": "", "zip": "97400", "country": "RE"}),
+    ("8 rue de la Paix, 75002 Paris, France", {"street": "8 rue de la Paix", "city": "Paris", "state": "", "zip": "75002", "country": "FR"}),
+    ("5 rue Victor Hugo 97133 Saint-Barthélemy", {"street": "5 rue Victor Hugo", "city": "Saint-Barthélemy", "state": "", "zip": "97133", "country": "BL"}),
+])
+def test_une_ligne_est_rangee_dans_les_champs_de_l_api(ligne, attendu):
+    assert validate_form_route.decouper(ligne) == attendu
+
+
+def test_le_champ_unique_passe_par_le_meme_pipeline(monkeypatch):
+    appels: list[dict] = []
+    _pipeline(monkeypatch, appels=appels)
+
+    reponse = client.post("/en/validate-form", data={"address": "1 rue de Paris, 97400 Saint-Denis"})
+
+    assert reponse.status_code == 200
+    assert appels == [{"street": "1 rue de Paris", "city": "Saint-Denis", "state": "", "zip": "97400", "country": "RE"}]
+
+
+def test_une_ligne_trop_longue_est_coupee(monkeypatch):
+    appels: list[dict] = []
+    _pipeline(monkeypatch, appels=appels)
+
+    client.post("/en/validate-form", data={"address": "1 " + "a" * 500})
+
+    assert len(appels[0]["street"]) <= validate_form_route.LIGNE_MAX
+
+
+def test_un_champ_unique_vide_garde_les_erreurs_du_formulaire(monkeypatch):
+    appels: list[dict] = []
+    _pipeline(monkeypatch, appels=appels)
+
+    reponse = client.post("/en/validate-form", data={"address": "   "})
+
+    assert reponse.status_code == 400 and appels == []

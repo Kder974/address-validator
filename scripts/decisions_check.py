@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D85, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D86, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 85
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 86
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7032,7 +7032,53 @@ def d85() -> None:
     guard(re.search(r"^\| D85 \|", read("DECISIONS.md"), re.M) is not None, "la decision D85 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 86)}
+def d86() -> None:
+    """L'essai gratuit accepte une adresse tapée sur une ligne, rangée dans les champs de l'API."""
+    from fastapi.testclient import TestClient
+
+    import app.validation as validation
+    from app import ratelimit
+    from app.main import app
+    from app.routes import validate as validate_route
+    from app.routes.validate_form import decouper
+    from app.validation import ban, verifier
+
+    cas = {
+        "100 stewart st, seatle wa": ("100 stewart st", "seatle", "wa", "", "US"),
+        "1600 Amphitheatre Pkwy, Mountain View, CA 94043, USA": ("1600 Amphitheatre Pkwy", "Mountain View", "CA", "94043", "US"),
+        "Apt 5 12345 Main St Austin TX": ("Apt 5 12345 Main St Austin TX", "", "", "", "US"),
+        "10 rue de Rivoli 75001 Paris": ("10 rue de Rivoli", "Paris", "", "75001", "FR"),
+        "1 rue de Paris, 97400 Saint-Denis": ("1 rue de Paris", "Saint-Denis", "", "97400", "RE"),
+    }
+    for ligne, attendu in cas.items():
+        champs = decouper(ligne)
+        obtenu = tuple(champs[k] for k in ("street", "city", "state", "zip", "country"))
+        guard(obtenu == attendu, f"{ligne!r} -> {obtenu}, attendu {attendu}")
+
+    appels_smarty: list[tuple] = []
+    appels_ban: list[tuple] = []
+    candidat = {"delivery_line_1": "100 Stewart St", "metadata": {"rdi": "Commercial"}, "analysis": {"dpv_match_code": "Y"},
+                "components": {"city_name": "Seattle", "state_abbreviation": "WA", "zipcode": "98101"}}
+    feature = {"geometry": {"coordinates": [55.45, -20.88]}, "properties": {
+        "name": "1 Rue de Paris", "score": 0.95, "postcode": "97400", "city": "Saint-Denis", "type": "housenumber"}}
+    client = TestClient(app)
+    ratelimit.reset()
+    with mock.patch.object(validation, "geocode", lambda s: {"lat": None, "lng": None}), \
+         mock.patch.object(validate_route, "get_cached_result", lambda cle: None), \
+         mock.patch.object(validate_route, "store_in_cache", lambda cle, r: None), \
+         mock.patch.object(verifier, "_call_smarty", lambda *a, **k: appels_smarty.append(a) or [candidat]), \
+         mock.patch.object(ban, "_call_ban", lambda q, cp: appels_ban.append((q, cp)) or [feature]):
+        us = client.post("/en/validate-form", data={"address": "100 stewart st, seatle wa"})
+        fr = client.post("/en/validate-form", data={"address": "1 rue de Paris, 97400 Saint-Denis"})
+    ratelimit.reset()
+    guard(us.status_code == 200 and appels_smarty == [("100 Stewart Street", "Seatle", "WA", "")],
+          f"ligne US : HTTP {us.status_code}, fournisseur appele avec {appels_smarty}")
+    guard("Seattle" in us.text and "98101" in us.text, "ligne US : l'adresse corrigee (D84) n'est pas affichee")
+    guard(fr.status_code == 200 and len(appels_ban) == 1 and appels_ban[0][1] == "97400", f"ligne FR : BAN appelee avec {appels_ban}")
+    guard(re.search(r"^\| D86 \|", read("DECISIONS.md"), re.M) is not None, "la decision D86 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 87)}
 
 
 def catalog() -> list[tuple[str, str]]:
