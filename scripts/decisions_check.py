@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D82, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D83, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 82
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 83
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -6306,7 +6306,8 @@ def d76() -> None:
         page = seo.hors_bloc(client.get(adresse).text)
         carte = re.search(r"<h3>Smarty.*?</article>", page, re.S)
         guard(carte is not None, f"{adresse} : carte Smarty introuvable")
-        payant, unitaire = re.findall(r"<dd[^>]*>(.*?)</dd>", carte.group(0), re.S)[1:3]
+        # D83 : hors des pages en dollars, le prix converti précède le prix publié ; on lit le publié.
+        payant, unitaire = (re.sub(r'<bdi class="conv">.*?</bdi>', "", dd) for dd in re.findall(r"<dd[^>]*>(.*?)</dd>", carte.group(0), re.S)[1:3])
         nombres = [int(re.sub(r"\D", "", n)) for n in entier.findall(re.sub(r"<[^>]+>", " ", payant))]
         forfaits = list(zip(nombres[0::2], nombres[1::2]))
         guard((552, 60000) in forfaits and (552, 12000) not in forfaits, f"{adresse} : Smarty vend 552 $ pour 60 000 recherches, pas {forfaits}")
@@ -6932,7 +6933,51 @@ def d82() -> None:
     guard("D82" in read("DECISIONS.md"), "la decision D82 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 83)}
+def d83() -> None:
+    """Le comparatif montre les prix des autres services dans la monnaie de la page, le prix publié en dollars à côté."""
+    from decimal import Decimal
+
+    from fastapi.testclient import TestClient
+
+    from app import i18n, seo
+    from app.main import app
+    from app.routes.contenu import CONCURRENTS_USD
+
+    client = TestClient(app)
+    publies = [Decimal(v) for v in CONCURRENTS_USD.values()]
+    for lang in i18n.LANGUES:
+        adresse = i18n.chemin(lang, "compare")
+        page = seo.hors_bloc(client.get(adresse).text)
+        debut = page.find("</article><article><h3>Google")
+        guard(debut > 0, f"{adresse} : cartes des autres services introuvables")
+        zone = page[debut:page.index("</article></div>", debut)]
+        milliers, decimale = i18n.SEPARATEURS[lang]
+
+        def lire(texte: str) -> Decimal:
+            return Decimal(re.sub(r"[^\d.]", "", texte.replace(milliers, "").replace(decimale, ".")))
+
+        devise = i18n.DEVISE[lang]
+        if devise == "USD":
+            guard('class="conv"' not in zone, f"{adresse} : page en dollars, rien a convertir")
+            montres = [lire(v) for v in re.findall(r"<bdi>\$([^<]+)</bdi>", zone)]
+            guard(montres == publies, f"{adresse} : prix publies {montres} au lieu de {publies}")
+            continue
+        paires = re.findall(r'<bdi class="conv">(.*?)</bdi> <small class="usd">\((.*?)\)</small>', zone)
+        guard(len(paires) == len(publies), f"{adresse} : {len(paires)} prix convertis sur {len(publies)}")
+        guard("$" not in re.sub(r'<small class="usd">.*?</small>', "", zone), f"{adresse} : un prix en dollars sans sa conversion")
+        symbole = "€" if devise == "EUR" else i18n.SYMBOLE[devise]
+        taux = Decimal(1) if devise == "EUR" else i18n.TAUX[devise]
+        for (converti, publie), usd in zip(paires, publies):
+            guard("$" in publie and lire(publie) == usd, f"{adresse} : prix publie {publie!r} au lieu de {usd} $")
+            attendu = usd / i18n.TAUX["USD"] * taux
+            guard(converti.startswith("≈") and symbole in converti and abs(lire(converti) - attendu) <= attendu / 20,
+                  f"{adresse} : {converti!r} pour {usd} $ (attendu ≈ {attendu:.4g} {symbole})")
+        calcul = re.search(r'<h2 id="calcul">.*?<p class="sub">(.*?)</p>', page, re.S)
+        guard(calcul is not None and "≈" in calcul.group(1) and symbole in calcul.group(1), f"{adresse} : le taux de conversion n'est pas dit")
+    guard("D83" in read("DECISIONS.md"), "la decision D83 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 84)}
 
 
 def catalog() -> list[tuple[str, str]]:

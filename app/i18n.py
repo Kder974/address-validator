@@ -76,7 +76,8 @@ def nombre(lang: str, valeur) -> str:
 
 
 #: Date des taux de conversion. Les changer, c'est refaire `CONVERTIS` **et** les
-#: phrases de `MENTION_EUROS`, qui la citent.
+#: phrases de `MENTION_EUROS` et de « Comment nous calculons » du comparatif
+#: (D83), qui la citent.
 DATE_TAUX = "2026-09"
 #: Taux retenus à `DATE_TAUX` (approximatifs) : ce qu'un euro vaut dans chaque monnaie.
 TAUX = {"USD": Decimal("1.14"), "CNY": Decimal("7.70"), "INR": Decimal("109")}
