@@ -219,3 +219,24 @@ def test_une_adresse_refusee_garde_la_saisie(monkeypatch):
 
     assert resultat["validated"] is False
     assert resultat["standardized"]["city"] == "Seatle" and resultat["standardized"]["zip"] == ""
+
+
+# --- D85 : maison ou entreprise, c'est le RDI de Smarty qui le dit -----------
+
+from app.validation.scorer import score_deliverability  # noqa: E402
+
+_SANS_GPS = {"lat": None, "lng": None}
+
+
+@pytest.mark.parametrize("dpv, rdi, attendu", [
+    ("Y", "Commercial", ("commercial", 0.99)),
+    ("Y", "Residential", ("residential", 0.99)),
+    ("D", "Residential", ("residential", 0.95)),
+    ("D", "", ("residential", 0.95)),
+    ("Y", "", ("residential", 0.99)),
+    ("N", "Commercial", ("invalid", 0.00)),
+])
+def test_la_nature_du_lieu_vient_du_rdi(dpv, rdi, attendu):
+    verification = {"valid": dpv != "N", "deliverability": dpv, "metadata": {"rdi": rdi}}
+    score = score_deliverability(verification, _SANS_GPS)
+    assert (score["deliverability"], score["confidence"]) == attendu

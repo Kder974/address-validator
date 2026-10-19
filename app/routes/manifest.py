@@ -299,8 +299,8 @@ async def manifest():
             "other_countries": "pas de referentiel verifie : verification partielle",
         },
         "deliverability_values": {
-            "residential": "adresse complete ou voie reconnue, usage residentiel (code DPV Y ou S)",
-            "commercial": "boite commerciale identifiee (code DPV D)",
+            "residential": "adresse reconnue, usage residentiel (indicateur RDI de SmartyStreets ; par defaut sans RDI, et pour la France)",
+            "commercial": "adresse reconnue, usage commercial (indicateur RDI de SmartyStreets)",
             "unknown": "information insuffisante pour conclure (code DPV X)",
             "invalid": "adresse inexistante ou verification echouee (code DPV N)",
         },
