@@ -189,3 +189,33 @@ def test_un_dpv_x_ne_valide_pas_l_adresse(monkeypatch):
     assert result["validated"] is False
     assert result["degraded"] is False
     assert result["deliverability"] == "invalid"
+
+
+# --- D84 : une adresse reconnue sort telle que le fournisseur l'a corrigée ----
+
+_CORRIGEE = {
+    "delivery_line_1": "100 Stewart St",
+    "components": {"city_name": "Seattle", "state_abbreviation": "WA", "zipcode": "98101"},
+    "metadata": {"rdi": "Commercial"},
+    "analysis": {"dpv_match_code": "Y"},
+}
+_SAISIE = {"street": "100 stewart st", "city": "seatle", "state": "wa", "zip": "", "country": "US"}
+
+
+def test_une_adresse_reconnue_sort_corrigee_par_le_fournisseur(monkeypatch):
+    _pipeline_avec_candidat(monkeypatch, _CORRIGEE)
+
+    resultat = validate_full(_SAISIE)
+
+    assert resultat["validated"] is True
+    assert resultat["standardized"] == {"line1": "100 Stewart Street", "line2": "", "city": "Seattle",
+                                        "state": "WA", "zip": "98101", "country": "US"}
+
+
+def test_une_adresse_refusee_garde_la_saisie(monkeypatch):
+    _pipeline_avec_candidat(monkeypatch, {**_CORRIGEE, "analysis": {"dpv_match_code": "N"}})
+
+    resultat = validate_full(_SAISIE)
+
+    assert resultat["validated"] is False
+    assert resultat["standardized"]["city"] == "Seatle" and resultat["standardized"]["zip"] == ""

@@ -13,9 +13,14 @@ Le script lit le cache de la configuration (`REDIS_URL`, comme l'application),
 ne touche qu'aux clés `addr:*` dont le résultat standardisé porte un pays de
 `app.validation.ban.PAYS_BAN`, et **simule par défaut** : `--apply` supprime.
 
+D84 : une adresse reconnue sort désormais corrigée par le fournisseur. Les
+résultats calculés avant gardent l'ancienne forme 30 jours ; `--tous-pays` purge
+alors **toutes** les clés `addr:*`, quel que soit le pays.
+
 Usage :
-    venv/bin/python scripts/purger_cache_ban.py            # liste, ne supprime rien
-    venv/bin/python scripts/purger_cache_ban.py --apply    # supprime
+    venv/bin/python scripts/purger_cache_ban.py                        # liste, ne supprime rien
+    venv/bin/python scripts/purger_cache_ban.py --apply                # supprime
+    venv/bin/python scripts/purger_cache_ban.py --tous-pays --apply    # D84 : tout le cache des adresses
 """
 
 from __future__ import annotations
@@ -37,8 +42,8 @@ from app.config import get_settings  # noqa: E402
 from app.validation.ban import PAYS_BAN  # noqa: E402
 
 
-def entrees_francaises(redis: Redis) -> Iterator[tuple[str, dict]]:
-    """Entrées de cache `addr:*` dont l'adresse standardisée est en France."""
+def entrees_francaises(redis: Redis, tous_pays: bool = False) -> Iterator[tuple[str, dict]]:
+    """Entrées de cache `addr:*` dont l'adresse standardisée est en France (ou toutes, D84)."""
     for cle in redis.scan_iter("addr:*", count=500):
         try:
             valeur = json.loads(redis.get(cle))
@@ -47,13 +52,13 @@ def entrees_francaises(redis: Redis) -> Iterator[tuple[str, dict]]:
         if not isinstance(valeur, dict):
             continue
         pays = str((valeur.get("standardized") or {}).get("country") or "").upper()
-        if pays in PAYS_BAN:
+        if tous_pays or pays in PAYS_BAN:
             yield cle, valeur
 
 
-def purger(redis: Redis, appliquer: bool = False) -> list[tuple[str, dict]]:
-    """Liste (et supprime si `appliquer`) les entrées France/outre-mer."""
-    trouvees = list(entrees_francaises(redis))
+def purger(redis: Redis, appliquer: bool = False, tous_pays: bool = False) -> list[tuple[str, dict]]:
+    """Liste (et supprime si `appliquer`) les entrées France/outre-mer, ou toutes."""
+    trouvees = list(entrees_francaises(redis, tous_pays))
     if appliquer and trouvees:
         redis.delete(*(cle for cle, _valeur in trouvees))
     return trouvees
@@ -66,6 +71,11 @@ def main(argv: Iterable[str] | None = None) -> int:
         action="store_true",
         help="supprime réellement les entrées (par défaut : simple simulation)",
     )
+    parseur.add_argument(
+        "--tous-pays",
+        action="store_true",
+        help="D84 : toutes les adresses du cache, pas seulement France/outre-mer",
+    )
     arguments = parseur.parse_args(list(argv) if argv is not None else None)
 
     reglages = get_settings()
@@ -76,7 +86,8 @@ def main(argv: Iterable[str] | None = None) -> int:
         print(f"CACHE INJOIGNABLE : {exc}", file=sys.stderr)
         return 2
 
-    entrees = purger(redis, appliquer=arguments.apply)
+    entrees = purger(redis, appliquer=arguments.apply, tous_pays=arguments.tous_pays)
+    perimetre = "toutes adresses" if arguments.tous_pays else "France/outre-mer"
     for cle, valeur in entrees:
         standard = valeur.get("standardized") or {}
         print(
@@ -85,10 +96,10 @@ def main(argv: Iterable[str] | None = None) -> int:
             f"| deliverability={valeur.get('deliverability')}"
         )
     if arguments.apply:
-        print(f"PURGE TERMINEE : {len(entrees)} entree(s) France/outre-mer supprimee(s)")
+        print(f"PURGE TERMINEE : {len(entrees)} entree(s) {perimetre} supprimee(s)")
     else:
         print(
-            f"SIMULATION : {len(entrees)} entree(s) France/outre-mer seraient supprimee(s) "
+            f"SIMULATION : {len(entrees)} entree(s) {perimetre} seraient supprimee(s) "
             "(relancer avec --apply)"
         )
     return 0

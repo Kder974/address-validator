@@ -163,7 +163,7 @@ def verify_ban(standardized: dict) -> dict:
             "raw": meilleur,
         }
 
-    return {
+    verification = {
         "valid": True,
         "deliverability": "ban",
         "metadata": {"ban": ban},
@@ -171,3 +171,16 @@ def verify_ban(standardized: dict) -> dict:
         "source": "ban",
         "type": type_resultat,
     }
+    nom = str(proprietes.get("name") or "")
+    if nom:
+        # D84 : la voie écrite comme la BAN l'écrit. Une voie seule (`street`) ne
+        # porte pas de numéro : on garde celui de la saisie.
+        numero = re.match(r"\d+\S*", voie)
+        verification["corrige"] = {
+            "street": f"{numero.group(0)} {nom}" if type_resultat == "street" and numero else nom,
+            "city": str(proprietes.get("city") or ""),
+            "state": str(standardized.get("state") or ""),
+            "zip": postcode,
+            "country": str(standardized.get("country") or ""),
+        }
+    return verification

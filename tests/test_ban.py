@@ -275,3 +275,31 @@ def test_une_adresse_francaise_incomplete_ne_sort_pas(monkeypatch):
 
     assert verification["valid"] is False
     assert appels == []
+
+
+# --- D84 : la voie, la ville et le code postal écrits comme la BAN les écrit ---
+
+
+def _nommee(nom: str, type_: str = "housenumber") -> dict:
+    feature = _feature(type_=type_)
+    feature["properties"]["name"] = nom
+    return feature
+
+
+def test_une_adresse_reconnue_sort_ecrite_comme_la_ban(monkeypatch):
+    _ban_double(monkeypatch, [_nommee("8 Rue de la Paix")])
+    _smarty_interdit(monkeypatch)
+
+    resultat = validate_full({**ADRESSE_FR, "street": "8 rue de la paix", "city": "paris"})
+
+    assert resultat["standardized"]["line1"] == "8 Rue de la Paix"
+    assert resultat["standardized"]["city"] == "Paris" and resultat["standardized"]["zip"] == "75002"
+
+
+def test_une_voie_seule_garde_le_numero_saisi(monkeypatch):
+    _ban_double(monkeypatch, [_nommee("Rue de la Paix", type_="street")])
+    _smarty_interdit(monkeypatch)
+
+    resultat = validate_full({**ADRESSE_FR, "street": "8 rue de la paix"})
+
+    assert resultat["standardized"]["line1"] == "8 Rue de la Paix"

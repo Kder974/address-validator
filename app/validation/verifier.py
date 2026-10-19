@@ -148,12 +148,24 @@ def verify_address(standardized: Dict) -> Dict:
                         "verifier cette adresse"
                     ),
                 }
-            return {
+            verification = {
                 "valid": dpv in DPV_VALIDES,
                 "deliverability": dpv,
                 "metadata": result.get("metadata") or {},
                 "raw": result,
             }
+            composants = result.get("components") or {}
+            if verification["valid"] and result.get("delivery_line_1"):
+                # D84 : l'adresse que l'USPS reconnaît, pas la saisie (« seatle »
+                # devient « Seattle », le ZIP manquant est ajouté).
+                verification["corrige"] = {
+                    "street": result["delivery_line_1"],
+                    "city": composants.get("city_name", ""),
+                    "state": composants.get("state_abbreviation", ""),
+                    "zip": composants.get("zipcode", ""),
+                    "country": "US",
+                }
+            return verification
         else:
             return {
                 "valid": False,

@@ -456,3 +456,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D83: on /compare, competitor prices (published in US dollars) are shown in the page currency (euros, yuan, rupees) with "≈" and the published dollar price in brackets, converted at i18n.TAUX; dollar pages (en, ar) keep the published price; the method paragraph states the rate
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D83
   EXPECT: DECISION OK D83
+- [ ] D84: a recognised address (DPV Y/S/D, or accepted by the BAN) is returned as the provider corrected it (spelling, city, ZIP or postcode added), formatted by the same parse + standardize as the input; a refused address or an unreachable provider keeps the formatted input
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D84
+  EXPECT: DECISION OK D84
