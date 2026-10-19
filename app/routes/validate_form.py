@@ -46,6 +46,14 @@ nombre d'essais restants et le vrai `Retry-After`. Les messages vivent dans
 cadratin (maquette validée). Aucun chiffre du code n'est recopié (D48) : plafond,
 fenêtre, essai, prix x402, contact et repères de la jauge (calculés par le
 barème) sont injectés.
+
+D86 : le formulaire accepte aussi une adresse tapée **sur une seule ligne**
+(champ `address`, celui de la page d'accueil). `decouper` la range dans les
+champs de l'API : États-Unis quand elle finit par un État, France ou outre-mer
+quand un code postal précède la ville, États-Unis sinon ; une ligne américaine
+sans virgule part entière dans `street`, que SmartyStreets découpe lui-même. Le
+fournisseur rend ensuite l'adresse corrigée (D84) : le visiteur voit la bonne
+forme, champ par champ.
 """
 
 from __future__ import annotations
@@ -98,6 +106,39 @@ AUTOCOMPLETE = {
 #: Pays retenu quand le visiteur laisse le champ vide : la même valeur par défaut
 #: que l'API payante (`app/schemas.py`, `AddressInput.country`).
 PAYS_PAR_DEFAUT = "US"
+
+#: D86 : longueur maximale d'une adresse tapée sur une ligne.
+LIGNE_MAX = 200
+#: États et territoires américains : une ligne qui finit par l'un d'eux (avec ou
+#: sans ZIP) est américaine, même si elle contient un nombre à 5 chiffres.
+ETATS_US = frozenset(
+    "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV "
+    "NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY PR VI GU AS MP".split()
+)
+#: Codes postaux d'outre-mer -> pays vérifiés par la BAN (`ban.PAYS_BAN`), du plus
+#: précis au plus large : Saint-Barthélemy et Saint-Martin avant la Guadeloupe.
+OUTRE_MER = {"97133": "BL", "97150": "MF", "971": "GP", "972": "MQ", "973": "GF", "974": "RE", "975": "PM", "976": "YT"}
+
+
+def decouper(ligne: str) -> dict[str, str]:
+    """D86 : une adresse tapée sur une ligne, rangée dans les champs de l'API."""
+    texte = " ".join(ligne.split()).strip(" ,")
+    pays_dit = re.search(r",?\s*\b(france|usa|united states)\s*$", texte, re.I)
+    if pays_dit:
+        texte = texte[:pays_dit.start()].strip(" ,")
+    dit = (pays_dit.group(1).lower() == "france" and "FR" or "US") if pays_dit else ""
+    fin = re.search(r"\b([A-Za-z]{2})(?:\s+\d{5}(?:-\d{4})?)?$", texte)
+    finit_par_un_etat = fin is not None and fin.group(1).upper() in ETATS_US
+    francaise = re.search(r"^(.+?)[\s,]+(\d{5})\s+([^\d,][^,]*)$", texte)
+    if francaise and (dit == "FR" or (not dit and not finit_par_un_etat)):
+        code = francaise.group(2)
+        pays = next((p for prefixe, p in OUTRE_MER.items() if code.startswith(prefixe)), "FR")
+        return {"street": francaise.group(1).strip(" ,"), "city": francaise.group(3).strip(), "state": "", "zip": code, "country": pays}
+    americaine = re.search(r"^(.+?),\s*([^,]+?),?\s+([A-Za-z]{2})(?:\s+(\d{5}(?:-\d{4})?))?$", texte)
+    if americaine and americaine.group(3).upper() in ETATS_US:
+        rue, ville, etat, zip_code = americaine.groups()
+        return {"street": rue, "city": ville, "state": etat, "zip": zip_code or "", "country": "US"}
+    return {"street": texte, "city": "", "state": "", "zip": "", "country": PAYS_PAR_DEFAUT}
 
 #: Repères de la jauge de confiance : ce que le barème (`app/validation/scorer.py`)
 #: rend à une adresse inexistante, inconnue (DPV « X ») et résidentielle (DPV « Y »).
@@ -918,13 +959,18 @@ async def _essai(request: Request, lang: str) -> HTMLResponse:
         return _page(lang, _plafond_atteint(lang, plafond, secondes), statut=429, retry_after=secondes)
 
     donnees = await request.form()
-    adresse = {
-        nom: str(donnees.get(nom, "") or "").strip() for nom, _libelle, _ex in CHAMPS
-    }
-    adresse["country"] = adresse["country"].upper() or PAYS_PAR_DEFAUT
-    erreurs = _erreurs(adresse, lang)
-    if erreurs:
-        return _page(lang, _formulaire(lang, adresse, erreurs), statut=400)
+    ligne = str(donnees.get("address", "") or "").strip()[:LIGNE_MAX]
+    if ligne:
+        # D86 : l'adresse tapée sur une ligne (champ unique de la page d'accueil).
+        adresse = decouper(ligne)
+    else:
+        adresse = {
+            nom: str(donnees.get(nom, "") or "").strip() for nom, _libelle, _ex in CHAMPS
+        }
+        adresse["country"] = adresse["country"].upper() or PAYS_PAR_DEFAUT
+        erreurs = _erreurs(adresse, lang)
+        if erreurs:
+            return _page(lang, _formulaire(lang, adresse, erreurs), statut=400)
 
     # Même pipeline que la route payante (`perform_validation`, D5/D34) : une
     # seule validation, un seul cache, donc aucun écart possible entre ce que
