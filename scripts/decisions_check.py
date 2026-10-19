@@ -6647,7 +6647,7 @@ def d79() -> None:
 
     # --- 1. La France et l'outre-mer sont servis par la BAN, jamais par Smarty ---
     guard(
-        ban.BAN_SEARCH_URL == "https://api-adresse.data.gouv.fr/search/",
+        ban.BAN_SEARCH_URL == "https://data.geopf.fr/geocodage/search/",
         f"URL de la BAN inattendue : {ban.BAN_SEARCH_URL!r}",
     )
     guard(

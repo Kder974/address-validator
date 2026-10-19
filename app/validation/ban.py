@@ -7,7 +7,7 @@ aucun code DPV. Le pipeline la déclarait pourtant « validée » (mesuré le
 absent, `validated: true` dans le formulaire).
 
 La France a sa propre base de référence, gratuite et officielle : la **Base
-Adresse Nationale** (`api-adresse.data.gouv.fr`, service de l'État). Une adresse
+Adresse Nationale** (`data.geopf.fr/geocodage`, service de l'État). Une adresse
 française (métropole et outre-mer, dont La Réunion) est donc vérifiée là, et
 **jamais** renvoyée à SmartyStreets : si la BAN ne répond pas, le résultat est
 `degraded` — un repli sur un fournisseur qui ne sait pas juger produirait un
@@ -39,7 +39,9 @@ from typing import Any
 import httpx
 
 #: Service de recherche de la BAN (API publique de l'État, sans clé).
-BAN_SEARCH_URL = "https://api-adresse.data.gouv.fr/search/"
+#: Adresse officielle depuis la bascule vers la Géoplateforme de l'IGN : l'ancienne
+#: (`api-adresse.data.gouv.fr`) annonce `Sunset: 31 janvier 2026` (mesuré le 19/10/2026).
+BAN_SEARCH_URL = "https://data.geopf.fr/geocodage/search/"
 #: Même budget que le fournisseur américain (D23) : une adresse FR ne doit pas
 #: coûter plus cher en latence qu'une adresse US.
 BAN_TIMEOUT = httpx.Timeout(connect=2.0, read=4.0, write=4.0, pool=2.0)
