@@ -41,6 +41,7 @@ Codes de retour : 0 réussi, 1 aucune boutique exploitable, 2 usage invalide.
 from __future__ import annotations
 
 import argparse
+import base64
 import html as html_module
 import re
 import sys
@@ -69,11 +70,19 @@ COLONNES = (
     "notes",
 )
 
-#: Moteurs acceptés → gabarit d'URL de résultats.
+#: Moteurs acceptés → gabarit d'URL de résultats. DuckDuckGo **Lite** est le
+#: défaut : `html.duckduckgo.com` rend un 202 anti-robot sur certaines IP, alors
+#: que `lite.duckduckgo.com` sert des résultats statiques lisibles. Bing/Google
+#: ne servent que de secours automatique (voir `agent_web.moteurs_secours`).
 MOTEURS = {
-    "duckduckgo": "https://html.duckduckgo.com/html/?q={requete}",
+    "duckduckgo": "https://lite.duckduckgo.com/lite/?q={requete}",
+    "duckduckgo_html": "https://html.duckduckgo.com/html/?q={requete}",
+    "bing": "https://www.bing.com/search?q={requete}&setlang=fr",
     "google": "https://www.google.com/search?q={requete}&num={nombre}&hl=fr",
 }
+
+#: Moteurs essayés si le premier ne rend rien d'exploitable.
+MOTEURS_SECOURS = ("duckduckgo_html", "bing", "google")
 
 #: Domaines de moteurs/annuaires : jamais des boutiques.
 DOMAINES_MOTEURS = (
@@ -82,11 +91,33 @@ DOMAINES_MOTEURS = (
 )
 
 #: Groupes d'adresses visibles dans le texte d'une page (hors `mailto:`).
-EMAIL_TEXTE = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+#: Le domaine et son TLD sont exigés **en minuscules** : écrit en pleine phrase,
+#: « adresse@gmail.com. Nous » ne doit pas donner l'email « …@gmail.com.Nous ».
+EMAIL_TEXTE = re.compile(r"[A-Za-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}\b")
 LIEN_GOOGLE = re.compile(r'href="/url\?q=(https?://[^&"]+)')
 LIEN_DDG = re.compile(r'href="[^"]*[?&]uddg=([^"&]+)')
 LIEN_DIRECT = re.compile(r'href="(https?://[^"]+)"')
+LIEN_MARKDOWN = re.compile(r'\[[^\]]*\]\((https?://[^)\s]+)\)')
 TITRE = re.compile(r"<title[^>]*>(.*?)</title>", re.S | re.I)
+
+#: Lecteur public utilisé quand les moteurs renvoient 202/403 depuis l'IP locale.
+#: Il ne contourne aucun paiement : il lit la même page publique et la rend en
+#: markdown ; les liens de résultats restent ceux du moteur.
+PROXY_MOTEUR = "https://r.jina.ai/"
+
+#: Plateformes acceptées comme « vrai site e-commerce » pour la Phase 1.
+#: `Inconnue` est écartée : on ne garde pas une page d'aide ou un annuaire.
+PLATEFORMES_ECOMMERCE = (
+    "Shopify", "WooCommerce", "PrestaShop", "Wix", "Squarespace", "BigCommerce",
+)
+
+#: Faux contacts que les thèmes laissent dans le HTML : ils ne sont jamais vendus.
+FRAGMENTS_PLACEHOLDER = (
+    "you@", "your@", "votre@", "email@", "name@", "nom@", "prenom@", "prénom@",
+    "@company.", "@domain.", "@example", "@exemple.", "valider_email",
+    "@monsite", "@votresite", "youremail", "email@email", "test@test", "yourname",
+    "nomdusite", "votredomaine", "mondomaine", "@votredomaine", "@mondomaine",
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -105,9 +136,20 @@ def requetes_du_secteur(secteur: dict, reglages: dict) -> list[str]:
 
 
 def _deballer(url_brute: str) -> str:
-    """Décode une URL de redirection de moteur (`uddg=`, `q=`)."""
+    """Décode une URL de redirection de moteur (`uddg=`, `q=`, Bing `u=a1…`)."""
     valeur = urllib.parse.unquote(html_module.unescape(url_brute or "").strip())
     valeurs = urllib.parse.parse_qs(urllib.parse.urlparse(valeur).query)
+    # Bing enveloppe ses liens dans `bing.com/ck/a?...&u=a1<base64url>`.
+    for brut in valeurs.get("u", []):
+        if brut.startswith("a1") and len(brut) > 2:
+            encode = brut[2:]
+            encode += "=" * (-len(encode) % 4)
+            try:
+                candidate = base64.urlsafe_b64decode(encode).decode("utf-8", errors="replace")
+            except Exception:  # noqa: BLE001 - un lien illisible n'est pas une panne
+                candidate = ""
+            if candidate.startswith(("http://", "https://")):
+                return candidate
     for cle in ("uddg", "q", "url"):
         if valeurs.get(cle):
             candidate = urllib.parse.unquote(valeurs[cle][0])
@@ -119,24 +161,59 @@ def _deballer(url_brute: str) -> str:
 def extraire_liens(page: str, moteur: str) -> list[str]:
     """URLs de résultats d'une page de moteur, dans l'ordre, sans doublon."""
     trouves: list[str] = []
-    motifs = [LIEN_GOOGLE, LIEN_DDG] if moteur in MOTEURS else [LIEN_DIRECT]
+    if moteur == "google":
+        motifs = [LIEN_GOOGLE, LIEN_DIRECT]
+    elif moteur in ("duckduckgo", "duckduckgo_html"):
+        motifs = [LIEN_DDG, LIEN_DIRECT]
+    else:  # Bing et autres : liens directs, éventuellement enveloppés
+        motifs = [LIEN_DIRECT]
     for motif in motifs:
         for brut in motif.findall(page):
             url = _deballer(brut)
             if url.lower().startswith(("http://", "https://")) and url not in trouves:
                 trouves.append(url)
-    if not trouves:  # dernier repli : tout lien absolu de la page
-        for brut in LIEN_DIRECT.findall(page):
-            url = html_module.unescape(brut)
-            if url.lower().startswith(("http://", "https://")) and url not in trouves:
-                trouves.append(url)
+    # Une page rendue par le lecteur public est en markdown : liens `[titre](url)`.
+    for brut in LIEN_MARKDOWN.findall(page or ""):
+        url = _deballer(brut)
+        if url.lower().startswith(("http://", "https://")) and url not in trouves:
+            trouves.append(url)
     return trouves
 
 
-def lire_moteur(moteur: str, requete: str, nombre: int, reglages: dict) -> tuple[int, str, str]:
-    """Lit la page de résultats. Les robots des moteurs sont explicites, voir plus haut."""
-    url = MOTEURS[moteur].format(requete=urllib.parse.quote(requete), nombre=nombre)
-    return c.requete(url, reglages, respecter_robots=False)
+def lire_moteur(
+    moteur: str, requete: str, nombre: int, reglages: dict
+) -> tuple[str, int, str, str]:
+    """Lit une page de résultats : direct, puis proxy public, puis secours.
+
+    L'ordre est volontaire : DuckDuckGo **via le proxy** donne des résultats
+    propres, alors que Bing direct, sur cette IP, renvoie surtout du bruit. Le
+    proxy ne sert qu'après un échec direct du moteur principal.
+
+    Returns:
+        `(moteur_utilisé, code, page, note)` ; `code == 0` si rien d'exploitable.
+    """
+    agent_web = reglages.get("agent_web") or {}
+    secours = list(agent_web.get("moteurs_secours") or MOTEURS_SECOURS)
+    proxy = str(agent_web.get("proxy_moteur") or PROXY_MOTEUR)
+    essais: list[tuple[str, bool]] = [(moteur, False), (moteur, True)]
+    for nom in secours:
+        if nom != moteur:
+            essais.extend([(nom, False), (nom, True)])
+    for nom, via_proxy in essais:
+        if nom not in MOTEURS:
+            continue
+        url = MOTEURS[nom].format(requete=urllib.parse.quote(requete), nombre=nombre)
+        cible = (proxy + url) if via_proxy else url
+        code, page, note = c.requete(cible, reglages, respecter_robots=False)
+        if code == 200 and page and filtrer_boutiques(extraire_liens(page, nom), reglages):
+            if nom != moteur:
+                c.alerte(f"moteur {moteur} indisponible — repli sur {nom}")
+            if via_proxy:
+                c.alerte(f"moteur {nom} lu via proxy public ({proxy})")
+            return nom, code, page, note
+        c.alerte(f"{'proxy ' if via_proxy else 'moteur '}{nom} : {note or f'HTTP {code}'}")
+        _attendre_moteur(reglages)
+    return moteur, 0, "", "aucun moteur exploitable (captcha, 202, proxy ou panne)"
 
 
 # --------------------------------------------------------------------------- #
@@ -190,6 +267,8 @@ def emails_dans_page(page: str) -> list[str]:
         if not adresse or adresse in trouves:
             continue
         if any(fragment in adresse.lower() for fragment in c.FRAGMENTS_EMAIL_A_IGNORER):
+            continue
+        if any(fragment in adresse.lower() for fragment in FRAGMENTS_PLACEHOLDER):
             continue
         if c.valider_email(adresse)[0]:
             trouves.append(adresse)
@@ -254,6 +333,8 @@ def visiter_boutique(url: str, secteur: dict, reglages: dict) -> dict | None:
         return None
     email = choisir_email(list(dict.fromkeys(emails)))
     plateforme, preuve = c.detecter_plateforme(url, accueil, reglages)
+    if plateforme not in PLATEFORMES_ECOMMERCE:
+        return None
     return {
         "nom_boutique": nom_boutique(accueil, url),
         "site_web": base,
@@ -286,23 +367,32 @@ def chercher(
     limite: int,
     max_visites: int,
     reseau: bool,
-) -> list[dict]:
-    """Enchaîne moteur → boutiques → emails. Ne rend que les boutiques AVEC email."""
+) -> tuple[list[dict], dict[str, int]]:
+    """Enchaîne moteur → boutiques → emails. Ne rend que les boutiques AVEC email.
+
+    Returns:
+        `(fiches, statistiques)` : les fiches retenues et les compteurs de refus
+        (visites, plateforme non e-commerce, page sans email, moteur indisponible).
+    """
     resultats: list[dict] = []
+    stats = {"visites": 0, "plateforme_ecartee": 0, "sans_email": 0, "moteur_indisponible": 0}
     visites = 0
     urls_vues: set[str] = set()
     for requete in requetes:
         if len(resultats) >= limite or visites >= max_visites:
             break
         c.etape(f"moteur {moteur} : {requete}")
-        code, page, note = lire_moteur(
+        utilise, code, page, note = lire_moteur(
             moteur, requete, int((reglages.get("agent_web") or {}).get("resultats_par_requete") or 30), reglages
         )
         if code != 200 or not page:
+            stats["moteur_indisponible"] += 1
             c.alerte(f"moteur : {note or f'HTTP {code}'} — requête abandonnée")
             _attendre_moteur(reglages)
             continue
-        boutiques = filtrer_boutiques(extraire_liens(page, moteur), reglages)
+        if utilise != moteur:
+            c.resultat(f"résultats obtenus via {utilise}")
+        boutiques = filtrer_boutiques(extraire_liens(page, utilise), reglages)
         c.resultat(f"{len(boutiques)} boutique(s) retenue(s) après filtrage")
         for url in boutiques:
             if len(resultats) >= limite or visites >= max_visites:
@@ -311,11 +401,18 @@ def chercher(
                 continue
             urls_vues.add(url)
             visites += 1
+            stats["visites"] = visites
             fiche = visiter_boutique(url, secteur, reglages) if reseau else None
-            if fiche and fiche["email"]:
+            if fiche is None:
+                stats["plateforme_ecartee"] += 1
+                c.resultat(f"écartée (plateforme non e-commerce ou page injoignable) : {url}")
+            elif not fiche["email"]:
+                stats["sans_email"] += 1
+                c.resultat(f"écartée (aucun email publié) : {url}")
+            else:
                 resultats.append(fiche)
         _attendre_moteur(reglages)
-    return resultats
+    return resultats, stats
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -368,7 +465,7 @@ def main(argv: list[str] | None = None) -> int:
         c.alerte("simulation : aucune requête réseau. Relancez avec --reseau pour sourcer réellement.")
         return 0
 
-    fiches = chercher(
+    fiches, stats = chercher(
         secteur,
         reglages,
         requetes=requetes,
@@ -376,6 +473,11 @@ def main(argv: list[str] | None = None) -> int:
         limite=args.limite,
         max_visites=args.max_visites,
         reseau=True,
+    )
+    c.resultat(
+        f"bilan : {stats['visites']} visite(s), {stats['plateforme_ecartee']} écartée(s) "
+        f"(plateforme non e-commerce/injoignable), {stats['sans_email']} sans email publié, "
+        f"{len(fiches)} retenue(s)"
     )
     if not fiches:
         c.alerte("aucune boutique avec email publié : rien à importer cette fois.")

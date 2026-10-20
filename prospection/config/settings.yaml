@@ -53,6 +53,8 @@ secteurs:
       - "site:myshopify.com mode femme France"
       - "site:myshopify.com prêt-à-porter livraison France"
       - "site:myshopify.com chaussures France boutique en ligne"
+      - "site:myshopify.com mode française livraison France"
+      - "site:myshopify.com vêtements femme France boutique"
 
   - nom: "Cosmétiques / Beauté"
     code: cosmetiques
@@ -67,6 +69,8 @@ secteurs:
       - "site:myshopify.com cosmétiques France livraison"
       - "site:myshopify.com soins visage France boutique"
       - "site:myshopify.com parfum France en ligne"
+      - "site:myshopify.com cosmétique naturelle France"
+      - "site:myshopify.com marque française soins livraison France"
 
   - nom: "Haute technologie / Gadgets"
     code: high-tech
@@ -81,6 +85,8 @@ secteurs:
       - "site:myshopify.com high-tech France boutique en ligne"
       - "site:myshopify.com accessoires téléphone France"
       - "site:myshopify.com gadgets France livraison"
+      - "site:myshopify.com high-tech France livraison"
+      - "site:myshopify.com accessoires gaming France boutique"
 
   - nom: "Maison / Décoration"
     code: decoration
@@ -95,6 +101,8 @@ secteurs:
       - "site:myshopify.com décoration maison France"
       - "site:myshopify.com meubles France livraison"
       - "site:myshopify.com literie France boutique"
+      - "site:myshopify.com décoration fait main France"
+      - "site:myshopify.com maison boutique en ligne France"
 
   - nom: "US Cross-Border (marques US livrant en France)"
     code: us-cross-border
@@ -186,11 +194,16 @@ sourcing:
 # Agent Web (décision 20/10/2026) : sourcing par moteur de recherche public et
 # extraction d'emails **publiés**, sans outil payant. Lecture des résultats et des
 # pages contact uniquement, robots.txt respecté, agent identifié, pause entre
-# requêtes. `google` est disponible mais son robots.txt interdit /search à tous
-# les robots : le défaut reste duckduckgo, google en secours explicite.
+# requêtes. DuckDuckGo **Lite** est le endpoint par défaut (`html.duckduckgo.com`
+# rend un 202 anti-robot sur certaines IP) ; les secours ne sont essayés que si
+# le premier ne rend aucun lien exploitable. `google` reste possible mais son
+# robots.txt interdit /search.
 agent_web:
   moteur: "duckduckgo"
-  moteur_secours: "google"
+  moteurs_secours: ["duckduckgo_html", "bing", "google"]
+  # Lecteur public (r.jina.ai) : rend la même page de résultats en markdown quand
+  # l'IP locale reçoit un 202/403. Aucun paiement, aucun contournement de robots.
+  proxy_moteur: "https://r.jina.ai/"
   resultats_par_requete: 30
   max_visites: 60
   pages_contact: ["", "/contact", "/pages/contact", "/nous-contacter", "/contact-us"]
