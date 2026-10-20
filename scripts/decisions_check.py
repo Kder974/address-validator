@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D88, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D89, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 88
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 89
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7145,7 +7145,29 @@ def d88() -> None:
     guard(re.search(r"^\| D88 \|", read("DECISIONS.md"), re.M) is not None, "la decision D88 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 89)}
+def d89() -> None:
+    """La page Tarifs a le style de la page d'accueil, et ne promet plus que le cache n'est pas refacturé."""
+    from fastapi.testclient import TestClient
+
+    from app import i18n
+    from app.main import app
+
+    client = TestClient(app)
+    faux = {"en": "is not billed again", "fr": "sans être refacturée", "es": "sin volver a cobrarse", "zh": "不会重复计费",
+            "hi": "दोबारा बिल नहीं", "ar": "دون احتسابه مرة أخرى"}
+    regles = (".hero-top .band,.hero-top .guides,.band-final{display:none}", ".tiers-wrap::before{", "h1{font-weight:750",
+              ".tier:nth-child(2){background:#fff", ".final-card{color:#fff")
+    for lang in i18n.LANGUES:
+        adresse = i18n.chemin(lang, "pricing")
+        page = client.get(adresse).text
+        style = page[page.index("<style>"): page.index("</style>")]
+        for regle in regles:
+            guard(regle in style, f"{adresse} : le style de l'accueil manque ({regle})")
+        guard(faux[lang] not in page, f"{adresse} : promesse fausse sur le cache : {faux[lang]!r}")
+    guard(re.search(r"^\| D89 \|", read("DECISIONS.md"), re.M) is not None, "la decision D89 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 90)}
 
 
 def catalog() -> list[tuple[str, str]]:
