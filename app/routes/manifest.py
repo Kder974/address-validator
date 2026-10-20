@@ -22,6 +22,7 @@ voie héritée à secret partagé réservée à l'exploitant).
 """
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.payment import PROOF_HEADER, generate_payment_required_response
@@ -36,9 +37,11 @@ from app.x402 import (
     PAYMENT_RESPONSE_HEADER_V2,
     PAYMENT_SIGNATURE_HEADER,
     X402_VERSION,
+    description,
     network_v2,
     payment_requirements,
     payment_requirements_v2,
+    resource_url,
 )
 
 router = APIRouter()
@@ -320,3 +323,34 @@ async def manifest():
         },
         "license": "MIT",
     }
+
+
+#: Dernière révision du manifeste x402 : à changer avec les ressources publiées.
+X402_MANIFEST_UPDATED = "2026-10-20T00:00:00Z"
+
+
+@router.get("/.well-known/x402")
+async def x402_manifest() -> JSONResponse:
+    """Manifeste de découverte x402 (draft-hawkins-x402-dns-discovery-03, §3.2) — D95.
+
+    Les robots x402 (Agent402…) le lisent avant `/openapi.json` : 247 requêtes en
+    `404` mesurées du 18 au 20/10/2026. Champs du brouillon : `x402Version` et
+    `kind` (requis), `name`, `description`, `resources`, `updated` ; pas de bloc
+    `facilitator`, ce service n'en est pas un. Les URL sont celles de l'offre du
+    `402` (`resource_url()`, `mcp_public_url`) et le prix n'est pas recopié :
+    l'agent le lit dans le `402`, une seule vérité.
+    """
+    return JSONResponse(
+        {
+            "x402Version": 2,
+            "kind": "resource-server",
+            "name": "Address Validator API",
+            "description": description(settings.x402_price),
+            "resources": [
+                {"url": resource_url(), "method": "POST", "description": "Validate one address (JSON body)."},
+                {"url": settings.mcp_public_url, "method": "POST", "description": "MCP tools/call validate_address."},
+            ],
+            "updated": X402_MANIFEST_UPDATED,
+        },
+        headers={"Cache-Control": "public, max-age=300"},
+    )

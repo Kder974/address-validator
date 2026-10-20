@@ -14,6 +14,7 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 
 from app import audience, seo
@@ -212,3 +213,16 @@ async def root(request: Request):
         },
         headers={"Vary": "Accept, User-Agent"},
     )
+
+
+#: D95 : `/openapi.json` ne publie que ce qu'un programme appelle. Les pages
+#: (essai gratuit, espace client, tableau de bord, prospection) y figuraient : un
+#: robot x402 (Agent402) les essayait à vide comme des routes payantes, et ses
+#: `400` faussaient le taux de réussite du tableau de bord.
+API_PUBLIEE = frozenset({
+    "/", "/validate", "/mcp", "/manifest", "/health", "/metrics", "/metrics/revenue",
+    "/metrics/agents", "/.well-known/mcp-server", "/.well-known/x402",
+})
+for _route in app.routes:
+    if isinstance(_route, APIRoute) and _route.path not in API_PUBLIEE:
+        _route.include_in_schema = False

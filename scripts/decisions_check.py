@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D94, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D95, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -7389,7 +7389,34 @@ def d94() -> None:
     guard(re.search(r"^\| D94 \|", read("DECISIONS.md"), re.M) is not None, "la decision D94 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 95)}
+def d95() -> None:
+    """`/openapi.json` ne publie que l'API ; `/.well-known/x402` publie le manifeste x402."""
+    from urllib.parse import urlparse
+
+    from fastapi.testclient import TestClient
+
+    from app.config import get_settings
+    from app.main import API_PUBLIEE, app
+
+    client = TestClient(app)
+    chemins = set(client.get("/openapi.json").json()["paths"])
+    guard(chemins <= API_PUBLIEE, f"/openapi.json publie hors de l'API : {sorted(chemins - API_PUBLIEE)}")
+    for page in ("/validate-form", "/dashboard", "/prospection", "/compte", "/signup", "/pricing", "/guide"):
+        guard(page not in chemins, f"{page} est encore dans /openapi.json")
+    guard(client.get("/validate-form").status_code == 200, "/validate-form ne repond plus (masquer ne doit pas couper)")
+    reponse = client.get("/.well-known/x402")
+    guard(reponse.status_code == 200 and reponse.headers["content-type"].startswith("application/json"), f"/.well-known/x402 : {reponse.status_code}")
+    manifeste = reponse.json()
+    guard(manifeste.get("x402Version") == 2 and manifeste.get("kind") == "resource-server", "champs requis du manifeste x402 absents ou faux")
+    urls = [r.get("url", "") for r in manifeste.get("resources", [])]
+    hote = urlparse(get_settings().public_base_url).hostname
+    guard(urls and all(urlparse(u).scheme == "https" and urlparse(u).hostname == hote for u in urls), f"ressources hors du domaine : {urls}")
+    offre = client.post("/validate", json={}).json()["accepts"][0]
+    guard(offre["resource"] in urls, "le manifeste x402 ne cite pas la ressource de l'offre du 402")
+    guard(re.search(r"^\| D95 \|", read("DECISIONS.md"), re.M) is not None, "la decision D95 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 96)}
 
 
 def catalog() -> list[tuple[str, str]]:
