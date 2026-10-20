@@ -484,3 +484,12 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D91: a signed Stripe checkout.session.completed (paid, EUR) switches the account named by client_reference_id to the plan of its amount (2900 Starter, 7900 Pro); bad or stale signature, unknown amount or no secret change nothing; subscription deleted brings the account back to an expired trial; the dashboard opens the Stripe links with the account id; no page says plan changes happen on request
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D91
   EXPECT: DECISION OK D91
+- [ ] D92: no page footer names a person any more ("Kder Daoud" removed from the 72 templates); the footer keeps the Address Validator logo and the contact address
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D92
+  EXPECT: DECISION OK D92
+- [ ] D93: on the pricing page, Starter and Pro buttons say Subscribe and lead to signup with ?offre=starter or ?offre=pro (only those two are kept); the form carries the offer; the key page then opens the Stripe link of that offer with the account id, in a new tab; the account stays a trial until the signed Stripe payment (D54, D91)
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D93
+  EXPECT: DECISION OK D93
+- [ ] D94: the free test without account allows 3 tries per IP per 24 h (was 10); the free trial gives 50 validations over 14 days (was 100); Pro stays 79 EUR a month for 6,000 validations (was 10,000), still cheaper per validation than Starter; the pricing page computes the Pro volume ratio and shows 0.0132 EUR per Pro validation; the welcome email cites the new quotas
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D94
+  EXPECT: DECISION OK D94

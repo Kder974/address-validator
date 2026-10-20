@@ -303,6 +303,11 @@ h2{font-weight:750;letter-spacing:-.028em}
 .final-card p{color:#c6d0ee}
 .final-card .btn-accent{background:#fff;color:var(--ink);box-shadow:0 14px 30px -14px rgba(0,0,0,.5)}
 .final-card .btn-glass{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+/* D93 : le paiement Stripe de l'offre choisie, sous la clé. */
+.pay{margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}
+.pay-h{font-weight:650;color:var(--ink)}
+.pay .btn{width:100%;margin-top:12px}
+.pay-note{margin-top:10px;font-size:.88rem;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -409,6 +414,7 @@ h2{font-weight:750;letter-spacing:-.028em}
           <div class="trial-track"><i></i></div>
           <p class="trial-dates"><span>{{aujourdhui}}, today</span><span>{{fin_courte}}, end</span></p>
         </div><!--@fin:piste-->
+        <!--@si:payer--><div class="pay"><p class="pay-h">Last step: pay for {{offre_nom}}</p><a class="btn btn-accent" href="{{lien_payer}}" target="_blank" rel="noopener noreferrer">Pay for {{offre_nom}}, {{offre_prix}} per month <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a><p class="pay-note">Copy your key first. Payment opens in a new tab; your account switches to {{offre_nom}} as soon as Stripe confirms it.</p></div><!--@fin:payer-->
         <p class="offer-note">After that, {{prix_starter}} per month excl. VAT (Starter, {{quota_starter}} validations) or {{prix_pro}} per month excl. VAT (Pro, {{quota_pro}}), paid by card with Stripe from your dashboard. No automatic charge.</p>
         <p class="pnote">{{mention_euros}}</p>
         <a class="link" href="{{url_pricing}}">See pricing <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
@@ -450,7 +456,6 @@ h2{font-weight:750;letter-spacing:-.028em}
     <div class="foot-grid">
       <div class="foot-brand">
         <a class="brand" href="{{url_accueil}}"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>Address Validator</a>
-        <p>Address Validator, Kder Daoud</p>
         <a class="mail" href="mailto:{{contact}}">{{contact}}</a>
       </div>
       <div>

@@ -54,9 +54,9 @@ PLATEFORMES = ("shopify", "woocommerce", "autre")
 #: Quotas mensuels par plan (`None` = illimité). Les chiffres sont ceux publiés
 #: sur `/pricing` : une offre qui ne serait pas appliquée ici serait un mensonge.
 PLANS: dict[str, int | None] = {
-    "trial": 100,
+    "trial": 50,
     "starter": 2000,
-    "pro": 10000,
+    "pro": 6000,
     "enterprise": None,
 }
 PLAN_LIBELLES = {
@@ -67,7 +67,7 @@ PLAN_LIBELLES = {
 }
 PLAN_PAR_DEFAUT = "trial"
 JOURS_ESSAI = 14
-VALIDATIONS_ESSAI = 100
+VALIDATIONS_ESSAI = 50
 
 #: Les offres, en euros : la **vérité de facturation** (D57). `app/i18n.py` en tire
 #: le prix de chaque langue et le prix unitaire (prix ÷ quota), la porte D45
@@ -76,9 +76,9 @@ VALIDATIONS_ESSAI = 100
 #: française l'écrit. Elles vivent ici, pas dans la route : `i18n` les lit, et la
 #: page des tarifs lit `i18n` (D60).
 OFFRES = (
-    {"nom": "Essai gratuit", "prix": "0 €", "prix_eur": None, "validations": 100, "periode": "au total"},
+    {"nom": "Essai gratuit", "prix": "0 €", "prix_eur": None, "validations": 50, "periode": "au total"},
     {"nom": "Starter", "prix": "29 €", "prix_eur": 29.0, "validations": 2000, "periode": "par mois"},
-    {"nom": "Pro", "prix": "79 €", "prix_eur": 79.0, "validations": 10000, "periode": "par mois"},
+    {"nom": "Pro", "prix": "79 €", "prix_eur": 79.0, "validations": 6000, "periode": "par mois"},
     {
         "nom": "Enterprise",
         "prix": "Sur devis",

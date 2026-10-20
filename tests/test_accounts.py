@@ -67,12 +67,12 @@ def test_cle_api_format_et_empreinte():
 
 
 def test_quotas_publies_sont_ceux_appliques():
-    """Les quotas de `/pricing` sont la source : 100 / 2 000 / 10 000 / illimité."""
-    assert accounts.quota_for("trial") == 100
+    """Les quotas de `/pricing` sont la source : 50 / 2 000 / 6 000 / illimité (D94)."""
+    assert accounts.quota_for("trial") == 50
     assert accounts.quota_for("starter") == 2000
-    assert accounts.quota_for("pro") == 10000
+    assert accounts.quota_for("pro") == 6000
     assert accounts.quota_for("enterprise") is None
-    assert accounts.quota_for("inconnu") == 100
+    assert accounts.quota_for("inconnu") == 50
 
 
 def test_estimation_economies_avec_sa_formule():
@@ -146,7 +146,7 @@ def test_consommation_et_etat_du_plan(session):
     assert statut["validations"] == 3
     assert statut["invalides"] == 2
     assert statut["economies_usd"] == 34.0
-    assert statut["quota"] == 100 and statut["restant"] == 97
+    assert statut["quota"] == 50 and statut["restant"] == 47
     assert statut["quota_atteint"] is False
     assert statut["trial_expire"] is False
     assert statut["trial_jours_restants"] is not None

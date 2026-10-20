@@ -79,7 +79,7 @@ router = APIRouter()
 GABARITS = Path(__file__).resolve().parents[1] / "templates" / "validate_form"
 
 #: Fenêtre du plafond d'essais gratuits : une journée annoncée comme telle
-#: (« 10 essais par jour »). La fenêtre est fixe et démarre au premier essai, ce
+#: (« 3 essais par jour »). La fenêtre est fixe et démarre au premier essai, ce
 #: que la page dit au visiteur pour qu'il n'ait pas à le deviner.
 FENETRE_ESSAI_SECONDES = 24 * 60 * 60
 

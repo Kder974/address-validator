@@ -23,7 +23,7 @@ Trois règles ont dicté le texte :
 ## 1. Le gabarit (n8n / envoi manuel)
 
 Objet : `{{prenom}}, votre accès à la validation d'adresses est prêt`
-Pré-en-tête : `Votre clé API, 100 validations offertes, puis 29 €/mois — sans engagement.`
+Pré-en-tête : `Votre clé API, 50 validations offertes, puis 29 €/mois — sans engagement.`
 
 ```text
 Bonjour {{prenom}},
@@ -39,7 +39,7 @@ même nous — ne peut relire une clé existante.
 
 CE QUE COMPREND VOTRE OFFRE
 {{jours_essai}} jours et {{quota}} validations offertes, sans carte bancaire.
-Ensuite : Starter 29 €/mois (2 000 validations) ou Pro 79 €/mois (10 000), selon
+Ensuite : Starter 29 €/mois (2 000 validations) ou Pro 79 €/mois (6 000), selon
 votre volume. Aucun prélèvement automatique : le passage à un plan payant se fait
 sur simple demande, et rien n'est prélevé sans votre accord écrit.
 
@@ -87,7 +87,7 @@ Sans accolades : les valeurs de l'offre d'essai y sont écrites en clair, et la 
 n'y figure **pas** — le texte renvoie à l'inscription, où elle s'affiche une fois.
 
 Objet : `Votre accès à la validation d'adresses est prêt — Tiitoune Art`
-Pré-en-tête : `Votre clé API, 100 validations offertes, puis 29 €/mois — sans engagement.`
+Pré-en-tête : `Votre clé API, 50 validations offertes, puis 29 €/mois — sans engagement.`
 
 ```text
 Bonjour,
@@ -104,8 +104,8 @@ dans un fichier partagé. Perdue ? Elle se régénère en un clic depuis
 https://kder-ai.com/compte, et l'ancienne cesse de fonctionner immédiatement.
 
 CE QUE COMPREND VOTRE OFFRE
-14 jours et 100 validations offertes, sans carte bancaire. Ensuite : Starter
-29 €/mois (2 000 validations) ou Pro 79 €/mois (10 000), selon votre volume. Aucun
+14 jours et 50 validations offertes, sans carte bancaire. Ensuite : Starter
+29 €/mois (2 000 validations) ou Pro 79 €/mois (6 000), selon votre volume. Aucun
 prélèvement automatique : rien n'est prélevé sans votre accord écrit.
 
 COMMENT L'ENVOYER
@@ -149,7 +149,7 @@ https://kder-ai.com
 | `{{boutique}}` | `shop_name` du compte (« Tiitoune Art ») | `customers.shop_name` |
 | `{{date}}` | date d'ouverture du compte | `customers.created_at` |
 | `{{jours_essai}}` | `14` | `accounts.JOURS_ESSAI` (`app/config.py: trial_days`) |
-| `{{quota}}` | `100` | `accounts.VALIDATIONS_ESSAI` (plan `trial`) |
+| `{{quota}}` | `50` | `accounts.VALIDATIONS_ESSAI` (plan `trial`) |
 | `{{cle_api}}` | **jamais une clé** : la phrase qui renvoie à `/signup` ou `/compte` | — |
 | `{{lien_compte}}` | `https://kder-ai.com/compte` | route `/compte` (D44) |
 | `{{lien_guide}}` | `https://kder-ai.com/guide` | route `/guide` (D48) |

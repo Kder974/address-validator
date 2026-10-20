@@ -79,9 +79,9 @@ def test_offre_et_prix_unitaires_calcules():
         "29 €",
         "79 €",
         "Sur devis",
-        "14 jours, 100 validations",
+        "14 jours, 50 validations",
         "<b>2 000</b> par mois",
-        "<b>10 000</b> par mois",
+        "<b>6 000</b> par mois",
         "<b>Illimitées</b> sans plafond mensuel",
     ):
         assert attendu in html, f"offre incomplète : {attendu} manquant"
@@ -89,7 +89,7 @@ def test_offre_et_prix_unitaires_calcules():
     assert all(offre["periode"] in html for offre in OFFRES)
     # Prix ÷ quota, et la division est affichée à côté du résultat.
     assert "<b>0,0145 €</b>" in html and "29 € ÷ 2 000 validations" in html
-    assert "<b>0,0079 €</b>" in html and "79 € ÷ 10 000 validations" in html
+    assert "<b>0,0132 €</b>" in html and "79 € ÷ 6 000 validations" in html
     # Un plan sans quota ne fabrique pas un prix unitaire.
     assert "<b>Sur devis</b>" in html
 

@@ -137,12 +137,12 @@ class Settings(BaseSettings):
     # est compté (`app/ratelimit.py`) pour que le garde-fou réel soit visible.
     signup_rate_limit_per_hour: int = 5
     # Essai gratuit : durée et quota. Ils sont **publiés** sur `/pricing`
-    # (« 14 jours, 100 validations ») et **appliqués** à l'inscription ; une offre
+    # (« 14 jours, 50 validations ») et **appliqués** à l'inscription ; une offre
     # annoncée qui ne serait pas appliquée serait un mensonge.
     trial_days: int = 14
     # Plafond du formulaire public de validation (élément 3, `POST /validate-form`) :
-    # 10 essais gratuits par IP et par 24 h.
-    validate_form_rate_limit_per_day: int = 10
+    # 3 essais gratuits par IP et par 24 h (D94 : 10 coûtaient trop en vérifications Smarty).
+    validate_form_rate_limit_per_day: int = 3
     # Connexion à l'espace client (D62) : une session dure `session_hours` au plus ;
     # `login_max_failures` mots de passe faux bloquent `login_lock_minutes`, par IP
     # et par compte. Ces trois valeurs sont **écrites** sur la page de connexion.

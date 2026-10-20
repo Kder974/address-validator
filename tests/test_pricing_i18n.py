@@ -127,8 +127,10 @@ def test_les_boutons_menent_ou_il_faut(lang):
     grille = re.search(r'<ol class="tiers">(.*?)</ol>', texte, re.S).group(1)
     appel = re.search(r'id="a-l-appel".*?<a class="link" href="([^"]*)"', texte, re.S)
 
+    inscription = i18n.chemin(lang, "signup")
+    # D93 : Starter et Pro portent leur offre jusqu'au bouton Payer ; l'essai, aucune.
     assert re.findall(r'<a class="btn [^"]*" href="([^"]*)"', grille) == [
-        *[i18n.chemin(lang, "signup")] * 3,
+        inscription, f"{inscription}?offre=starter", f"{inscription}?offre=pro",
         f"mailto:{get_settings().contact_email}",
     ]
     assert appel.group(1) == i18n.chemin(lang, "guide")
@@ -169,7 +171,9 @@ def test_aucun_chiffre_du_service_n_est_ecrit_dans_le_gabarit(lang):
     gabarit = re.sub(r'"100 [Ss]tewart (st|Street)"', "", gabarit)
 
     for cle, valeur in pricing.valeurs(get_settings(), lang).items():
-        if cle.startswith(("url_", "lien_", "jauge_")) or cle == "mention_euros":
+        # Un seul chiffre (`fois_pro` « 3 », `baisse_pro` « 8 ») se confond avec `<h3>` ou
+        # `utf-8` : ceux-là ont leur propre test (rendu calculé, D94).
+        if cle.startswith(("url_", "lien_", "jauge_")) or cle == "mention_euros" or len(str(valeur)) == 1:
             continue
         assert not re.search(_nombre_seul(str(valeur)), gabarit), (cle, valeur)
 
@@ -215,9 +219,15 @@ def test_les_corrections_d_honnetete_tiennent(lang):
     assert re.search(_nombre_seul(pricing.PROBLEME[0][0].split()[0]), _sans_dessin(texte))
 
 
-def test_cinq_fois_le_volume_de_starter():
-    """Les gabarits écrivent « cinq fois le volume de Starter » en toutes lettres."""
-    assert accounts.PLANS["pro"] == 5 * accounts.PLANS["starter"], "réécrire la puce Pro des six gabarits"
+@pytest.mark.parametrize("lang", i18n.LANGUES)
+def test_le_volume_de_pro_est_calcule(lang, monkeypatch):
+    """D94 : « 3 fois le volume de Starter » vient des quotas, plus d'un mot écrit à la main."""
+    gabarit = (pricing.GABARITS / f"{lang}.html").read_text(encoding="utf-8")
+    assert "{{fois_pro}}" in gabarit
+    for mot in ("Cinq fois", "Five times", "Cinco veces", "五倍", "पाँच गुना", "خمسة أضعاف"):
+        assert mot not in gabarit
+    monkeypatch.setitem(accounts.PLANS, "pro", 14000)
+    assert pricing.valeurs(get_settings(), lang)["fois_pro"] == "7"
 
 
 def test_les_promesses_retirees_ne_reviennent_pas():

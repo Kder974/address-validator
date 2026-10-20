@@ -186,14 +186,15 @@ def test_chaque_seuil_classe_une_situation_reelle(session):
 def test_quota_presque_declenche_avant_la_panne(session):
     """Prevenir au seuil publie, pas apres le refus."""
     presque, _ = _compte(session, "presque@example.re", essai_dans=10)
-    _usage(session, presque, combien=suivi.SEUIL_QUOTA_PCT)
+    seuil = accounts.VALIDATIONS_ESSAI * suivi.SEUIL_QUOTA_PCT // 100
+    _usage(session, presque, combien=seuil)
     ligne = suivi.etat_client(session, presque, maintenant=MAINTENANT)
     assert ligne["etat"] == "quota_presque"
     assert ligne["pct_quota"] == suivi.SEUIL_QUOTA_PCT
-    assert ligne["restant"] == accounts.VALIDATIONS_ESSAI - suivi.SEUIL_QUOTA_PCT
+    assert ligne["restant"] == accounts.VALIDATIONS_ESSAI - seuil
 
     sous, _ = _compte(session, "sous@example.re", essai_dans=10)
-    _usage(session, sous, combien=suivi.SEUIL_QUOTA_PCT - 1)
+    _usage(session, sous, combien=seuil - 1)
     assert suivi.etat_client(session, sous, maintenant=MAINTENANT)["etat"] == suivi.ETAT_OK
 
 

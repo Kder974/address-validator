@@ -9,12 +9,17 @@ Ce qui est mesuré, et pourquoi :
     désigné par `client_reference_id` à cette offre ; un montant inconnu ou un
     compte absent ne change rien ;
   * la fin d'un abonnement ramène le compte à l'essai, échu : sa clé n'est plus servie ;
-  * l'espace client ouvre les liens Stripe avec le numéro et l'e-mail du compte.
+  * l'espace client ouvre les liens Stripe avec le numéro et l'e-mail du compte ;
+  * D93 : Starter et Pro, sur Tarifs, mènent à l'inscription avec leur offre ; la
+    page de la clé ouvre alors le paiement Stripe de cette offre, rattaché au
+    compte, qui reste un essai tant que Stripe n'a pas confirmé (D54).
 """
 
 import hashlib
 import hmac
+import html
 import json
+import re
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -23,11 +28,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app import accounts
+from app import accounts, i18n, ratelimit
 from app.config import get_settings
 from app.main import app
 from app.models import Customer, CustomerValidation
-from app.routes import stripe_webhook, tableau
+from app.routes import signup, stripe_webhook, tableau
 
 SECRET = "whsec_test_" + "0" * 24
 client_http = TestClient(app)
@@ -133,3 +138,44 @@ def test_l_espace_client_ouvre_stripe_avec_le_compte():
     assert lien == f"{reglages.stripe_lien_starter}?client_reference_id=42&prefilled_email=a%2Bb%40shop.re"
     assert tableau.lien_paiement(reglages.stripe_lien_pro, {}) == reglages.stripe_lien_pro
     assert accounts.PLAN_PAR_MONTANT == {2900: "starter", 7900: "pro"}
+
+
+@pytest.fixture
+def inscriptions(tmp_path, monkeypatch):
+    moteur = create_engine(f"sqlite:///{tmp_path / 'inscriptions.sqlite'}")
+    Customer.__table__.create(moteur)
+    CustomerValidation.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+    monkeypatch.setattr(signup, "SessionLocal", fabrique)
+    ratelimit.reset()
+    yield fabrique
+    ratelimit.reset()
+
+
+@pytest.mark.parametrize("lang", i18n.LANGUES)
+def test_l_offre_choisie_mene_au_paiement_du_compte(inscriptions, lang):
+    chemin = i18n.chemin(lang, "signup")
+    formulaire = client_http.get(f"{chemin}?offre=pro").text
+    assert '<input type="hidden" name="offre" value="pro">' in formulaire
+    rappel = re.search(r'class="form-offre">(.*?)</p>', formulaire, re.S).group(1)
+    assert "€" in rappel and i18n.nombre(lang, i18n.EUROS["pro"]) in rappel  # le montant prélevé, en euros
+    assert 'name="offre"' not in client_http.get(f"{chemin}?offre=enterprise").text
+
+    forme = {"email": f"{lang}@shop.re", "password": "un-mot-de-passe-solide-12", "shop_name": "S", "platform": "shopify"}
+    refus = client_http.post(chemin, data={**forme, "email": "pas-un-email", "offre": "starter"})
+    assert refus.status_code == 400 and 'name="offre" value="starter"' in refus.text
+
+    page = client_http.post(chemin, data={**forme, "offre": "pro"})
+    with inscriptions() as s:
+        compte = accounts.find_by_email(s, forme["email"])
+        assert compte.plan == "trial"  # D54 : seul Stripe fait passer à Pro
+    lien = tableau.lien_paiement(get_settings().stripe_lien_pro, {"id": compte.id, "email": compte.email})
+    assert page.status_code == 200 and page.headers["cache-control"] == "no-store"
+    bouton = re.search(rf'href="{re.escape(html.escape(lien))}" target="_blank" rel="noopener noreferrer">(.*?)<svg', page.text, re.S)
+    assert bouton and "€" in bouton.group(1) and i18n.nombre(lang, i18n.EUROS["pro"]) in bouton.group(1)
+
+
+def test_sans_offre_la_page_de_la_cle_ne_parle_pas_de_paiement(inscriptions):
+    forme = {"email": "essai@shop.re", "password": "un-mot-de-passe-solide-12", "shop_name": "S", "platform": "shopify"}
+    page = client_http.post("/signup", data={**forme, "offre": "enterprise"}).text
+    assert "https://" not in page and 'class="pay"' not in page

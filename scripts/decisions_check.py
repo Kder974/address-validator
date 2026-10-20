@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D91, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D94, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 91
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 94
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -732,7 +732,7 @@ def d21() -> None:
     Révision datée du 12/10/2026 (voir D44 et « Notes de provenance » dans
     `DECISIONS.md`). D21 interdisait *toute* limitation de débit applicative :
     elle renvoyait à Nginx (`limit_req`), qui refuse sans rien expliquer. Deux
-    plafonds **produit** — 5 inscriptions par IP et par heure, 10 essais gratuits
+    plafonds **produit** — 5 inscriptions par IP et par heure, 3 essais gratuits
     par IP et par 24 h — doivent au contraire **parler** au client (`429` +
     `Retry-After`, « créez un compte pour continuer »), ce que `limit_req` ne
     sait pas faire. La porte garde donc l'interdiction qui compte vraiment :
@@ -3291,7 +3291,7 @@ def d44() -> None:
             f"compteurs faux : {statut['validations']} validations, {statut['invalides']} invalides",
         )
         guard(statut["economies_usd"] == 34.0, f"estimation fausse : {statut['economies_usd']}")
-        guard(statut["restant"] == 97, f"reste d'essai faux : {statut['restant']}")
+        guard(statut["restant"] == accounts.VALIDATIONS_ESSAI - 3, f"reste d'essai faux : {statut['restant']}")
         espace = client.get("/compte", headers=auth(forme["email"], secret)).text
         guard("2 adresses invalides" in espace, "la formule d'estimation n'est plus affichee")
         # D57 : le total s'affiche dans la monnaie de la page (fr : euros), invalides x
@@ -3533,7 +3533,7 @@ def d45() -> None:
             )
             guard(
                 servie.headers.get("x-plan") == "trial"
-                and servie.headers.get("x-quota-remaining") == "99",
+                and servie.headers.get("x-quota-remaining") == str(accounts.VALIDATIONS_ESSAI - 1),
                 "l'etat du compte n'est pas annonce : plan="
                 f"{servie.headers.get('x-plan')} reste={servie.headers.get('x-quota-remaining')}",
             )
@@ -3636,8 +3636,8 @@ def d45() -> None:
             corps_quota = bloque.json()
             guard(
                 corps_quota["reason"] == "quota_atteint"
-                and corps_quota["quota"] == 100
-                and corps_quota["validations_this_month"] == 100,
+                and corps_quota["quota"] == accounts.VALIDATIONS_ESSAI
+                and corps_quota["validations_this_month"] == accounts.VALIDATIONS_ESSAI,
                 "le refus de quota annonce "
                 f"{corps_quota.get('validations_this_month')} validations "
                 f"sur {corps_quota.get('quota')}",
@@ -4028,8 +4028,10 @@ def d46() -> None:
             "la valeur saisie n'est plus echappee dans la page",
         )
 
-        # 5. Un resultat degrade n'est pas un verdict sur l'adresse.
+        # 5. Un resultat degrade n'est pas un verdict sur l'adresse. (D94 : 3 essais par jour,
+        #    deja pris par les etapes 2 a 4 ; le plafond a sa propre etape, la 6.)
         appels.clear()
+        ratelimit.reset()
         resultats[0] = {**resultat, "validated": False, "degraded": True}
         try:
             degrade = client.post("/validate-form", data=adresse)
@@ -5157,9 +5159,10 @@ def d57() -> None:
                 f"{nom} en {devise} : {converti} affiche pour {euros} EUR factures (~{attendu:.0f}) : table a refaire",
             )
         for devise, montants in i18n.MONTANTS.items():
+            unitaire = montants[f"unitaire_{cle}"]
             guard(
-                montants[f"unitaire_{cle}"] == montants[cle] / accounts.PLANS[cle],
-                f"prix unitaire {nom} en {devise} : n'est pas le prix divise par le quota",
+                unitaire == (montants[cle] / accounts.PLANS[cle]).quantize(unitaire),
+                f"prix unitaire {nom} en {devise} : n'est pas le prix divise par le quota (arrondi au chiffre affiche)",
             )
     guard(
         i18n.MONTANTS["USD"]["colis_rate"] == Decimal(str(accounts.COUT_ECHEC_USD)),
@@ -5402,11 +5405,13 @@ def d60() -> None:
         guard(i18n.mention_euros(lang) in texte, f"{adresse} : la mention de facturation en euros manque")
 
         # 2. Les boutons : essai, Starter et Pro vers l'inscription de la langue (D54 :
-        #    aucun plan transmis), Enterprise vers le contact de la configuration.
+        #    aucun plan transmis ; D93 : Starter et Pro portent leur offre, qui ne
+        #    choisit que le lien Stripe), Enterprise vers le contact de la configuration.
         grille = re.search(r'<ol class="tiers">(.*?)</ol>', texte, re.S)
         boutons = re.findall(r'<a class="btn [^"]*" href="([^"]*)"', grille.group(1) if grille else "")
+        signup = i18n.chemin(lang, "signup")
         guard(
-            boutons == [i18n.chemin(lang, "signup")] * 3 + [f"mailto:{reglages.contact_email}"],
+            boutons == [signup, f"{signup}?offre=starter", f"{signup}?offre=pro", f"mailto:{reglages.contact_email}"],
             f"{adresse} : boutons des offres inattendus : {boutons}",
         )
 
@@ -5745,7 +5750,7 @@ def d64() -> None:
                 guard(interdit not in texte, f"{compte} contient {interdit!r}")
             nombre = lambda valeur: i18n.nombre(lang, valeur)  # noqa: E731
             guard(signup_route._pluriel(lang, 1, t["titre_inv"]).format(n=nombre(1)) in lu, f"{compte} : le fait du mois n'est pas dit")
-            guard(f"⁦{nombre(97)} / {nombre(100)}⁩" in texte, f"{compte} : les validations restantes ne sont pas celles du compte")
+            guard(f"⁦{nombre(accounts.VALIDATIONS_ESSAI - 3)} / {nombre(accounts.VALIDATIONS_ESSAI)}⁩" in texte, f"{compte} : les validations restantes ne sont pas celles du compte")
             calcul = signup_route._pluriel(lang, 1, signup_route.TEXTES[lang]["calcul"]).format(
                 n=nombre(1), cout=i18n.prix(lang, "colis_rate"), total=signup_route._montant(lang, i18n.MONTANTS[i18n.DEVISE[lang]]["colis_rate"]))
             guard(calcul in lu, f"{compte} : la formule des economies a disparu")
@@ -7282,7 +7287,109 @@ def d91() -> None:
     guard(re.search(r"^\| D91 \|", read("DECISIONS.md"), re.M) is not None, "la decision D91 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 92)}
+def d92() -> None:
+    """Le pied de page ne nomme plus personne : le logo et l'adresse de contact suffisent."""
+    gabarits = sorted((ROOT / "app" / "templates").glob("*/*.html"))
+    guard(len(gabarits) >= 72, f"{len(gabarits)} gabarits seulement")
+    for chemin in gabarits:
+        texte = chemin.read_text(encoding="utf-8")
+        nom = f"{chemin.parent.name}/{chemin.name}"
+        guard("Kder Daoud" not in texte, f"{nom} : le pied de page nomme encore une personne")
+        if '<footer class="foot">' in texte:
+            pied = texte[texte.index('<footer class="foot">'):]
+            guard('href="mailto:{{contact}}"' in pied and "Address Validator" in pied, f"{nom} : le pied de page a perdu le logo ou le contact")
+    guard(re.search(r"^\| D92 \|", read("DECISIONS.md"), re.M) is not None, "la decision D92 n'est plus consignee dans DECISIONS.md")
+
+
+def d93() -> None:
+    """Starter et Pro, sur Tarifs, menent a l'inscription puis au paiement Stripe de l'offre, rattache au compte."""
+    import html
+    import tempfile
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import accounts, i18n, ratelimit
+    from app.config import get_settings
+    from app.main import app
+    from app.models import Customer, CustomerValidation
+    from app.routes import signup as signup_route
+    from app.routes import tableau
+
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp(prefix='porte-d93-')) / 'clients.sqlite'}")
+    Customer.__table__.create(moteur)
+    CustomerValidation.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+    reglages = get_settings()
+    client = TestClient(app)
+    liens = {"starter": reglages.stripe_lien_starter, "pro": reglages.stripe_lien_pro}
+    with mock.patch.object(signup_route, "SessionLocal", fabrique):
+        for numero, lang in enumerate(i18n.LANGUES):
+            ratelimit.reset()
+            chemin = i18n.chemin(lang, "signup")
+            guard('name="offre"' not in client.get(f"{chemin}?offre=enterprise").text, f"{chemin} accepte une offre qui ne s'achete pas")
+            offre = ("starter", "pro")[numero % 2]
+            formulaire = client.get(f"{chemin}?offre={offre}").text
+            euros = i18n.nombre(lang, i18n.EUROS[offre])
+            rappel = re.search(r'class="form-offre">(.*?)</p>', formulaire, re.S)
+            guard(f'<input type="hidden" name="offre" value="{offre}">' in formulaire and rappel is not None,
+                  f"{chemin}?offre={offre} : l'offre n'est ni portee ni rappelee")
+            guard("€" in rappel.group(1) and euros in rappel.group(1), f"{chemin} : l'offre n'est pas rappelee au montant preleve en euros")
+            refus = client.post(chemin, data={"email": "pas-un-email", "password": "porte-d93-mot-de-passe", "shop_name": "D93",
+                                              "platform": "shopify", "offre": offre})
+            guard(refus.status_code == 400 and f'name="offre" value="{offre}"' in refus.text, f"{chemin} : un refus perd l'offre choisie")
+            email = f"porte-d93-{lang}@example.re"
+            page = client.post(chemin, data={"email": email, "password": "porte-d93-mot-de-passe", "shop_name": "D93",
+                                             "platform": "shopify", "offre": offre, "plan": "pro"})
+            with fabrique() as session:
+                compte = accounts.find_by_email(session, email)
+                guard(compte.plan == accounts.PLAN_PAR_DEFAUT, f"{chemin} : l'offre choisie a change le plan sans paiement (D54)")
+                lien = tableau.lien_paiement(liens[offre], {"id": compte.id, "email": compte.email})
+            guard(page.headers.get("cache-control") == "no-store", f"la page de la cle ({lang}) est cachable")
+            bouton = re.search(rf'href="{re.escape(html.escape(lien))}" target="_blank" rel="noopener noreferrer">(.*?)<svg', page.text, re.S)
+            guard(bouton is not None, f"la page de la cle ({lang}) n'ouvre pas le paiement {offre} du compte dans un nouvel onglet")
+            guard("€" in bouton.group(1) and euros in bouton.group(1), f"le bouton Payer ({lang}) ne dit pas le montant preleve en euros")
+            sans = client.post(chemin, data={"email": f"sans-{email}", "password": "porte-d93-mot-de-passe", "shop_name": "D93",
+                                             "platform": "shopify"}).text
+            guard("https://" not in sans and 'class="pay"' not in sans, f"la page de la cle ({lang}) parle de paiement sans offre choisie")
+    guard('donnees.get("plan"' not in read("app/routes/signup.py"), "signup.py lit le plan dans le formulaire (D54)")
+    guard(re.search(r"^\| D93 \|", read("DECISIONS.md"), re.M) is not None, "la decision D93 n'est plus consignee dans DECISIONS.md")
+
+
+def d94() -> None:
+    """Moins de gratuit, Pro rentable : 3 tests par jour, essai de 50 validations, Pro 79 euros pour 6 000."""
+    from decimal import Decimal
+
+    from fastapi.testclient import TestClient
+
+    from app import accounts, i18n
+    from app.config import Settings
+    from app.main import app
+
+    guard(Settings.model_fields["validate_form_rate_limit_per_day"].default == 3, "le test gratuit n'est plus a 3 par jour et par IP")
+    guard(accounts.PLANS["trial"] == accounts.VALIDATIONS_ESSAI == 50, f"l'essai offre {accounts.PLANS['trial']} (PLANS) et {accounts.VALIDATIONS_ESSAI} (VALIDATIONS_ESSAI) validations, pas 50")
+    guard(accounts.PLANS["starter"] == 2000 and accounts.PLANS["pro"] == 6000, f"quotas Starter/Pro : {accounts.PLANS}")
+    quotas = {offre["nom"]: offre["validations"] for offre in accounts.OFFRES}
+    guard(quotas["Essai gratuit"] == 50 and quotas["Pro"] == 6000, f"accounts.OFFRES ne suit pas les quotas : {quotas}")
+    # Pro doit rester moins cher par validation que Starter, sinon l'offre ne se defend plus.
+    guard(i18n.EUROS["unitaire_pro"] < i18n.EUROS["unitaire_starter"], "Pro coute plus cher par validation que Starter")
+    guard(i18n.EUROS["unitaire_pro"] == Decimal("0.0132"), f"prix unitaire Pro : {i18n.EUROS['unitaire_pro']}")
+
+    client = TestClient(app)
+    tarifs = re.sub(r"<[^>]+>", "", client.get("/pricing").text)
+    for attendu in ("3 fois le volume de Starter", "0,0132 €", "79 € ÷ 6 000 validations", "14 jours, 50 validations"):
+        guard(attendu in tarifs, f"/pricing n'affiche pas « {attendu} »")
+    for lang in i18n.LANGUES:
+        gabarit = (ROOT / "app" / "templates" / "pricing" / f"{lang}.html").read_text(encoding="utf-8")
+        guard("{{fois_pro}}" in gabarit, f"pricing/{lang} : le volume de Pro est encore ecrit a la main")
+    email = read("EMAIL_BIENVENUE.md")
+    guard("50 validations offertes" in email and "(6 000)" in email and "10 000" not in email and "100 validations" not in email, "l'email de bienvenue cite encore les anciens quotas")
+    guard(re.search(r"^\| D94 \|", read("DECISIONS.md"), re.M) is not None, "la decision D94 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 95)}
 
 
 def catalog() -> list[tuple[str, str]]:

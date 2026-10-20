@@ -533,7 +533,7 @@ h1,h2,h3,.amount strong,.pill b{letter-spacing:0}h1,h2{line-height:1.35}
           <li>دليل الاستيراد بصيغة CSV وأمثلة لمنصتي Shopify وWooCommerce</li>
           <li>الدعم عبر البريد الإلكتروني</li>
         </ul>
-        <a class="btn btn-line" href="{{url_signup}}">ابدأ بالتجربة <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        <a class="btn btn-line" href="{{url_signup}}?offre=starter">اشترك في Starter <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
       </li>
       <li class="tier tier-pro" style="--i:2">
         <div class="tier-head"><h3>Pro</h3><span class="badge">للأحجام الكبيرة</span></div>
@@ -545,10 +545,10 @@ h1,h2,h3,.amount strong,.pill b{letter-spacing:0}h1,h2{line-height:1.35}
         </dl>
         <ul class="checks">
           <li class="all">كل ما تتضمنه باقة Starter</li>
-          <li>خمسة أضعاف حجم Starter</li>
+          <li><span class="lat">{{fois_pro}}</span> أضعاف حجم Starter</li>
           <li>أقل بنسبة <span class="lat">{{baisse_pro}}%</span> لكل عملية تحقق مقارنة بباقة Starter</li>
         </ul>
-        <a class="btn btn-accent" href="{{url_signup}}">ابدأ بالتجربة <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        <a class="btn btn-accent" href="{{url_signup}}?offre=pro">اشترك في Pro <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
       </li>
       <li class="tier" style="--i:3">
         <div class="tier-head"><h3>Enterprise</h3><span class="badge">حسب الطلب</span></div>
@@ -568,7 +568,7 @@ h1,h2,h3,.amount strong,.pill b{letter-spacing:0}h1,h2{line-height:1.35}
     </ol>
         <p class="fx-note">{{mention_euros}}</p>
     <div class="tiers-foot">
-      <p>تبدأ باقتا Starter وPro بالتجربة المجانية. بعدها تدفع بالبطاقة عبر Stripe من لوحة حسابك عندما تختار، ويمكنك التوقف متى شئت.</p>
+      <p>Starter وPro: أنشئ حسابك، ثم ادفع بالبطاقة عبر Stripe في الصفحة التالية. يمكنك التوقف متى شئت من لوحة حسابك.</p>
       <a class="link" href="#a-l-appel">دون اشتراك: <span class="lat" dir="ltr">{{prix_x402}}&nbsp;USDC</span> لكل استدعاء <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
     </div>
   </div>
@@ -729,7 +729,6 @@ h1,h2,h3,.amount strong,.pill b{letter-spacing:0}h1,h2{line-height:1.35}
     <div class="foot-grid">
       <div class="foot-brand">
         <a class="brand" href="{{url_accueil}}" dir="ltr"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>Address Validator</a>
-        <p class="lat">Address Validator, Kder Daoud</p>
         <a class="mail" href="mailto:{{contact}}" dir="ltr">{{contact}}</a>
       </div>
       <div>

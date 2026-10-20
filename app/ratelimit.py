@@ -2,7 +2,7 @@
 
 Deux usages : l'inscription (`POST /signup`, 5 tentatives par IP et par heure,
 exigence de la spec) et le formulaire public de validation
-(`POST /validate-form`, 10 essais par IP et par 24 h, élément 3).
+(`POST /validate-form`, 3 essais par IP et par 24 h, élément 3).
 
 Le compteur vit dans Redis quand il est joignable : le TTL y est natif et le
 compteur est partagé entre processus. Quand Redis ne répond pas, on **ne refuse

@@ -526,7 +526,7 @@ h2{font-weight:750;letter-spacing:-.028em}
           <li>Guide d'import CSV et exemples Shopify / WooCommerce</li>
           <li>Support par email</li>
         </ul>
-        <a class="btn btn-line" href="{{url_signup}}">Démarrer par l'essai <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        <a class="btn btn-line" href="{{url_signup}}?offre=starter">S'abonner à Starter <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
       </li>
       <li class="tier tier-pro" style="--i:2">
         <div class="tier-head"><h3>Pro</h3><span class="badge">Pour les volumes</span></div>
@@ -538,10 +538,10 @@ h2{font-weight:750;letter-spacing:-.028em}
         </dl>
         <ul class="checks">
           <li class="all">Tout ce que comprend Starter</li>
-          <li>Cinq fois le volume de Starter</li>
+          <li>{{fois_pro}} fois le volume de Starter</li>
           <li>{{baisse_pro}} % de moins par validation qu'en Starter</li>
         </ul>
-        <a class="btn btn-accent" href="{{url_signup}}">Démarrer par l'essai <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+        <a class="btn btn-accent" href="{{url_signup}}?offre=pro">S'abonner à Pro <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
       </li>
       <li class="tier" style="--i:3">
         <div class="tier-head"><h3>Enterprise</h3><span class="badge">Sur mesure</span></div>
@@ -560,7 +560,7 @@ h2{font-weight:750;letter-spacing:-.028em}
       </li>
     </ol>
     <div class="tiers-foot">
-      <p>Starter et Pro commencent par l'essai gratuit. Ensuite, vous payez par carte avec Stripe depuis votre espace client, quand vous le choisissez ; arrêt à tout moment.</p>
+      <p>Starter et Pro : créez votre compte, puis payez par carte avec Stripe sur la page suivante. Arrêt à tout moment depuis votre espace client.</p>
       <a class="link" href="#a-l-appel">Sans abonnement : {{prix_x402}} USDC par appel <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
     </div>
   </div>
@@ -721,7 +721,6 @@ h2{font-weight:750;letter-spacing:-.028em}
     <div class="foot-grid">
       <div class="foot-brand">
         <a class="brand" href="{{url_accueil}}"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>Address Validator</a>
-        <p>Address Validator, Kder Daoud</p>
         <a class="mail" href="mailto:{{contact}}">{{contact}}</a>
       </div>
       <div>

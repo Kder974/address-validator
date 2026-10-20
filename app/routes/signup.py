@@ -68,6 +68,11 @@ SECRET_HEADERS = PRIVATE_HEADERS
 #: Fenêtre du plafond d'inscription (secondes) : « 5 par IP et **par heure** ».
 FENETRE_INSCRIPTION = 3600
 
+#: D93 : les offres que `/pricing` annonce à l'inscription (`?offre=`). Elles ne
+#: choisissent que le lien Stripe montré après la clé ; le plan, lui, ne change
+#: qu'au paiement confirmé par Stripe (D91), jamais par le formulaire (D54).
+OFFRES_STRIPE = ("starter", "pro")
+
 # Isolants Unicode (LRI, FSI, PDI) : en arabe, une date, un montant ou un nom de
 # boutique latin gardent leur ordre, comme le `<bdi dir="ltr">` des maquettes.
 _G, _A, _F = "\u2066", "\u2068", "\u2069"
@@ -551,12 +556,24 @@ def _communs(lang: str, page: str) -> dict:
     }
 
 
+def _offre(valeur) -> str:
+    """D93 : l'offre annoncée, si elle s'achète sur Stripe ; tout le reste est ignoré."""
+    return valeur if valeur in OFFRES_STRIPE else ""
+
+
+def _champs_offre(lang: str, offre: str) -> dict:
+    # Le montant que Stripe prélève, en euros, jamais l'équivalent arrondi (« $33 »).
+    euros = "" if not offre else i18n.prix(lang, offre) if i18n.DEVISE[lang] == "EUR" else "€" + i18n.nombre(lang, i18n.EUROS[offre])
+    return {"offre": offre, "offre_nom": TEXTES[lang]["plans"].get(offre, ""), "offre_prix": euros}
+
+
 def _formulaire(
     lang: str,
     *,
     email: str = "",
     boutique: str = "",
     plateforme: str = "",
+    offre: str = "",
     erreurs: tuple[str, ...] = (),
     statut: int = 200,
     entetes: dict | None = None,
@@ -577,12 +594,13 @@ def _formulaire(
         **{f"choix_{nom}": " selected" if nom == plateforme else "" for nom in accounts.PLATEFORMES},
         "prefixe_cle": accounts.API_KEY_PREFIX,
         "longueur_cle": accounts.API_KEY_CHARS,
+        **_champs_offre(lang, offre),
     }
     alerte = ""
     if erreurs:
         items = "".join(f"<li>{html.escape(erreur)}</li>" for erreur in erreurs)
         alerte = f'<div class="alert" role="alert"><ul>{items}</ul></div>'
-    page = _page("inscription", lang, valeurs, fragments={"alerte": alerte})
+    page = _page("inscription", lang, valeurs, {"offre"} if offre else set(), fragments={"alerte": alerte})
     if statut == 200:
         # Le formulaire vide est indexable (D65) ; un refus, privé, ne l'est pas.
         page = seo.enrichir(page, lang, "signup", settings)
@@ -619,8 +637,17 @@ def _refus(message: str) -> Response:
     )
 
 
-def _page_cle(lang: str, *, infos: dict, cle: str, statut: dict, regeneration: bool, maintenant: datetime) -> HTMLResponse:
-    """La **seule** page qui montre la clé en clair : `no-store`, non indexée."""
+def _page_cle(
+    lang: str, *, infos: dict, cle: str, statut: dict, regeneration: bool, maintenant: datetime, offre: str = ""
+) -> HTMLResponse:
+    """La **seule** page qui montre la clé en clair : `no-store`, non indexée.
+
+    Avec une offre choisie sur `/pricing` (D93), elle montre aussi le bouton de
+    paiement Stripe de cette offre, rattaché au compte (`client_reference_id`)."""
+    from app.routes import tableau  # import local : `tableau` importe ce module
+
+    settings = get_settings()
+    base = {"starter": settings.stripe_lien_starter, "pro": settings.stripe_lien_pro}.get(offre, "")
     textes = TEXTES[lang]
     variante = textes["regeneree" if regeneration else "cree"]
     fin = statut["trial_ends_at"]
@@ -643,8 +670,10 @@ def _page_cle(lang: str, *, infos: dict, cle: str, statut: dict, regeneration: b
         "fin_essai": _date(lang, fin, "longue") if fin else "",
         "aujourdhui": _date(lang, maintenant, "chiffres"),
         "fin_courte": _date(lang, fin, "chiffres") if fin else "",
+        **_champs_offre(lang, offre),
+        "lien_payer": tableau.lien_paiement(base, infos) if base else "",
     }
-    blocs = set()
+    blocs = {"payer"} if base else set()
     if fin is not None:
         blocs.add("fin_essai")
         if not statut["trial_expire"]:
@@ -694,11 +723,12 @@ async def _inscrire(request: Request, lang: str) -> Response:
     mot_de_passe = str(donnees.get("password", "") or "")
     boutique = str(donnees.get("shop_name", "") or "")
     plateforme = str(donnees.get("platform", "") or "")
+    offre = _offre(donnees.get("offre"))
     # D54 : l'inscription libre ne crée que des comptes d'essai. Le plan n'est
     # jamais lu dans le formulaire (le client l'aurait choisi lui-même) ; un plan
     # payant s'accorde côté exploitant.
     plan = accounts.PLAN_PAR_DEFAUT
-    champs = {"email": email, "boutique": boutique, "plateforme": plateforme}
+    champs = {"email": email, "boutique": boutique, "plateforme": plateforme, "offre": offre}
 
     erreurs: list[str] = []
     if not accounts.valid_email(email):
@@ -729,7 +759,7 @@ async def _inscrire(request: Request, lang: str) -> Response:
                 maintenant=maintenant,
                 jours_essai=settings.trial_days,
             )
-            infos = {"shop_name": client.shop_name, "prefixe": client.api_key_prefix}
+            infos = _infos(client)
             statut = accounts.plan_status(session, client, maintenant)
     except IntegrityError:
         # L'email est deja pris : on le dit, parce qu'un client qui a deja un
@@ -739,7 +769,7 @@ async def _inscrire(request: Request, lang: str) -> Response:
     except SQLAlchemyError as exc:
         return _indisponible(lang, exc, **champs)
 
-    return _page_cle(lang, infos=infos, cle=cle, statut=statut, regeneration=False, maintenant=maintenant)
+    return _page_cle(lang, infos=infos, cle=cle, statut=statut, regeneration=False, maintenant=maintenant, offre=offre)
 
 
 def _infos(client) -> dict:
@@ -831,9 +861,9 @@ async def _espace_client(request: Request, lang: str, *, regeneration: bool) -> 
 
 
 @router.get("/signup")
-async def signup_form() -> Response:
-    """Le formulaire d'inscription (public, indexable, sans état)."""
-    return _formulaire(i18n.DEFAUT)
+async def signup_form(request: Request) -> Response:
+    """Le formulaire d'inscription (public, indexable, sans état) ; `?offre=` vient de `/pricing` (D93)."""
+    return _formulaire(i18n.DEFAUT, offre=_offre(request.query_params.get("offre")))
 
 
 @router.post("/signup")
@@ -856,8 +886,8 @@ async def compte_nouvelle_cle(request: Request) -> Response:
 def _routes(lang: str):
     """Les quatre routes d'une langue préfixée, qui répondent dans cette langue."""
 
-    async def formulaire() -> Response:
-        return _formulaire(lang)
+    async def formulaire(request: Request) -> Response:
+        return _formulaire(lang, offre=_offre(request.query_params.get("offre")))
 
     async def inscription(request: Request) -> Response:
         return await _inscrire(request, lang)
