@@ -1,0 +1,15 @@
+Objet : Vos colis livrés en France (et à La Réunion) sans erreur d'adresse
+
+Bonjour {prenom},
+
+Je vous écris au sujet des livraisons de {nom_boutique}. Une adresse mal saisie au paiement, et le transporteur corrige, renvoie le colis ou facture la correction — en France métropolitaine comme à La Réunion.
+
+Deux chiffres : environ 2 % des colis e-commerce ont un problème d'adresse, et une correction coûte 23 à 24 $. Pour une boutique qui expédie 1 000 commandes par mois, cela représente une vingtaine de colis à risque.
+
+Nous validons l'adresse avant l'expédition : un appel d'API vérifie la voie, le code postal et la ville, et rend l'adresse corrigée. Une boutique qui évite seulement deux échecs par mois économise environ 60 € ; notre offre Starter coûte 29 €/mois pour 2 000 validations.
+
+Je peux vous montrer le résultat sur trois adresses de vos clients, sans engagement. Est-ce que cela vous intéresse ?
+
+{signature}
+
+{desinscription}

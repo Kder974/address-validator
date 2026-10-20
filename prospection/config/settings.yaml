@@ -10,6 +10,11 @@
 # servent à deux choses : qualifier un prospect à partir de son site, et
 # fabriquer la phrase personnalisée `{produit}` de l'email.
 
+# Décision du 20/10/2026 : cible = France métropolitaine + US cross-border
+# (marques US qui livrent en France) + agences/3PL. Les DOM-TOM sont hors
+# périmètre. Chaque secteur porte ses `requetes_web`, utilisées par
+# `scripts/rechercher_prospects.py` (scraping public, budget zéro).
+
 prospection:
   nom: "Address Validator"
   url_produit: "https://kder-ai.com"
@@ -35,45 +40,75 @@ sequence:
   relances_jours: [3, 7]
 
 secteurs:
-  - nom: "Mode et accessoires"
+  - nom: "Mode / Prêt-à-porter"
     code: mode
-    mots_cles: ["vêtements", "chaussures", "sacs", "bijoux", "montres"]
+    pays_cible: FR
+    langue_email: fr
+    mots_cles: ["vêtements", "chaussures", "sacs", "bijoux", "montres", "prêt-à-porter"]
     taille_cible: "PME"
     naf: ["47.91B", "47.71Z", "47.72A"]
     produit_par_defaut: "articles de mode"
-    exemple_boutiques: ["Sézane", "Atelier Particulier", "Le Slip Français"]
+    exemple_boutiques: ["Sézane", "Atelier Particulier", "Le Slip Français", "Asphalte"]
+    requetes_web:
+      - "site:myshopify.com mode femme France"
+      - "site:myshopify.com prêt-à-porter livraison France"
+      - "site:myshopify.com chaussures France boutique en ligne"
 
-  - nom: "High-tech et gadgets"
-    code: high-tech
-    mots_cles: ["électronique", "smartphone", "accessoires", "gaming"]
-    taille_cible: "PME"
-    naf: ["47.91B", "47.41Z", "47.43Z"]
-    produit_par_defaut: "produits high-tech"
-    exemple_boutiques: ["Fnac", "LDLC", "Materiel.net"]
-
-  - nom: "Décoration et maison"
-    code: decoration
-    mots_cles: ["meubles", "décoration", "cuisine", "literie"]
-    taille_cible: "PME"
-    naf: ["47.91B", "47.53Z", "47.59B"]
-    produit_par_defaut: "articles de décoration et de maison"
-    exemple_boutiques: ["Maisons du Monde", "Westwing", "Made.com"]
-
-  - nom: "Cosmétiques et beauté"
+  - nom: "Cosmétiques / Beauté"
     code: cosmetiques
-    mots_cles: ["cosmétique", "parfum", "soin", "maquillage"]
+    pays_cible: FR
+    langue_email: fr
+    mots_cles: ["cosmétique", "parfum", "soin", "maquillage", "skincare"]
     taille_cible: "PME"
     naf: ["47.91B", "47.75Z"]
     produit_par_defaut: "produits de beauté"
-    exemple_boutiques: ["Sephora", "Nocibé", "Yves Rocher"]
+    exemple_boutiques: ["Typology", "Respire", "Oh My Cream"]
+    requetes_web:
+      - "site:myshopify.com cosmétiques France livraison"
+      - "site:myshopify.com soins visage France boutique"
+      - "site:myshopify.com parfum France en ligne"
 
-  - nom: "Sport et loisirs"
-    code: sport
-    mots_cles: ["sport", "fitness", "randonnée", "vélo", "outdoor"]
+  - nom: "Haute technologie / Gadgets"
+    code: high-tech
+    pays_cible: FR
+    langue_email: fr
+    mots_cles: ["électronique", "smartphone", "accessoires", "gaming", "objets connectés"]
     taille_cible: "PME"
-    naf: ["47.91B", "47.64Z"]
-    produit_par_defaut: "articles de sport"
-    exemple_boutiques: ["Decathlon", "Alltricks", "Snowleader"]
+    naf: ["47.91B", "47.41Z", "47.43Z"]
+    produit_par_defaut: "produits high-tech"
+    exemple_boutiques: ["LDLC", "Materiel.net", "Fnac"]
+    requetes_web:
+      - "site:myshopify.com high-tech France boutique en ligne"
+      - "site:myshopify.com accessoires téléphone France"
+      - "site:myshopify.com gadgets France livraison"
+
+  - nom: "Maison / Décoration"
+    code: decoration
+    pays_cible: FR
+    langue_email: fr
+    mots_cles: ["meubles", "décoration", "cuisine", "literie", "maison"]
+    taille_cible: "PME"
+    naf: ["47.91B", "47.53Z", "47.59B"]
+    produit_par_defaut: "articles de décoration et de maison"
+    exemple_boutiques: ["Maisons du Monde", "Westwing"]
+    requetes_web:
+      - "site:myshopify.com décoration maison France"
+      - "site:myshopify.com meubles France livraison"
+      - "site:myshopify.com literie France boutique"
+
+  - nom: "US Cross-Border (marques US livrant en France)"
+    code: us-cross-border
+    pays_cible: US
+    langue_email: en
+    mots_cles: ["ships to France", "international shipping", "US brand", "direct-to-consumer", "online store"]
+    taille_cible: "PME / DTC"
+    naf: []
+    produit_par_defaut: "produits américains livrés en France"
+    exemple_boutiques: ["Allbirds", "Glossier", "Brooklinen"]
+    requetes_web:
+      - 'site:myshopify.com "ships to France"'
+      - 'site:myshopify.com "livraison en France" US brand'
+      - 'site:myshopify.com "international shipping" France American brand'
 
 plateformes:
   # `url_pattern` : indice lisible dans l'URL du site (détection hors ligne).
@@ -105,7 +140,8 @@ plateformes:
 criteres_qualification:
   min_commandes_mois: 100
   min_chiffre_affaires: 10000
-  pays: ["FR", "BE", "CH", "CA"]
+  # France métropolitaine + US cross-border (décision 20/10/2026).
+  pays: ["FR", "US"]
   langue: "fr"
   # Un prospect sans site joignable n'est pas disqualifié, mais il n'est pas
   # personnalisable : il reste à compléter, il n'est pas écarté.
@@ -146,6 +182,34 @@ sourcing:
   # Tranches d'effectif INSEE visées (PME) : 10-19, 20-49, 50-99, 100-199.
   tranches_effectif: ["11", "12", "21", "22"]
   delai_entre_requetes_s: 1.0
+
+# Agent Web (décision 20/10/2026) : sourcing par moteur de recherche public et
+# extraction d'emails **publiés**, sans outil payant. Lecture des résultats et des
+# pages contact uniquement, robots.txt respecté, agent identifié, pause entre
+# requêtes. `google` est disponible mais son robots.txt interdit /search à tous
+# les robots : le défaut reste duckduckgo, google en secours explicite.
+agent_web:
+  moteur: "duckduckgo"
+  moteur_secours: "google"
+  resultats_par_requete: 30
+  max_visites: 60
+  pages_contact: ["", "/contact", "/pages/contact", "/nous-contacter", "/contact-us"]
+  delai_moteur_s: 3.0
+  exclure_domaines:
+    - facebook.com
+    - instagram.com
+    - linkedin.com
+    - youtube.com
+    - pinterest.com
+    - tiktok.com
+    - amazon.fr
+    - amazon.com
+    - etsy.com
+    - cdiscount.com
+    - vinted.fr
+    - trustpilot.com
+    - societe.com
+    - pagesjaunes.fr
 
 enrichissement:
   user_agent: "AddressValidator-prospection/1.0 (+https://kder-ai.com; address-validator@kder-ai.com)"

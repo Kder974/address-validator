@@ -21,8 +21,9 @@ C'est le prix d'une liste propre.
 
 | Élément | Valeur |
 |---|---|
-| Cible | e-commerçants français (Shopify, WooCommerce, PrestaShop…) réalisant au moins 100 commandes par mois |
-| Secteurs | mode, high-tech, décoration, cosmétiques, sport (voir `config/settings.yaml`) |
+| Cible | e-commerçants français (Shopify, WooCommerce, PrestaShop…) réalisant au moins 100 commandes par mois, et marques US livrant en France |
+| Secteurs | mode, cosmétiques, high-tech, décoration (France métropolitaine) + `us-cross-border` (marques US livrant en France) — voir `config/settings.yaml` |
+| Sourcing | annuaire public INSEE/INPI **et Agent Web** (résultats de moteur de recherche + pages de contact publiques), **budget 0 €** |
 | Volume visé | **100 prospects qualifiés par semaine** |
 | Argument | 22 % des échecs de livraison viennent d'une adresse inexacte ; un échec coûte 17 à 30 $ ; la validation coûte 0,02 $ |
 | Cadence | introduction, puis relance J+3 et J+7 — pas plus |
@@ -59,6 +60,7 @@ prospection/
 ├── scripts/
 │   ├── common.py                  socle partagé : chemins, réglages, base, réseaux, affichage
 │   ├── sourcer_prospects.py       identifie des entreprises (annuaire public DINUM/INSEE)
+│   ├── rechercher_prospects.py    Agent Web : moteur de recherche → emails publiés (0 €)
 │   ├── import_prospects.py        importe un CSV, valide, déduplique, enrichit
 │   ├── generate_emails.py         génère les emails personnalisés + 3 objets (A/B)
 │   ├── export_campaign.py         exporte vers Instantly / Lemlist / Mailshake / SMTP
@@ -84,6 +86,10 @@ $py = ".\.venv\Scripts\python.exe"
 ```powershell
 # 1. SOURCER — 100 entreprises actives et diffusibles (annuaire public, sans clé)
 & $py prospection\scripts\sourcer_prospects.py --secteur mode --departement 75 --limite 100
+
+# 1b. AGENT WEB — boutiques trouvées par moteur de recherche, emails publiés
+& $py prospection\scripts\rechercher_prospects.py --secteur mode --limite 30              # simulation
+& $py prospection\scripts\rechercher_prospects.py --secteur mode --limite 30 --reseau    # scraping réel
 
 # 2. COMPLÉTER — ajouter site web et adresse de contact (voir §4.2), puis importer
 & $py prospection\scripts\import_prospects.py --input prospection\data\sourcing_20261010.csv
@@ -289,8 +295,38 @@ Aucun contrôle n'est jamais compté comme réussi sans avoir été exécuté.
 
 ---
 
-## 5. Le CRM `/prospection`
+### 4.9 `rechercher_prospects.py` — l'Agent Web (sourcing par moteur, 0 €)
 
+Complète `sourcer_prospects.py` : là où l'annuaire INSEE donne des entreprises
+sans adresse électronique, l'Agent Web part des **résultats d'un moteur de
+recherche** (`site:myshopify.com …`, requêtes par secteur dans `settings.yaml`),
+visite les boutiques trouvées et relève **l'adresse publiée** sur leurs pages de
+contact.
+
+```powershell
+# Simulation : affiche les requêtes, ne sort pas du poste
+& $py prospection\scripts\rechercher_prospects.py --secteur mode --limite 30
+
+# Réel : moteur + visites (robots.txt respecté, User-Agent identifié, pauses)
+& $py prospection\scripts\rechercher_prospects.py --secteur mode --limite 30 --reseau
+& $py prospection\scripts\rechercher_prospects.py --secteur us-cross-border --moteur google --limite 20 --reseau
+```
+
+Ce qu'il extrait : liens `mailto:` **et** textes contenant `@`, filtrés par
+`valider_email` ; les boutiques sans email ne sont pas inventées, elles sont
+écartées et comptées. Le CSV produit (`data/sourcing_web_<date>.csv`) a
+exactement les colonnes de `import_prospects.py` :
+
+```
+nom_boutique,site_web,email,prenom,nom,secteur,plateforme,taille,ville,siren,pays,source,notes
+```
+
+Limites dites : DuckDuckGo est le moteur par défaut ; Google reste possible mais
+son `robots.txt` interdit `/search` et il peut renvoyer un captcha — le script
+rapporte alors ce qu'il a obtenu. Aucun formulaire n'est rempli, aucun réseau
+social n'est lu, aucune adresse n'est reconstruite.
+
+## 5. Le CRM `/prospection`
 L'API du projet sert une page de suivi, protégée par le **même couple**
 `DASHBOARD_USER` / `DASHBOARD_PASSWORD` que `/dashboard` :
 

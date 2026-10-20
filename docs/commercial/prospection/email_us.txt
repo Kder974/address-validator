@@ -1,0 +1,15 @@
+Subject: Your French customers mistype their addresses — we validate US and FR
+
+Hi {prenom},
+
+I'm writing about the orders {nom_boutique} ships to France. French customers type their address the French way (street, postal code, city), and a US-only address stack cannot verify it — the parcel is delayed, returned, or corrected by the carrier.
+
+We validate both sides in one API: US addresses (USPS DPV, residential vs commercial) and French addresses (Base Adresse Nationale), and we return the corrected address.
+
+Two numbers: about 2% of e-commerce parcels have an address problem, and a carrier correction costs $23.50–24. Avoiding just two failed deliveries a month saves around $60; our Starter plan is €29/month for 2,000 validations (US + FR).
+
+Would you like me to test three of your French customer addresses, no commitment?
+
+{signature}
+
+{desinscription}

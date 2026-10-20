@@ -493,7 +493,7 @@ def construire_arguments() -> argparse.ArgumentParser:
     analyseur.add_argument(
         "--secteur",
         help="code de secteur appliqué à toutes les lignes (mode, high-tech, decoration, "
-        "cosmetiques, sport) ; prioritaire sur la colonne du CSV",
+        "cosmetiques, us-cross-border) ; prioritaire sur la colonne du CSV",
     )
     analyseur.add_argument("--db", help=f"base SQLite cible (défaut : {c.CHEMIN_DB})")
     analyseur.add_argument("--limite", type=int, help="nombre maximal de lignes traitées")
