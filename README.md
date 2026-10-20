@@ -135,6 +135,7 @@ Toutes les valeurs viennent de l'environnement ou de `.env` (pydantic-settings,
 | `GET` | `/llms.txt`, `/AGENTS.md`, `/.well-known/security.txt` | fichiers de découverte pour agents, servis en statique par Nginx (voir `DISCOVERY.md`) | `nginx-discovery.conf` |
 | `POST` | `/mcp` | serveur MCP (JSON-RPC 2.0) : decouverte gratuite, `tools/call` **payant** (transport x402 v2 : paiement dans `params._meta["x402/payment"]`, offre et reçu dans le résultat d'outil ; en-tête `X-PAYMENT` v1 accepté) | `app/routes/mcp.py` |
 | `GET` | `/.well-known/mcp-server` | carte de decouverte MCP (servie par l'application) | `app/routes/mcp.py` |
+| `GET` | `/.well-known/x402` | manifeste de decouverte x402 (brouillon IETF draft-hawkins-x402-dns-discovery-03), servi par l'application ; `/openapi.json` ne publie que l'API (D95) | `app/routes/manifest.py` |
 
 Chaque requête refusée en `402` est journalisée sous forme de métadonnées
 (horodatage, endpoint, `User-Agent`, IP **pseudonymisée**) : jamais l'adresse

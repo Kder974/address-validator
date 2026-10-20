@@ -493,3 +493,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D94: the free test without account allows 3 tries per IP per 24 h (was 10); the free trial gives 50 validations over 14 days (was 100); Pro stays 79 EUR a month for 6,000 validations (was 10,000), still cheaper per validation than Starter; the pricing page computes the Pro volume ratio and shows 0.0132 EUR per Pro validation; the welcome email cites the new quotas
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D94
   EXPECT: DECISION OK D94
+- [ ] D95: /openapi.json lists only the programmatic API (no free-test form, dashboard, prospection, account, pricing, guide or signup route) while those pages still answer; GET /.well-known/x402 serves the draft-hawkins-x402-dns-discovery-03 manifest (x402Version 2, kind resource-server, HTTPS resources on the service host, including the 402 offer's resource)
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D95
+  EXPECT: DECISION OK D95
