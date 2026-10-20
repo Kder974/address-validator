@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D91, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D92, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 91
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 92
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7282,7 +7282,21 @@ def d91() -> None:
     guard(re.search(r"^\| D91 \|", read("DECISIONS.md"), re.M) is not None, "la decision D91 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 92)}
+def d92() -> None:
+    """Le pied de page ne nomme plus personne : le logo et l'adresse de contact suffisent."""
+    gabarits = sorted((ROOT / "app" / "templates").glob("*/*.html"))
+    guard(len(gabarits) >= 72, f"{len(gabarits)} gabarits seulement")
+    for chemin in gabarits:
+        texte = chemin.read_text(encoding="utf-8")
+        nom = f"{chemin.parent.name}/{chemin.name}"
+        guard("Kder Daoud" not in texte, f"{nom} : le pied de page nomme encore une personne")
+        if '<footer class="foot">' in texte:
+            pied = texte[texte.index('<footer class="foot">'):]
+            guard('href="mailto:{{contact}}"' in pied and "Address Validator" in pied, f"{nom} : le pied de page a perdu le logo ou le contact")
+    guard(re.search(r"^\| D92 \|", read("DECISIONS.md"), re.M) is not None, "la decision D92 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 93)}
 
 
 def catalog() -> list[tuple[str, str]]:
