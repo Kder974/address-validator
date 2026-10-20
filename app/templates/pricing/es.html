@@ -362,6 +362,66 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
+
+/* ================= D89 : la page Tarifs prend le style de la page d'accueil (D87) ================= */
+:root{--n8:#0b1b34;--n9:#060f22;--wash:#e9edff;--sh-xl:0 60px 120px -30px rgba(6,15,34,.55),0 30px 60px -30px rgba(6,15,34,.5)}
+/* En-tête de page : fond lumineux à halos et grille de points ; la bande en biais disparaît */
+.hero-top{isolation:isolate;padding-bottom:clamp(64px,8vw,110px);background:radial-gradient(1000px 560px at 6% -10%,rgba(255,148,85,.40),transparent 62%),radial-gradient(800px 620px at 98% 0%,rgba(74,179,255,.40),transparent 60%),radial-gradient(700px 460px at 60% 110%,rgba(47,211,193,.22),transparent 62%),linear-gradient(180deg,#fff7f1,#f6f8ff 60%,#fff)}
+.hero-top::before{content:"";position:absolute;inset:0;z-index:-1;background-image:radial-gradient(rgba(11,27,52,.07) 1px,transparent 1.4px);background-size:26px 26px;-webkit-mask-image:radial-gradient(ellipse at 50% 30%,#000 30%,transparent 75%);mask-image:radial-gradient(ellipse at 50% 30%,#000 30%,transparent 75%)}
+.hero-top .band,.hero-top .guides,.band-final{display:none}
+.head-grid{align-items:center}
+.pill{background:#fff;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+.pill b{background:linear-gradient(90deg,var(--tang),var(--coral))}
+h1{font-weight:750;letter-spacing:-.03em;line-height:1.06;font-size:clamp(2.6rem,1rem + 4vw,4.4rem)}
+.lead{color:var(--muted);font-size:clamp(1.1rem,1rem + .4vw,1.3rem)}
+.btn-accent{background:linear-gradient(180deg,#3a55ff,#1f3bff);box-shadow:0 14px 30px -12px rgba(31,59,255,.85),inset 0 1px 0 rgba(255,255,255,.25)}
+.btn-glass{background:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+.promise{background:#fff;border-radius:22px;-webkit-backdrop-filter:none;backdrop-filter:none}
+.facts li::before{border-color:var(--ok)}
+/* Les offres sur fond bleu nuit, Starter en carte lumineuse : comme les prix de l'accueil */
+.tiers-wrap{padding-block:clamp(56px,7vw,96px)}
+.tiers-wrap::before{content:"";position:absolute;z-index:-1;top:0;bottom:0;left:calc(50% - 50vw);right:calc(50% - 50vw);background:radial-gradient(900px 500px at 10% 0%,rgba(49,80,255,.45),transparent 60%),radial-gradient(700px 500px at 100% 100%,rgba(255,148,85,.22),transparent 60%),linear-gradient(180deg,var(--n8),var(--n9))}
+.tiers{margin-top:0}
+.tier,.tier-trial,.tier-pro{background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);color:#e7ecff;border-radius:24px}
+.tier-pro::before{display:none}
+.tier h3,.checks .all,.spec b,.unit b,.tier-pro .unit b{color:#fff}
+.pitch,.amount span,.spec dt,.spec dd,.calc,.checks{color:#b9c5e6}
+.amount strong{font-weight:750;letter-spacing:-.04em}
+.specs,.spec{border-color:rgba(255,255,255,.12)}
+.gauge{background:rgba(255,255,255,.12)}
+.gauge i{background:linear-gradient(90deg,var(--aqua),var(--sky))}
+.badge,.tier-pro .badge{color:#cfe0ff;background:rgba(255,255,255,.08);box-shadow:none}
+.checks li::before{border-color:var(--aqua)}
+.tier .btn-ink,.tier .btn-line,.tier .btn-accent{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+.tier:nth-child(2){background:#fff;color:var(--ink);box-shadow:0 0 0 2px rgba(74,179,255,.7),0 40px 80px -20px rgba(49,80,255,.65);translate:0 -10px}
+.tier:nth-child(2) :is(h3,.spec b,.unit b){color:var(--ink)}
+.tier:nth-child(2) :is(.pitch,.amount span,.spec dt,.spec dd,.calc,.checks){color:var(--muted)}
+.tier:nth-child(2) :is(.specs,.spec){border-color:var(--line)}
+.tier:nth-child(2) .gauge{background:var(--wash)}
+.tier:nth-child(2) .badge{color:#fff;background:linear-gradient(90deg,var(--cobalt),var(--sky))}
+.tier:nth-child(2) .checks li::before{border-color:var(--ok)}
+.tier:nth-child(2) .btn{background:linear-gradient(180deg,#3a55ff,#1f3bff);color:#fff;box-shadow:0 14px 30px -12px rgba(31,59,255,.85)}
+@media (hover:hover){.tier:not(:nth-child(2)):hover{box-shadow:inset 0 0 0 1px rgba(255,255,255,.3)}}
+.tiers-foot{border-color:rgba(255,255,255,.14);color:#b9c5e6}
+.tiers-foot .link{color:#fff}
+.pnote{color:#9fb0db}
+/* Sections : titres forts, cartes blanches à ombre douce */
+h2{font-weight:750;letter-spacing:-.028em}
+.stat{border-radius:20px;box-shadow:var(--sh-md)}
+.stat strong{font-weight:750;letter-spacing:-.03em;background:linear-gradient(90deg,var(--coral),var(--tang));-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat-ours strong{background:linear-gradient(90deg,var(--aqua),var(--sky));-webkit-background-clip:text;background-clip:text}
+.steps::before,.step::before{display:none}
+.step{padding:30px;border-radius:22px;background:#fff;box-shadow:var(--sh-md)}
+.num{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#0d2242,#15305f);color:#fff;font:700 .95rem/1 var(--sans);margin-bottom:18px}
+.use{border-radius:22px;box-shadow:var(--sh-md)}
+.use::before{display:none}
+/* Appel final : la carte bleu nuit de l'accueil */
+.final-card{color:#fff;background:radial-gradient(700px 360px at 50% 120%,rgba(47,211,193,.35),transparent 65%),radial-gradient(600px 400px at 0% 0%,rgba(255,148,85,.35),transparent 60%),radial-gradient(700px 420px at 100% 0%,rgba(49,80,255,.6),transparent 60%),linear-gradient(180deg,var(--n8),var(--n9));box-shadow:var(--sh-xl)}
+.final-card p{color:#c6d0ee}
+.final-card .btn-accent{background:#fff;color:var(--ink);box-shadow:0 14px 30px -14px rgba(0,0,0,.5)}
+.final-card .btn-glass{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+@media (max-width:720px){.steps{padding-left:0}}
+@media (max-width:640px){.tier:nth-child(2){translate:none}}
 </style>
 </head>
 <body>
@@ -426,7 +486,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
         <ul class="facts">
           <li>Precios sin IVA, sin compromiso: te das de baja cuando quieras.</li>
           <li>Sin cobro automático. El paso a un plan de pago se hace a petición.</li>
-          <li>Una dirección ya verificada se sirve desde la caché durante {{jours_cache}} días, sin volver a cobrarse.</li>
+          <li>Ni nombres ni correos: las direcciones verificadas se guardan {{jours_cache}} días para responder más rápido y luego se borran.</li>
           <li>La misma API y la misma respuesta, sea cual sea el plan.</li>
         </ul>
       </aside>

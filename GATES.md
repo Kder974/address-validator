@@ -475,3 +475,9 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D88: pricing, guide (six languages) and PRIVACY.md say what the cache really keeps: the standardized address, under a SHA-256 fingerprint, for CACHE_TTL days, free test included; no page says the address is never kept in clear text or that the free test keeps nothing
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D88
   EXPECT: DECISION OK D88
+- [ ] D89: the pricing page in all six languages uses the home page style (light hero with halos, no slanted band, bold headings, plans on navy with Starter highlighted, navy final card) and no longer says a cached address is not billed again
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D89
+  EXPECT: DECISION OK D89
+- [ ] D90: the ten other page families (test, guide, signup, compare, agents, account, login, forgotten password, new password, signup key) in all six languages use the home page style; the guide no longer says a repeated check is free
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D90
+  EXPECT: DECISION OK D90

@@ -367,6 +367,27 @@ h1,h2{text-wrap:wrap}
 .lead,.dsec p,.dsec li,.dsec dd,.note,.cr-do p,.cm-d,.never{line-height:1.75}
 .eyebrow,.cm-h,.cr-fam,.toc-h,.rr-l,.kicker,.rt{letter-spacing:.02em}
 .dsec h2,.dsec h3,.cr-t{text-wrap:balance}
+
+/* ================= D90 : la page prend le style de la page d'accueil (D87) ================= */
+:root{--n8:#0b1b34;--n9:#060f22;--wash:#e9edff;--sh-xl:0 60px 120px -30px rgba(6,15,34,.55),0 30px 60px -30px rgba(6,15,34,.5)}
+/* En-tête de page : fond lumineux à halos et grille de points ; la bande en biais disparaît */
+.phead,.ct-head{isolation:isolate;background:linear-gradient(180deg,rgba(255,255,255,0) 62%,#fff),radial-gradient(1000px 560px at 6% -10%,rgba(255,148,85,.40),transparent 62%),radial-gradient(800px 620px at 98% 0%,rgba(74,179,255,.40),transparent 60%),radial-gradient(700px 460px at 60% 110%,rgba(47,211,193,.22),transparent 62%),linear-gradient(180deg,#fff7f1,#f6f8ff 60%,#fff)}
+.phead::before,.ct-head::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background-image:radial-gradient(rgba(11,27,52,.07) 1px,transparent 1.4px);background-size:26px 26px;-webkit-mask-image:radial-gradient(ellipse at 50% 30%,#000 30%,transparent 75%);mask-image:radial-gradient(ellipse at 50% 30%,#000 30%,transparent 75%)}
+.phead .band,.phead .guides,.ct-head .band,.ct-head .guides,.band-final{display:none}
+.dash-bg{background:linear-gradient(180deg,rgba(255,255,255,0) 62%,#fff),radial-gradient(1000px 560px at 6% -10%,rgba(255,148,85,.40),transparent 62%),radial-gradient(800px 620px at 98% 0%,rgba(74,179,255,.40),transparent 60%),radial-gradient(700px 460px at 60% 110%,rgba(47,211,193,.22),transparent 62%),linear-gradient(180deg,#fff7f1,#f6f8ff 60%,#fff)}
+/* Titres forts, pastille, boutons bleus : les briques de l'accueil */
+h1{font-weight:750;letter-spacing:-.03em;line-height:1.06}
+h2{font-weight:750;letter-spacing:-.028em}
+.pill{background:#fff;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+.pill b{background:linear-gradient(90deg,var(--tang),var(--coral));color:#fff}
+.btn-accent{background:linear-gradient(180deg,#3a55ff,#1f3bff);box-shadow:0 14px 30px -12px rgba(31,59,255,.85),inset 0 1px 0 rgba(255,255,255,.25)}
+.btn-glass{background:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+/* Appel final : la carte bleu nuit de l'accueil */
+.final-card{color:#fff;background:radial-gradient(700px 360px at 50% 120%,rgba(47,211,193,.35),transparent 65%),radial-gradient(600px 400px at 0% 0%,rgba(255,148,85,.35),transparent 60%),radial-gradient(700px 420px at 100% 0%,rgba(49,80,255,.6),transparent 60%),linear-gradient(180deg,var(--n8),var(--n9));box-shadow:var(--sh-xl)}
+.final-card p{color:#c6d0ee}
+.final-card .btn-accent{background:#fff;color:var(--ink);box-shadow:0 14px 30px -14px rgba(0,0,0,.5)}
+.final-card .btn-glass{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+h1,h2,h3{letter-spacing:0}h1{line-height:1.2}
 </style>
 </head>
 <body>
@@ -646,10 +667,10 @@ h1,h2{text-wrap:wrap}
     <!-- 5. Cache et quotas -->
     <section class="dsec" id="cache-et-quotas" aria-labelledby="h-cache">
       <p class="eyebrow">计费</p>
-      <h2 id="h-cache">哪些不会重复付费，哪些设有上限</h2>
+      <h2 id="h-cache">缓存复用什么，哪些设有上限</h2>
       <dl class="ref ref-3">
         <div class="ref-head" aria-hidden="true"><span>主题</span><span>实际情况</span><span>您该怎么做</span></div>
-        <div class="ref-row"><dt>缓存（验证结论）</dt><dd>同一个标准化地址在 <strong>{{cache_jours}} 天</strong>内不会再次向服务商查询，由 <code>cache_key</code> 保证。</dd><dd><span class="rr-l">建议</span>放心调用，同一个问题不会付两次费。如需强制重新查询，请修改地址：API 不会自行猜测。</dd></div>
+        <div class="ref-row"><dt>缓存（验证结论）</dt><dd>同一个标准化地址在 <strong>{{cache_jours}} 天</strong>内不会再次向服务商查询，由 <code>cache_key</code> 保证。</dd><dd><span class="rr-l">建议</span>重复核对会更快返回，但仍计为一次核对。如需强制重新查询，请修改地址：API 不会自行猜测。</dd></div>
         <div class="ref-row"><dt>缓存（降级）</dt><dd><code>degraded</code> 结果只缓存 <strong>{{cache_minutes}} 分钟</strong>，而不是 {{cache_jours}} 天：“服务商没有响应”不是验证结论。</dd><dd><span class="rr-l">建议</span>把 <code>degraded: true</code> 当作“请稍后重试”。过了这个很短的时间窗口，同样的调用就能得到真实的响应。</dd></div>
         <div class="ref-row"><dt>额度</dt><dd><strong>按月</strong>，按 <strong>UTC</strong> 自然月计算：每月 1 日重置，而不是从您第一次调用起满 30 天。</dd><dd><span class="rr-l">建议</span>关注 <code>X-Quota-Remaining</code>。请在达到上限之前联系我们，而不是之后。</dd></div>
         <div class="ref-row"><dt>按次价格</dt><dd>每次收费的验证 <strong>{{prix_x402}} USDC</strong>（x402 模式）。订阅已覆盖的调用会返回 <code>price_paid: 0.0</code>。</dd><dd><span class="rr-l">建议</span>需要付费的智能体读取 <code>402</code> 正文（<code>accepts</code>）：价格就在其中，无需猜测。</dd></div>
@@ -682,7 +703,7 @@ $r.Headers[<span class="s">"X-Payment-Mode"</span>], $r.Headers[<span class="s">
 
 每个地址只向服务商查询一次：响应会被缓存
 （结论缓存 {{cache_jours}} 天），因此对同一文件再次运行
-不会产生额外费用。
+会更快返回（每个地址仍计为一次核对）。
 """</span>
 <span class="v">import</span> csv
 <span class="v">import</span> os
