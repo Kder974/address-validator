@@ -473,3 +473,8 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D87
   EXPECT: DECISION OK D87
   EVIDENCE: automatic-evidence=v1; definition-sha256=51ee8872e2093a08c581f01c1a47d472d5d160d094806fdc5e29550bf1a284d9; exit=0; EXPECT=matched; output-sha256=0c1353a0d95ac14f70be680ef316078966360e47b3a3f1f1a8eda82d25461304; output-bytes=435; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\Documents\PDF Suite Files\Surveillant PC\Plan de richesse\address-validator; path=7b70d0fe75c0/27 entries
+
+- [x] D88: a Stripe-signed webhook credits prepaid packs exactly once (unique stripe_event_id and payment_intent_id), an API-key call whose plan quota is exhausted (or whose trial has ended) is served by one atomically debited credit and compensated when the validation fails, a refund can make the balance negative, and no template/HTML is touched
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D88
+  EXPECT: DECISION OK D88
+  EVIDENCE: automatic-evidence=v1; definition-sha256=c099efaacd576f96f270331d5c6cf97b6c4608ab3dd6b74f8845c589eaa65d51; exit=0; EXPECT=matched; output-sha256=b3c10f15c23856a30cb749c4b02d384a0787da76315d0ef0e3710938b008ebff; output-bytes=17; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\Documents\PDF Suite Files\Surveillant PC\Plan de richesse\address-validator; path=7b70d0fe75c0/27 entries

@@ -179,6 +179,24 @@ class Settings(BaseSettings):
     cost_smarty_per_call_usd: float = 0.0
     cost_mail_eur: float = 0.0
 
+    # Paiement par carte — crédits prépayés (D88). Clés Stripe : voir `.env.example`
+    # (placeholders seuls, aucune clé réelle dans le dépôt). Sans clé secrète,
+    # l'achat répond `503` : un paiement à moitié construit serait pire qu'un refus.
+    # La clé secrète ne quitte jamais le serveur ; la clé publique ne sert qu'au
+    # navigateur, dans l'interface écrite par Claude.
+    stripe_secret_key: str = ""
+    stripe_publishable_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_api_base: str = "https://api.stripe.com"
+    # Identifiants de prix créés dans le dashboard Stripe (mode test d'abord) :
+    # le prix affiché vient de `app/credits.PACKS`, la fiche Stripe est une donnée
+    # d'exploitation, et le webhook confronte les deux avant de créditer.
+    stripe_price_pack_5: str = ""
+    stripe_price_pack_25: str = ""
+    stripe_price_pack_100: str = ""
+    stripe_price_pack_500: str = ""
+    stripe_price_pack_2000: str = ""
+
     # Environnement
     environment: str = "development"
     log_level: str = "INFO"

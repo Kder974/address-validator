@@ -55,7 +55,7 @@ from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
-from app import accounts, audience
+from app import accounts, audience, credits
 from app.cache import get_cached_result, store_in_cache
 from app.config import get_settings
 from app.database import SessionLocal
@@ -217,19 +217,37 @@ def _refus_api_key(motif: str, cle: str, statut: dict | None = None) -> JSONResp
 
 
 def serve_with_api_key(raw: dict, response: Response, cle: str):
-    """Servir une validation payée par un compte (D45).
+    """Servir une validation payée par un compte (D45, D88).
 
     L'ordre est le contrat : **autoriser, puis valider, puis débiter le compte**.
     Aucune validation n'est calculée pour un compte non autorisé, donc aucune ne
     peut être servie hors quota par inadvertance. Le registre USDC (D29) n'est pas
     touché : un abonnement n'est pas un encaissement à l'appel, et l'y inscrire
     ferait mentir le revenu publié (D40).
+
+    D88 : quand le quota mensuel du plan est épuisé (ou que l'essai est terminé),
+    un **solde de crédits prépayés** peut servir l'appel. Le débit est réservé
+    *avant* la validation (garantie atomique contre le double débit) et compensé
+    par une ligne `correction` si la validation échoue : jamais de crédit perdu.
     """
     metrics.incr("api_key_requests")
     audience.noter(mode="cle")
+    credit_utilise = False
+    credit_restant = None
     try:
         with _session() as session:
             client, motif = accounts.authorize_api_key(session, cle)
+            # D88 : quota épuisé ou essai terminé -> tenter un crédit prépayé,
+            # seulement si le schéma des crédits existe (sinon comportement d'avant).
+            if (
+                client is not None
+                and motif in (accounts.REFUS_QUOTA_ATTEINT, accounts.REFUS_COMPTE_EXPIRE)
+                and credits.credits_disponibles(session)
+            ):
+                if credits.debiter_credit(session, client.id):
+                    credit_utilise = True
+                    metrics.incr("credit_validations")
+                    motif = None
             if client is None or motif is not None:
                 metrics.incr("api_key_denied")
                 statut = (
@@ -249,9 +267,18 @@ def serve_with_api_key(raw: dict, response: Response, cle: str):
                 return _refus_api_key(motif, cle, statut)
 
             audience.noter(customer_id=client.id)
-            result, key = perform_validation(raw)
+            try:
+                result, key = perform_validation(raw)
+            except Exception:
+                # D88 : le crédit a été réservé ; la validation n'a pas été servie,
+                # donc le crédit est rendu (aucun crédit perdu sur panne).
+                if credit_utilise:
+                    credits.crediter_correction(session, client.id)
+                raise
             accounts.record_validation(session, client.id, key, result["validated"])
             statut = accounts.plan_status(session, client)
+            if credit_utilise:
+                credit_restant = credits.solde(session, client.id)
     except SQLAlchemyError as exc:
         # Jamais un `402` ici : la clé n'a pas été *refusée*, elle n'a pas pu être
         # *vérifiée*. Répondre « payez » sur une panne pousserait un client en
@@ -274,9 +301,12 @@ def serve_with_api_key(raw: dict, response: Response, cle: str):
         )
 
     metrics.incr("api_key_validations")
-    response.headers[PAYMENT_MODE_HEADER] = "api_key"
+    response.headers[PAYMENT_MODE_HEADER] = "credit" if credit_utilise else "api_key"
     response.headers["X-Plan"] = statut["plan"]
-    if statut["restant"] is not None:
+    if credit_utilise:
+        # Le solde restant après le débit : le client voit ce qui lui reste.
+        response.headers["X-Credits-Remaining"] = str(credit_restant or 0)
+    elif statut["restant"] is not None:
         # Pas d'en-tête quand il n'y a pas de plafond : l'absence dit « illimité »,
         # un chiffre inventé en dirait moins.
         response.headers["X-Quota-Remaining"] = str(statut["restant"])

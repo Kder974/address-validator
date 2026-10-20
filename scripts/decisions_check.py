@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D87, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D88, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 87
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 88
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7114,7 +7114,143 @@ def d87() -> None:
     guard(re.search(r"^\| D87 \|", read("DECISIONS.md"), re.M) is not None, "la decision D87 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 88)}
+
+def d88() -> None:
+    """Les credits prepayes (D88) : catalogue, achat idempotent, debit, webhook signe, quota."""
+    import hashlib
+    import hmac
+    import tempfile
+    import time
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import credits
+    from app.models import CreditBalance, CreditTransaction, Customer
+
+    # --- catalogue et configuration -------------------------------------
+    guard(
+        len(credits.PACKS) == 5
+        and {p["id"] for p in credits.PACKS} == {"pack_5", "pack_25", "pack_100", "pack_500", "pack_2000"},
+        "les cinq packs de credits D88 ont disparu du catalogue",
+    )
+    guard(
+        all(isinstance(p["prix_eur_cents"], int) and p["prix_eur_cents"] > 0 for p in credits.PACKS),
+        "un prix de pack n'est pas un entier en centimes d'euro",
+    )
+    for variable in (
+        "stripe_secret_key",
+        "stripe_publishable_key",
+        "stripe_webhook_secret",
+        "stripe_price_pack_5",
+        "stripe_price_pack_2000",
+    ):
+        guard(hasattr(credits.settings, variable), f"reglage Stripe absent de Settings : {variable}")
+    config = read("app/config.py")
+    for variable in ("stripe_secret_key", "stripe_webhook_secret", "stripe_publishable_key", "stripe_price_pack_500"):
+        guard(variable in config, f"{variable} absent de app/config.py")
+    env = read(".env.example")
+    guard(
+        "sk_test_VOTRE_CLE" in env
+        and "pk_test_VOTRE_CLE_PUBLIQUE" in env
+        and "whsec_TEST_VOTRE_SECRET" in env,
+        "les placeholders Stripe sont absents de .env.example",
+    )
+    guard("sk_live_" not in env and "-----BEGIN" not in env, "une cle reelle est presente dans .env.example")
+    for numero in (5, 25, 100, 500, 2000):
+        guard(f"STRIPE_PRICE_PACK_{numero}" in env, f"l'identifiant de prix Stripe pack_{numero} manque")
+
+    # --- DDL et modeles --------------------------------------------------
+    ddl = read("app/database.py")
+    guard(
+        "CREATE TABLE IF NOT EXISTS credit_balance" in ddl
+        and "CREATE TABLE IF NOT EXISTS credit_transactions" in ddl,
+        "les tables credit_balance/credit_transactions ne sont pas dans le DDL",
+    )
+    guard(
+        "stripe_event_id VARCHAR(64) UNIQUE" in ddl and "payment_intent_id VARCHAR(64) UNIQUE" in ddl,
+        "l'idempotence Stripe n'est pas garantie par la base (UNIQUE manquant)",
+    )
+    modeles = read("app/models.py")
+    guard(
+        "class CreditBalance" in modeles and "class CreditTransaction" in modeles,
+        "les modeles D88 manquent dans app/models.py",
+    )
+
+    # --- comportement : achat idempotent, debit, remboursement ----------
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp()) / 'd88.sqlite'}")
+    Customer.__table__.create(moteur)
+    CreditBalance.__table__.create(moteur)
+    CreditTransaction.__table__.create(moteur)
+    session = sessionmaker(bind=moteur)()
+    compte = Customer(
+        email="oracle-d88@exemple.re",
+        password_hash="empreinte",
+        shop_name="oracle",
+        platform="autre",
+        api_key_hash="c" * 64,
+        api_key_prefix="sk_live_zzzz",
+        plan="trial",
+    )
+    session.add(compte)
+    session.commit()
+    session.refresh(compte)
+    code, _ = credits.crediter_achat(
+        session,
+        customer_id=compte.id,
+        pack_id="pack_5",
+        montant_cents=149,
+        devise="eur",
+        stripe_event_id="evt_d88",
+        payment_intent_id="pi_d88",
+    )
+    guard(code == "credite" and credits.solde(session, compte.id) == 5, "l'achat D88 ne credite pas le pack")
+    code, _ = credits.crediter_achat(
+        session,
+        customer_id=compte.id,
+        pack_id="pack_5",
+        montant_cents=149,
+        devise="eur",
+        stripe_event_id="evt_d88",
+        payment_intent_id="pi_d88",
+    )
+    guard(code == "deja_traite" and credits.solde(session, compte.id) == 5, "rejouer un evenement Stripe credite deux fois")
+    guard(credits.debiter_credit(session, compte.id) and credits.solde(session, compte.id) == 4, "le debit d'un credit echoue")
+    code, _ = credits.rembourser(
+        session,
+        customer_id=compte.id,
+        credits_rendus=5,
+        montant_cents=149,
+        stripe_event_id="evt_d88_remboursement",
+    )
+    guard(code == "rembourse" and credits.solde(session, compte.id) == -1, "le remboursement D88 ne peut pas rendre le solde negatif")
+
+    # --- signature webhook ----------------------------------------------
+    secret = "whsec_TEST_ORACLE"
+    payload = b'{"id":"evt_oracle","type":"checkout.session.completed","data":{"object":{}}}'
+    moment = int(time.time())
+    signe = hmac.new(secret.encode(), f"{moment}.".encode() + payload, hashlib.sha256).hexdigest()
+    guard(
+        credits.verifier_signature(payload, f"t={moment},v1={signe}", secret=secret, maintenant=moment),
+        "une signature Stripe valide est refusee",
+    )
+    guard(
+        not credits.verifier_signature(payload, f"t={moment},v1={signe}", secret="mauvais", maintenant=moment),
+        "une signature Stripe fausse est acceptee",
+    )
+    guard(
+        not credits.verifier_signature(payload, f"t={moment - 3600},v1={signe}", secret=secret, maintenant=moment),
+        "un webhook Stripe expire est accepte",
+    )
+
+    # --- quota : le hook credits est branche avant le refus -------------
+    route = read("app/routes/validate.py")
+    guard("credits.debiter_credit" in route, "le quota cle API ne passe pas par les credits D88")
+    guard("credits.crediter_correction" in route, "un credit reserve n'est pas compense en cas d'echec")
+    guard("X-Credits-Remaining" in route, "le solde restant n'est pas publie sur l'appel servi")
+    guard("D88" in read("DECISIONS.md"), "la decision D88 n'est plus consignee dans DECISIONS.md")
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 89)}
 
 
 def catalog() -> list[tuple[str, str]]:

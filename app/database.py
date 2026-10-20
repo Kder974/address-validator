@@ -181,6 +181,33 @@ CREATE TABLE IF NOT EXISTS operator_tokens (
     used_at TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_operator_tokens_operator ON operator_tokens(operator_id);
+
+-- D88 : credits prepayes achetes par carte (Stripe). `credit_balance` porte le
+-- solde d'un compte (une ligne, mise a jour atomique) ; `credit_transactions`
+-- est le grand livre, jamais reecrit. `stripe_event_id` et `payment_intent_id`
+-- sont UNIQUE : c'est la protection reelle contre un double credit quand Stripe
+-- rejoue un evenement. Le negatif du solde est possible apres un remboursement
+-- d'un credit deja consomme : dette du compte, affichee telle quelle.
+CREATE TABLE IF NOT EXISTS credit_balance (
+    customer_id INTEGER PRIMARY KEY REFERENCES customers(id),
+    balance INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS credit_transactions (
+    id SERIAL PRIMARY KEY,
+    customer_id INTEGER NOT NULL REFERENCES customers(id),
+    delta INTEGER NOT NULL,
+    reason VARCHAR(20) NOT NULL,
+    pack_id VARCHAR(20),
+    amount_cents INTEGER,
+    currency VARCHAR(3) NOT NULL DEFAULT 'eur',
+    stripe_event_id VARCHAR(64) UNIQUE,
+    stripe_session_id VARCHAR(64),
+    payment_intent_id VARCHAR(64) UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_credit_transactions_customer ON credit_transactions(customer_id);
+CREATE INDEX IF NOT EXISTS idx_credit_transactions_created ON credit_transactions(created_at);
 """
 
 

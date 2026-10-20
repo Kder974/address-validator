@@ -187,3 +187,41 @@ class OperatorToken(Base):
     created_at = Column(DateTime, server_default=func.current_timestamp())
     expires_at = Column(DateTime, nullable=False)
     used_at = Column(DateTime)
+
+
+class CreditBalance(Base):
+    """Le solde de crédits prépayés d'un compte (D88) : une ligne, mise à jour atomique.
+
+    Le négatif est possible après le remboursement d'un crédit déjà consommé :
+    c'est une dette du compte, jamais masquée. Le grand livre
+    (`credit_transactions`) garde la trace de chaque mouvement.
+    """
+
+    __tablename__ = "credit_balance"
+
+    customer_id = Column(Integer, ForeignKey("customers.id"), primary_key=True)
+    balance = Column(Integer, nullable=False, default=0)
+    updated_at = Column(DateTime, server_default=func.current_timestamp(), nullable=False)
+
+
+class CreditTransaction(Base):
+    """Un mouvement de crédits (D88) : achat, validation, remboursement, correction.
+
+    `stripe_event_id` et `payment_intent_id` sont UNIQUE : c'est la protection
+    réelle contre un double crédit quand Stripe rejoue un événement. Une ligne de
+    grand livre n'est jamais réécrite ni supprimée.
+    """
+
+    __tablename__ = "credit_transactions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
+    delta = Column(Integer, nullable=False)
+    reason = Column(String(20), nullable=False)
+    pack_id = Column(String(20))
+    amount_cents = Column(Integer)
+    currency = Column(String(3), nullable=False, default="eur")
+    stripe_event_id = Column(String(64), unique=True, index=True)
+    stripe_session_id = Column(String(64))
+    payment_intent_id = Column(String(64), unique=True)
+    created_at = Column(DateTime, server_default=func.current_timestamp(), index=True)
