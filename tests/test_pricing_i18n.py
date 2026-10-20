@@ -127,8 +127,10 @@ def test_les_boutons_menent_ou_il_faut(lang):
     grille = re.search(r'<ol class="tiers">(.*?)</ol>', texte, re.S).group(1)
     appel = re.search(r'id="a-l-appel".*?<a class="link" href="([^"]*)"', texte, re.S)
 
+    inscription = i18n.chemin(lang, "signup")
+    # D93 : Starter et Pro portent leur offre jusqu'au bouton Payer ; l'essai, aucune.
     assert re.findall(r'<a class="btn [^"]*" href="([^"]*)"', grille) == [
-        *[i18n.chemin(lang, "signup")] * 3,
+        inscription, f"{inscription}?offre=starter", f"{inscription}?offre=pro",
         f"mailto:{get_settings().contact_email}",
     ]
     assert appel.group(1) == i18n.chemin(lang, "guide")

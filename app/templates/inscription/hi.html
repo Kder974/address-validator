@@ -266,6 +266,9 @@ h2{font-weight:750;letter-spacing:-.028em}
 .final-card .btn-accent{background:#fff;color:var(--ink);box-shadow:0 14px 30px -14px rgba(0,0,0,.5)}
 .final-card .btn-glass{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
 h1,h2,h3{letter-spacing:0}h1,h2{line-height:1.32}
+/* D93 : l'offre choisie sur Tarifs, rappelée au-dessus du formulaire. */
+.form-offre{grid-column:1/-1;padding:12px 14px;border-radius:12px;background:#eef1ff;color:var(--ink);font-size:.93rem;line-height:1.5}
+.form-offre b{color:var(--accent)}
 </style>
 </head>
 <body>
@@ -325,6 +328,7 @@ h1,h2,h3{letter-spacing:0}h1,h2{line-height:1.32}
       <form class="signup" method="post" action="{{url_signup}}">
         <p class="form-head">आपकी जानकारी <span>POST {{url_signup}}</span></p>
         <!--@alerte-->
+        <!--@si:offre--><input type="hidden" name="offre" value="{{offre}}"><p class="form-offre">चुना गया प्लान: <b>{{offre_nom}}</b>, {{offre_prix}} प्रति माह। खाता बनाने के तुरंत बाद आप Stripe के ज़रिए कार्ड से भुगतान करते हैं।</p><!--@fin:offre-->
         <div class="field f-wide">
           <label for="email">व्यावसायिक ईमेल</label>
           <input id="email" name="email" type="email" value="{{email}}" required autocomplete="email">

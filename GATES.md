@@ -487,3 +487,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D92: no page footer names a person any more ("Kder Daoud" removed from the 72 templates); the footer keeps the Address Validator logo and the contact address
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D92
   EXPECT: DECISION OK D92
+- [ ] D93: on the pricing page, Starter and Pro buttons say Subscribe and lead to signup with ?offre=starter or ?offre=pro (only those two are kept); the form carries the offer; the key page then opens the Stripe link of that offer with the account id, in a new tab; the account stays a trial until the signed Stripe payment (D54, D91)
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D93
+  EXPECT: DECISION OK D93

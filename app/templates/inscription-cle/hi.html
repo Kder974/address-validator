@@ -315,6 +315,11 @@ h2{font-weight:750;letter-spacing:-.028em}
 .final-card .btn-accent{background:#fff;color:var(--ink);box-shadow:0 14px 30px -14px rgba(0,0,0,.5)}
 .final-card .btn-glass{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
 h1,h2,h3{letter-spacing:0}h1,h2{line-height:1.32}
+/* D93 : le paiement Stripe de l'offre choisie, sous la clé. */
+.pay{margin-top:18px;padding-top:18px;border-top:1px solid var(--line)}
+.pay-h{font-weight:650;color:var(--ink)}
+.pay .btn{width:100%;margin-top:12px}
+.pay-note{margin-top:10px;font-size:.88rem;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -421,6 +426,7 @@ h1,h2,h3{letter-spacing:0}h1,h2{line-height:1.32}
           <div class="trial-track"><i></i></div>
           <p class="trial-dates"><span>{{aujourdhui}}, आज</span><span>{{fin_courte}}, समाप्ति</span></p>
         </div><!--@fin:piste-->
+        <!--@si:payer--><div class="pay"><p class="pay-h">आख़िरी कदम: {{offre_nom}} का भुगतान</p><a class="btn btn-accent" href="{{lien_payer}}" target="_blank" rel="noopener noreferrer">{{offre_nom}} का भुगतान करें, {{offre_prix}} प्रति माह <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a><p class="pay-note">पहले अपनी कुंजी कॉपी करें। भुगतान नए टैब में खुलता है; Stripe की पुष्टि होते ही आपका खाता {{offre_nom}} पर चला जाता है।</p></div><!--@fin:payer-->
         <p class="offer-note">उसके बाद {{prix_starter}} प्रति माह, कर के बिना (Starter, {{quota_starter}} वैलिडेशन) या {{prix_pro}} प्रति माह, कर के बिना (Pro, {{quota_pro}}), डैशबोर्ड से Stripe के ज़रिए कार्ड से भुगतान। कोई ऑटोमैटिक कटौती नहीं। {{mention_euros}}</p>
         <a class="link" href="{{url_pricing}}">कीमतें देखें <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
       </aside>

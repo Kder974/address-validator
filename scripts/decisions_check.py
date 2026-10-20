@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D92, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D93, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 92
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 93
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -5402,11 +5402,13 @@ def d60() -> None:
         guard(i18n.mention_euros(lang) in texte, f"{adresse} : la mention de facturation en euros manque")
 
         # 2. Les boutons : essai, Starter et Pro vers l'inscription de la langue (D54 :
-        #    aucun plan transmis), Enterprise vers le contact de la configuration.
+        #    aucun plan transmis ; D93 : Starter et Pro portent leur offre, qui ne
+        #    choisit que le lien Stripe), Enterprise vers le contact de la configuration.
         grille = re.search(r'<ol class="tiers">(.*?)</ol>', texte, re.S)
         boutons = re.findall(r'<a class="btn [^"]*" href="([^"]*)"', grille.group(1) if grille else "")
+        signup = i18n.chemin(lang, "signup")
         guard(
-            boutons == [i18n.chemin(lang, "signup")] * 3 + [f"mailto:{reglages.contact_email}"],
+            boutons == [signup, f"{signup}?offre=starter", f"{signup}?offre=pro", f"mailto:{reglages.contact_email}"],
             f"{adresse} : boutons des offres inattendus : {boutons}",
         )
 
@@ -7296,7 +7298,64 @@ def d92() -> None:
     guard(re.search(r"^\| D92 \|", read("DECISIONS.md"), re.M) is not None, "la decision D92 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 93)}
+def d93() -> None:
+    """Starter et Pro, sur Tarifs, menent a l'inscription puis au paiement Stripe de l'offre, rattache au compte."""
+    import html
+    import tempfile
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import accounts, i18n, ratelimit
+    from app.config import get_settings
+    from app.main import app
+    from app.models import Customer, CustomerValidation
+    from app.routes import signup as signup_route
+    from app.routes import tableau
+
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp(prefix='porte-d93-')) / 'clients.sqlite'}")
+    Customer.__table__.create(moteur)
+    CustomerValidation.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+    reglages = get_settings()
+    client = TestClient(app)
+    liens = {"starter": reglages.stripe_lien_starter, "pro": reglages.stripe_lien_pro}
+    with mock.patch.object(signup_route, "SessionLocal", fabrique):
+        for numero, lang in enumerate(i18n.LANGUES):
+            ratelimit.reset()
+            chemin = i18n.chemin(lang, "signup")
+            guard('name="offre"' not in client.get(f"{chemin}?offre=enterprise").text, f"{chemin} accepte une offre qui ne s'achete pas")
+            offre = ("starter", "pro")[numero % 2]
+            formulaire = client.get(f"{chemin}?offre={offre}").text
+            euros = i18n.nombre(lang, i18n.EUROS[offre])
+            rappel = re.search(r'class="form-offre">(.*?)</p>', formulaire, re.S)
+            guard(f'<input type="hidden" name="offre" value="{offre}">' in formulaire and rappel is not None,
+                  f"{chemin}?offre={offre} : l'offre n'est ni portee ni rappelee")
+            guard("€" in rappel.group(1) and euros in rappel.group(1), f"{chemin} : l'offre n'est pas rappelee au montant preleve en euros")
+            refus = client.post(chemin, data={"email": "pas-un-email", "password": "porte-d93-mot-de-passe", "shop_name": "D93",
+                                              "platform": "shopify", "offre": offre})
+            guard(refus.status_code == 400 and f'name="offre" value="{offre}"' in refus.text, f"{chemin} : un refus perd l'offre choisie")
+            email = f"porte-d93-{lang}@example.re"
+            page = client.post(chemin, data={"email": email, "password": "porte-d93-mot-de-passe", "shop_name": "D93",
+                                             "platform": "shopify", "offre": offre, "plan": "pro"})
+            with fabrique() as session:
+                compte = accounts.find_by_email(session, email)
+                guard(compte.plan == accounts.PLAN_PAR_DEFAUT, f"{chemin} : l'offre choisie a change le plan sans paiement (D54)")
+                lien = tableau.lien_paiement(liens[offre], {"id": compte.id, "email": compte.email})
+            guard(page.headers.get("cache-control") == "no-store", f"la page de la cle ({lang}) est cachable")
+            bouton = re.search(rf'href="{re.escape(html.escape(lien))}" target="_blank" rel="noopener noreferrer">(.*?)<svg', page.text, re.S)
+            guard(bouton is not None, f"la page de la cle ({lang}) n'ouvre pas le paiement {offre} du compte dans un nouvel onglet")
+            guard("€" in bouton.group(1) and euros in bouton.group(1), f"le bouton Payer ({lang}) ne dit pas le montant preleve en euros")
+            sans = client.post(chemin, data={"email": f"sans-{email}", "password": "porte-d93-mot-de-passe", "shop_name": "D93",
+                                             "platform": "shopify"}).text
+            guard("https://" not in sans and 'class="pay"' not in sans, f"la page de la cle ({lang}) parle de paiement sans offre choisie")
+    guard('donnees.get("plan"' not in read("app/routes/signup.py"), "signup.py lit le plan dans le formulaire (D54)")
+    guard(re.search(r"^\| D93 \|", read("DECISIONS.md"), re.M) is not None, "la decision D93 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 94)}
 
 
 def catalog() -> list[tuple[str, str]]:
