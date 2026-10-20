@@ -962,3 +962,136 @@ Limites dites : l'erreur D67 du premier passage d'oracles n'a pas été reprodui
 production ; l'import du site dans **Bing Webmaster Tools** (issue #39) reste
 une action humaine (connexion au compte Google/Microsoft), l'IndexNow ne fait
 qu'accélérer la découverte.
+
+## 18. Le VPS passe à la BAN Geoplateforme (19/10/2026)
+
+Mise en ligne du commit mergé `911667b` (PR #45, D79 précisée) : l'ancienne
+adresse `api-adresse.data.gouv.fr` (Sunset annoncé au 31/01/2026) est remplacée
+par la Géoplateforme de l'IGN, `data.geopf.fr/geocodage/search/`.
+
+| Élément | Mesure |
+|---|---|
+| Archive | `av-maj-ban.tgz` (6 744 Ko, 124 fichiers `app/`, 72 gabarits), `sha256 65a4ca80…bb9b6` |
+| Sauvegarde | `/opt/address-validator-avant-20261019-112921` (260 fichiers) |
+| Déploiement | `deploy-kder-ai.sh --maj` : M1 à M9 OK, M5 « mêmes fichiers » |
+| Santé | `/health` 200, base et Redis joignables, `.env` conforme, **0 redémarrage systemd** |
+| Docs racine | `DECISIONS.md` (`637a3853…`) et `README.md` (`54b350c6…`) synchronisés, hashes identiques au dépôt |
+
+Vérifications en réel après redémarrage :
+
+- URL effectivement chargée : `https://data.geopf.fr/geocodage/search/` ;
+- cas signalé « 8 rue madelaine, Lyon, 75005 » → `validated: false`, `invalid` ;
+- « 8 Rue de la Paix, Paris, 75002 » → `validated: true`, `residential` ;
+- « 1 Rue de Paris, Saint-Denis, 97400 » → `validated: true`, `residential` ;
+- `degraded: false` partout (la BAN répond) ; hashes `ban.py`, `manifest.py`,
+  `decisions_check.py` identiques à `main`.
+
+État d'avant le déploiement, dit : la production tournait encore sur `e437c18`
+(ancienne URL BAN, `DECISIONS.md`/`README.md` d'avant) — un seul commit mergé de
+retard, désormais résorbé. Les PR ouvertes #41 à #44 et #46 (D83 à D87) ne sont
+pas déployées : elles ne sont pas mergées, c'est voulu.
+
+Retour arrière : `cd /opt/address-validator-avant-20261019-112921 && tar -cf - app scripts docs | tar -C /opt/address-validator -xf - && systemctl restart address-validator`.
+
+## 19. Fusion D83→D87 et déploiement (19/10/2026)
+
+Fusion des cinq PR empilées de Fzed (#41 à #44, #46) sur `main`, puis mise en
+ligne par `deploy-kder-ai.sh --maj`. Les branches contenaient chacune les
+précédentes : l'ordre de fusion #41 → #42 → #43 → #44 → #46 est sans conflit.
+
+| Élément | Mesure |
+|---|---|
+| Fusion | `main` = `cb8797b` (5 merge commits, PR #41–#44 et #46) |
+| Portes | D83 à D87 **PASS**, `ALL MET (88)` ; preuves automatiques enregistrées ; commit `cb8797b` |
+| Tests | **898 passés, 0 échec, 1 ignoré** (899 collectés) |
+| Oracles | 86/87 en passage complet ; **D67 instable, désormais reproductible** en passage complet (deux passages consécutifs), alors qu'il passe isolé et par sa porte : dépendance d'ordre entre oracles (état/thread de test), sans incidence sur le service ; à corriger dans un lot d'hygiène |
+| Archive | `av-maj-d83-d87.tgz`, `sha256 ed40a69c…8858d2`, 124 fichiers `app/`, 72 gabarits |
+| Sauvegarde | `/opt/address-validator-avant-20261019-135141` (260 fichiers) |
+| Santé | `/health` 200, base et Redis OK, `.env` conforme, **0 redémarrage systemd** |
+| Docs racine | `DECISIONS.md` `55ac2f11…`, `README.md` `73bc8ea2…`, `GATES.md` `51ffc962…` synchronisés |
+
+Vérifications en réel après redémarrage (hashes des fichiers identiques à `main`) :
+
+- **D87** : `/` répond 200 avec la nouvelle vitrine (CSS animé + `prefers-reduced-motion`),
+  champ unique `address`, prix par adresse affichés ;
+- **D86** : `POST /validate-form` avec « 8 rue de la paix 75002 paris » → 200,
+  « Adresse reconnue », « Rue de la Paix » corrigée ;
+- **D84** : BAN « 8 rue de la paix / paris » → `8 Rue de la Paix / Paris` ;
+  Smarty « 1600 amphitheatre pkwy » → `1600 Amphitheatre Parkway / Mountain View` ;
+- **D85** : Apple HQ (1 Infinite Loop, Cupertino) → `deliverability: commercial`,
+  confiance 1.0 (RDI de SmartyStreets, plus le DPV) ;
+- **D83** : `/compare` affiche **19** prix convertis avec « ≈ » et le prix dollars
+  entre crochets ; `/en/compare` garde les prix dollars ;
+- **D79/D80/D82** inchangés (BAN Geoplateforme, 402, motifs de refus).
+
+Retour arrière : `cd /opt/address-validator-avant-20261019-135141 && tar -cf - app scripts docs | tar -C /opt/address-validator -xf - && systemctl restart address-validator`.
+
+## 20. Premier paiement d'un agent externe — SettledScout (19/10/2026)
+
+Le service a encaissé son **premier paiement d'un agent inconnu**, en USDC sur
+Base Mainnet.
+
+| Élément | Mesure |
+|---|---|
+| Date | 19/10/2026 13:19:52 UTC |
+| Transaction | `0x69823b0280d18e2d8f2eb99dca1aea7d01bb2affd97e197dcf780e0dcee63000` (bloc 52 813 323) |
+| Explorateur | https://basescan.org/tx/0x69823b0280d18e2d8f2eb99dca1aea7d01bb2affd97e197dcf780e0dcee63000 |
+| Payeur | `0xA1d1C0cF717402fF3651AA4873CCF96410b01978` (SettledScout) |
+| Montant | 0,02 USDC ; gaz payé par le facilitateur-relais `0x42dd…4b00` |
+| API | `/validate` → `200`, mode `x402`, pays d'appel **SG**, cache touché (`250a6087…`, l'exemple de la fiche Bazaar : 1600 Amphitheatre Parkway) |
+| Solde du service | 1,08 → **1,10 USDC** |
+| Revenu réel publié | **3 paiements réels / 0,06 USDC** (`/metrics/revenue` ; 24 h : 1 / 0,02) |
+| Registre | `payment_transactions` : 0,02 USDC, `test_mode = false` |
+
+L'agent est **SettledScout**, le « paid test purchase » de l'index x402
+[settled.tools](https://settled.tools/bot) : il achète une fois par semaine chez
+les vendeurs listés jusqu'à 0,25 $, en envoyant l'exemple d'entrée de la fiche
+Bazaar, et publie son verdict. Le nôtre, public :
+
+- livraison à `2026-10-19T13:19:52.856Z`, 453 octets de JSON, transaction ci-dessus ;
+- **`verdict: "as_advertised": true`** — 17 champs promis, 17 trouvés, 0 manquant,
+  0 mauvais type ; prix facturé 0,02 $ = prix affiché.
+
+Le catalogue Coinbase (Bazaar) a mis à jour la fiche à la seconde du paiement
+(`lastUpdated 2026-10-19T13:19:52.89Z`), ce qui confirme que l'agent nous a
+trouvés par ce catalogue. Prochaine étape pour l'exploitant : réclamer le wallet
+payTo sur Settled (`https://settled.tools/claim?wallet=0x0fE9…2d339`) pour
+activer la veille vendeur offerte.
+
+## 21. Deuxième acheteur externe — vet402 Observatory (19/10/2026)
+
+Après SettledScout (§20), un deuxième agent extérieur a payé le service, la même
+journée : **vet402 Observatory**, l'index indépendant de mesure du protocole x402
+([vet402.com](https://vet402.com/observatory/methodology)).
+
+| Élément | Mesure |
+|---|---|
+| Date | 19/10/2026 21:32:18–19 UTC |
+| Transaction | `0xf57029a310c1c31abca3c2d00b339c3848d88bfc6dd5a93b25cf23155996752e` (bloc 52 828 097) |
+| Explorateur | https://basescan.org/tx/0xf57029a310c1c31abca3c2d00b339c3848d88bfc6dd5a93b25cf23155996752e |
+| Payeur | `0xc9c7b38c0942914fc8ea12063bc92dcd3b581670` (payeur Base de vet402 depuis le 04/09) |
+| Montant | 0,02 USDC ; gaz payé par le facilitateur-relais `0xe72f…b1b8` |
+| Séquence | probe L0 gratuit (`402`) le 19/10 à 10:30, puis `402` → `200` en 1 s ; pays d'appel **US** |
+| Solde du service | 1,10 → **1,12 USDC** |
+| Revenu réel publié | **4 paiements réels / 0,08 USDC** (registre total : 7 / 0,14, dont 3 recettes de test) |
+
+Verdict public de vet402 sur cette transaction (registre
+`/api/v1/observatory/export.csv`, `resource_key: kder-ai.com/validate`) :
+
+- `status: settled` — paiement confirmé on-chain, `confirmed_units: 20000` ;
+- `http_status_paid: 200`, `latency_ms: 1629`, `request_body: declared`
+  (l'exemple d'entrée de la fiche Bazaar), `settlement_source: seller_claim` ;
+- `l2_schema: no_declaration` — la fiche du catalogue ne déclare pas de schéma
+  de sortie exploitable par leur contrôle L2. **Piste d'amélioration** : enrichir
+  l'extension `bazaar` du 402/du catalogue avec un schéma de sortie
+  (`extensions.bazaar.info.output.schema`) pour passer de `no_declaration` à
+  `match` — c'est une modification de code à décider (D89), pas une urgence.
+
+Aucun autre paiement n'a eu lieu depuis : environ 30 probes non payés par jour
+(mako-pulse-prober, CarbonMonitor, x402-census-probe, Agent402, ToolVetProbe,
+lumiere-paycheck-prober, x402-observer, AgentRankProbe, MPP32…) continuent de
+tester le `402` sans payer. Les deux acheteurs sont des services de mesure/
+d'indexation, pas encore des e-commerçants : c'est la validation externe du
+protocole et du catalogue, pas encore de la demande commerciale.
+
+Retour arrière si besoin : `/opt/address-validator-avant-20261019-135141`.

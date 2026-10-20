@@ -388,7 +388,7 @@ Vérification : `.\\.venv\\Scripts\\python.exe scripts\\run_tests.py tests\\test
 
 Pour un pays de `PAYS_BAN` (France métropolitaine et outre-mer : `FR`, `RE`,
 `GP`, `MQ`, `GF`, `YT`, `BL`, `MF`, `PM`), la vérification passe par la **Base
-Adresse Nationale** (`app/validation/ban.py`, `https://api-adresse.data.gouv.fr`)
+Adresse Nationale** (`app/validation/ban.py`, `https://data.geopf.fr/geocodage`)
 et **jamais** par SmartyStreets, qui ne sait pas juger une adresse française :
 
 * score BAN **≥ 0,8**, **code postal retourné identique** au code postal saisi,

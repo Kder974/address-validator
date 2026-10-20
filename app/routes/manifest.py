@@ -295,7 +295,7 @@ async def manifest():
         ],
         "verification": {
             "united_states": "SmartyStreets, USPS DPV : code Y, S ou D requis",
-            "france_outre_mer": "Base Adresse Nationale (api-adresse.data.gouv.fr) : score >= 0.8, code postal et ville confrontes",
+            "france_outre_mer": "Base Adresse Nationale (data.geopf.fr/geocodage) : score >= 0.8, code postal et ville confrontes",
             "other_countries": "pas de referentiel verifie : verification partielle",
         },
         "deliverability_values": {
