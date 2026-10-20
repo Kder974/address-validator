@@ -355,6 +355,26 @@ h3{font-size:1.18rem;line-height:1.3;font-weight:600;letter-spacing:-.018em}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
+
+/* ================= D90 : la page prend le style de la page d'accueil (D87) ================= */
+:root{--n8:#0b1b34;--n9:#060f22;--wash:#e9edff;--sh-xl:0 60px 120px -30px rgba(6,15,34,.55),0 30px 60px -30px rgba(6,15,34,.5)}
+/* En-tête de page : fond lumineux à halos et grille de points ; la bande en biais disparaît */
+.phead,.ct-head{isolation:isolate;background:linear-gradient(180deg,rgba(255,255,255,0) 62%,#fff),radial-gradient(1000px 560px at 6% -10%,rgba(255,148,85,.40),transparent 62%),radial-gradient(800px 620px at 98% 0%,rgba(74,179,255,.40),transparent 60%),radial-gradient(700px 460px at 60% 110%,rgba(47,211,193,.22),transparent 62%),linear-gradient(180deg,#fff7f1,#f6f8ff 60%,#fff)}
+.phead::before,.ct-head::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background-image:radial-gradient(rgba(11,27,52,.07) 1px,transparent 1.4px);background-size:26px 26px;-webkit-mask-image:radial-gradient(ellipse at 50% 30%,#000 30%,transparent 75%);mask-image:radial-gradient(ellipse at 50% 30%,#000 30%,transparent 75%)}
+.phead .band,.phead .guides,.ct-head .band,.ct-head .guides,.band-final{display:none}
+.dash-bg{background:linear-gradient(180deg,rgba(255,255,255,0) 62%,#fff),radial-gradient(1000px 560px at 6% -10%,rgba(255,148,85,.40),transparent 62%),radial-gradient(800px 620px at 98% 0%,rgba(74,179,255,.40),transparent 60%),radial-gradient(700px 460px at 60% 110%,rgba(47,211,193,.22),transparent 62%),linear-gradient(180deg,#fff7f1,#f6f8ff 60%,#fff)}
+/* Titres forts, pastille, boutons bleus : les briques de l'accueil */
+h1{font-weight:750;letter-spacing:-.03em;line-height:1.06}
+h2{font-weight:750;letter-spacing:-.028em}
+.pill{background:#fff;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+.pill b{background:linear-gradient(90deg,var(--tang),var(--coral));color:#fff}
+.btn-accent{background:linear-gradient(180deg,#3a55ff,#1f3bff);box-shadow:0 14px 30px -12px rgba(31,59,255,.85),inset 0 1px 0 rgba(255,255,255,.25)}
+.btn-glass{background:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+/* Appel final : la carte bleu nuit de l'accueil */
+.final-card{color:#fff;background:radial-gradient(700px 360px at 50% 120%,rgba(47,211,193,.35),transparent 65%),radial-gradient(600px 400px at 0% 0%,rgba(255,148,85,.35),transparent 60%),radial-gradient(700px 420px at 100% 0%,rgba(49,80,255,.6),transparent 60%),linear-gradient(180deg,var(--n8),var(--n9));box-shadow:var(--sh-xl)}
+.final-card p{color:#c6d0ee}
+.final-card .btn-accent{background:#fff;color:var(--ink);box-shadow:0 14px 30px -14px rgba(0,0,0,.5)}
+.final-card .btn-glass{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
 </style>
 </head>
 <body>
@@ -634,10 +654,10 @@ h3{font-size:1.18rem;line-height:1.3;font-weight:600;letter-spacing:-.018em}
     <!-- 5. Caché y cuotas -->
     <section class="dsec" id="cache-et-quotas" aria-labelledby="h-cache">
       <p class="eyebrow">Facturación</p>
-      <h2 id="h-cache">Lo que no se vuelve a pagar y lo que tiene tope</h2>
+      <h2 id="h-cache">Lo que la caché reutiliza y lo que tiene tope</h2>
       <dl class="ref ref-3">
         <div class="ref-head" aria-hidden="true"><span>Tema</span><span>Qué ocurre</span><span>Qué haces tú</span></div>
-        <div class="ref-row"><dt>Caché (veredicto)</dt><dd>Una misma dirección normalizada no vuelve a consultar al proveedor durante <strong>{{cache_jours}} días</strong>. Lo garantiza <code>cache_key</code>.</dd><dd><span class="rr-l">Qué hacer</span>Llama sin miedo a pagar dos veces la misma consulta. Para forzar una nueva llamada, cambia la dirección: la API no adivina.</dd></div>
+        <div class="ref-row"><dt>Caché (veredicto)</dt><dd>Una misma dirección normalizada no vuelve a consultar al proveedor durante <strong>{{cache_jours}} días</strong>. Lo garantiza <code>cache_key</code>.</dd><dd><span class="rr-l">Qué hacer</span>Una verificación repetida responde más rápido, pero cuenta igualmente como una verificación. Para forzar una nueva llamada, cambia la dirección: la API no adivina.</dd></div>
         <div class="ref-row"><dt>Caché (degradado)</dt><dd>Un resultado <code>degraded</code> se guarda <strong>{{cache_minutes}} minutos</strong>, no {{cache_jours}} días: «el proveedor no respondió» no es un veredicto.</dd><dd><span class="rr-l">Qué hacer</span>Trata <code>degraded: true</code> como «inténtalo más tarde». Pasada esa ventana corta, la misma llamada obtiene una respuesta real.</dd></div>
         <div class="ref-row"><dt>Cuota</dt><dd><strong>Mensual</strong>, sobre el mes natural en <strong>UTC</strong>: se reinicia el día 1 del mes, no 30 días después de tu primera llamada.</dd><dd><span class="rr-l">Qué hacer</span>Vigila <code>X-Quota-Remaining</code>. Escríbenos antes del límite y no después.</dd></div>
         <div class="ref-row"><dt>Precio por llamada</dt><dd><strong>{{prix_x402}} USDC</strong> por validación cobrada (modo x402). Una llamada cubierta por una suscripción indica <code>price_paid: 0.0</code>.</dd><dd><span class="rr-l">Qué hacer</span>Un agente que paga lee el cuerpo <code>402</code> (<code>accepts</code>): el precio figura ahí y nunca hay que adivinarlo.</dd></div>
@@ -670,7 +690,7 @@ $r.Headers[<span class="s">"X-Payment-Mode"</span>], $r.Headers[<span class="s">
 
 El proveedor solo se consulta una vez por direccion: la respuesta se guarda en
 cache ({{cache_jours}} dias para un veredicto), asi que una segunda ejecucion sobre el mismo
-archivo no cuesta nada mas.
+archivo responde mas rapido (cada direccion sigue contando).
 """</span>
 <span class="v">import</span> csv
 <span class="v">import</span> os

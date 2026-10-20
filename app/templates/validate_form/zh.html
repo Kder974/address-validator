@@ -384,6 +384,27 @@ h1,h2{text-wrap:wrap}
 .lead,.form-hint,.keep li,.ex-lead,.verdict,.verdict-t,.callout,.p429 p,.fine,.s-foot,.fixnote{line-height:1.75}
 .pitch,.keep li,.ex-cap p,.verdict,.verdict-t,.callout{text-wrap:balance}
 .badge,.k,.st{letter-spacing:.02em}
+
+/* ================= D90 : la page prend le style de la page d'accueil (D87) ================= */
+:root{--n8:#0b1b34;--n9:#060f22;--wash:#e9edff;--sh-xl:0 60px 120px -30px rgba(6,15,34,.55),0 30px 60px -30px rgba(6,15,34,.5)}
+/* En-tête de page : fond lumineux à halos et grille de points ; la bande en biais disparaît */
+.phead,.ct-head{isolation:isolate;background:linear-gradient(180deg,rgba(255,255,255,0) 62%,#fff),radial-gradient(1000px 560px at 6% -10%,rgba(255,148,85,.40),transparent 62%),radial-gradient(800px 620px at 98% 0%,rgba(74,179,255,.40),transparent 60%),radial-gradient(700px 460px at 60% 110%,rgba(47,211,193,.22),transparent 62%),linear-gradient(180deg,#fff7f1,#f6f8ff 60%,#fff)}
+.phead::before,.ct-head::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background-image:radial-gradient(rgba(11,27,52,.07) 1px,transparent 1.4px);background-size:26px 26px;-webkit-mask-image:radial-gradient(ellipse at 50% 30%,#000 30%,transparent 75%);mask-image:radial-gradient(ellipse at 50% 30%,#000 30%,transparent 75%)}
+.phead .band,.phead .guides,.ct-head .band,.ct-head .guides,.band-final{display:none}
+.dash-bg{background:linear-gradient(180deg,rgba(255,255,255,0) 62%,#fff),radial-gradient(1000px 560px at 6% -10%,rgba(255,148,85,.40),transparent 62%),radial-gradient(800px 620px at 98% 0%,rgba(74,179,255,.40),transparent 60%),radial-gradient(700px 460px at 60% 110%,rgba(47,211,193,.22),transparent 62%),linear-gradient(180deg,#fff7f1,#f6f8ff 60%,#fff)}
+/* Titres forts, pastille, boutons bleus : les briques de l'accueil */
+h1{font-weight:750;letter-spacing:-.03em;line-height:1.06}
+h2{font-weight:750;letter-spacing:-.028em}
+.pill{background:#fff;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+.pill b{background:linear-gradient(90deg,var(--tang),var(--coral));color:#fff}
+.btn-accent{background:linear-gradient(180deg,#3a55ff,#1f3bff);box-shadow:0 14px 30px -12px rgba(31,59,255,.85),inset 0 1px 0 rgba(255,255,255,.25)}
+.btn-glass{background:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+/* Appel final : la carte bleu nuit de l'accueil */
+.final-card{color:#fff;background:radial-gradient(700px 360px at 50% 120%,rgba(47,211,193,.35),transparent 65%),radial-gradient(600px 400px at 0% 0%,rgba(255,148,85,.35),transparent 60%),radial-gradient(700px 420px at 100% 0%,rgba(49,80,255,.6),transparent 60%),linear-gradient(180deg,var(--n8),var(--n9));box-shadow:var(--sh-xl)}
+.final-card p{color:#c6d0ee}
+.final-card .btn-accent{background:#fff;color:var(--ink);box-shadow:0 14px 30px -14px rgba(0,0,0,.5)}
+.final-card .btn-glass{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+h1,h2,h3{letter-spacing:0}h1{line-height:1.2}
 </style>
 </head>
 <body>

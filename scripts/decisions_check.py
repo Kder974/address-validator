@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D89, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D90, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 89
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 90
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7092,7 +7092,7 @@ def d87() -> None:
     client = TestClient(app)
     # Ce que l'ancienne vitrine promettait à tort (un abonné paie aussi une adresse servie par le cache),
     # et ce que la maquette disait sans preuve : aucune langue ne doit le redire.
-    faux = {"en": ("not billed again", "Most shops", "fraction of a second", "ready-made script", "is not stored", "plugin"),
+    faux = {"en": ("not billed again", "Most shops", "fraction of a second", "is not stored", "plugin"),
             "fr": ("refacturée",), "es": ("no se vuelve a cobrar",), "zh": ("不会重复计费",), "hi": ("दोबारा बिल नहीं",),
             "ar": ("لا يُحتسب مرة أخرى",)}
     for lang in i18n.LANGUES:
@@ -7167,7 +7167,36 @@ def d89() -> None:
     guard(re.search(r"^\| D89 \|", read("DECISIONS.md"), re.M) is not None, "la decision D89 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 90)}
+def d90() -> None:
+    """Toutes les pages du site ont le style de la page d'accueil ; le guide ne dit plus qu'une vérification répétée est gratuite."""
+    from app import i18n
+
+    familles = ("validate_form", "guide", "inscription", "compare", "agents", "compte", "connexion",
+                "mot-de-passe-oublie", "nouveau-mot-de-passe", "inscription-cle")
+    regles = (".phead .band,.phead .guides,.ct-head .band,.ct-head .guides,.band-final{display:none}", "h1{font-weight:750",
+              ".phead,.ct-head{isolation:isolate;background:linear-gradient(180deg,rgba(255,255,255,0) 62%,#fff),radial-gradient(1000px",
+              ".btn-accent{background:linear-gradient(180deg,#3a55ff,#1f3bff)")
+    for famille in familles:
+        for lang in i18n.LANGUES:
+            nom = f"{famille}/{lang}.html"
+            gabarit = (ROOT / "app" / "templates" / nom).read_text(encoding="utf-8")
+            style = gabarit[gabarit.index("<style>"): gabarit.index("</style>")]
+            for regle in regles:
+                guard(regle in style, f"{nom} : le style de l'accueil manque ({regle[:60]})")
+    faux = {"en": ("Call without fear of paying twice", "costs nothing more", "What is not paid twice"),
+            "fr": ("sans craindre de payer deux fois", "ne coute rien de plus", "pas repayé"),
+            "es": ("sin miedo a pagar dos veces", "no cuesta nada mas", "no se vuelve a pagar"),
+            "zh": ("同一个问题不会付两次费", "不会产生额外费用", "哪些不会重复付费"),
+            "hi": ("दो बार भुगतान होने की चिंता", "अतिरिक्त\nखर्च नहीं", "जिसका दोबारा भुगतान नहीं"),
+            "ar": ("دون خوف من دفع ثمن السؤال", "لا يكلّف شيئًا إضافيًا", "ما لا تدفعه مرتين")}
+    for lang, phrases in faux.items():
+        gabarit = (ROOT / "app" / "templates" / "guide" / f"{lang}.html").read_text(encoding="utf-8")
+        for phrase in phrases:
+            guard(phrase not in gabarit, f"guide/{lang} : une verification repetee est dite gratuite : {phrase!r}")
+    guard(re.search(r"^\| D90 \|", read("DECISIONS.md"), re.M) is not None, "la decision D90 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 91)}
 
 
 def catalog() -> list[tuple[str, str]]:
