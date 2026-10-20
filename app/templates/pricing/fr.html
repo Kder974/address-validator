@@ -624,7 +624,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
         </details>
         <details class="qa">
           <summary>Que deviennent les adresses que je vous envoie ?</summary>
-          <p>Elles servent à la validation. Le cache garde une empreinte SHA-256, jamais l'adresse en clair. Rien n'est revendu ni utilisé pour de la publicité.</p>
+          <p>Elles servent à la validation. Le cache garde l'adresse sous sa forme standardisée pendant {{jours_cache}} jours, rangée sous une empreinte SHA-256, puis l'efface. Rien n'est revendu ni utilisé pour de la publicité.</p>
         </details>
         <details class="qa">
           <summary>Couvrez-vous La Réunion et l'international ?</summary>
@@ -635,7 +635,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
           <p>Un premier appel se fait en quelques minutes : <code class="inline">POST /validate</code> avec votre clé dans l'en-tête <code class="inline">X-API-Key</code>. Pour le branchement sur vos commandes, le guide couvre l'appel direct, l'import CSV, Shopify et WooCommerce, avec des exemples de code. Il n'y a pas d'application Shopify à installer : l'appel part de votre propre service.</p>
         </details>
       </div>
-      <p class="rgpd"><strong>Conformité RGPD.</strong> Les adresses transmises servent uniquement à la validation et ne sont ni revendues ni utilisées pour de la publicité. Le cache conserve une empreinte SHA-256, jamais l'adresse en clair. Les journaux d'exploitation pseudonymisent l'adresse IP (SHA-256 et sel) et sont purgés après {{jours_journaux}} jours. Vous pouvez demander la suppression de vos données de compte à tout moment.</p>
+      <p class="rgpd"><strong>Conformité RGPD.</strong> Les adresses transmises servent uniquement à la validation et ne sont ni revendues ni utilisées pour de la publicité. Le cache conserve l'adresse sous sa forme standardisée pendant {{jours_cache}} jours, rangée sous une empreinte SHA-256, puis l'efface. Les journaux d'exploitation pseudonymisent l'adresse IP (SHA-256 et sel) et sont purgés après {{jours_journaux}} jours. Vous pouvez demander la suppression de vos données de compte à tout moment.</p>
     </div>
   </div>
 </section>

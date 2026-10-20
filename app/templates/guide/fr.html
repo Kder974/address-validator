@@ -781,7 +781,7 @@ API = <span class="s">"{{base}}/validate"</span>
         <div class="ref-row"><dt><code>degraded: true</code> <span class="st st-info">À re-vérifier</span></dt><dd>Le fournisseur n'a pas répondu. La réponse ne dit rien de l'adresse : ce n'est pas un refus. Relancez plus tard.</dd></div>
         <div class="ref-row"><dt>Intégrations</dt><dd>Ni application Shopify, ni extension WooCommerce : l'appel part de votre propre service.</dd></div>
       </dl>
-      <div class="note note-ok"><strong>Ce que nous conservons, et ce que nous ne conservons pas.</strong> Pour un appel payant ou abonné : une empreinte de l'adresse (<code>cache_key</code>) et l'issue, jamais l'adresse elle-même. Pour l'essai gratuit sans compte : <strong>rien</strong>, seulement un compteur anonyme qui fait respecter le plafond. Une demande d'effacement se fait avec le <code>cache_key</code>.</div>
+      <div class="note note-ok"><strong>Ce que nous conservons, et ce que nous ne conservons pas.</strong> En base de données, un appel payant ou abonné ne laisse qu'une empreinte de l'adresse (<code>cache_key</code>) et l'issue ; l'essai gratuit sans compte n'y laisse <strong>rien</strong>, seulement un compteur anonyme qui fait respecter le plafond. Le cache garde chaque résultat (l'adresse standardisée, ses coordonnées et le verdict) {{cache_jours}} jours sous cette empreinte, puis l'efface. Une demande d'effacement se fait avec le <code>cache_key</code>.</div>
 
       <div class="next">
         <h2>Passer à la pratique</h2>

@@ -624,7 +624,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
         </details>
         <details class="qa">
           <summary>¿Qué pasa con las direcciones que les envío?</summary>
-          <p>Se usan para la validación. La caché guarda una huella SHA-256, nunca la dirección en claro. No se revende ni se usa nada para publicidad.</p>
+          <p>Se usan para la validación. La caché guarda la dirección en forma estandarizada durante {{jours_cache}} días, archivada bajo una huella SHA-256, y luego la borra. No se revende ni se usa nada para publicidad.</p>
         </details>
         <details class="qa">
           <summary>¿Cubren La Reunión y el resto del mundo?</summary>
@@ -635,7 +635,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
           <p>Una primera llamada se hace en pocos minutos: <code class="inline">POST /validate</code> con tu clave en el encabezado <code class="inline">X-API-Key</code>. Para conectarla a tus pedidos, la guía cubre la llamada directa, la importación CSV, Shopify y WooCommerce, con ejemplos de código. No hay ninguna aplicación de Shopify que instalar: la llamada sale de tu propio servicio.</p>
         </details>
       </div>
-      <p class="rgpd"><strong>Cumplimiento del RGPD.</strong> Las direcciones enviadas se usan únicamente para la validación y no se revenden ni se usan para publicidad. La caché conserva una huella SHA-256, nunca la dirección en claro. Los registros de explotación seudonimizan la dirección IP (SHA-256 y sal) y se purgan a los {{jours_journaux}} días. Puedes pedir la eliminación de los datos de tu cuenta en cualquier momento.</p>
+      <p class="rgpd"><strong>Cumplimiento del RGPD.</strong> Las direcciones enviadas se usan únicamente para la validación y no se revenden ni se usan para publicidad. La caché conserva la dirección en forma estandarizada durante {{jours_cache}} días, archivada bajo una huella SHA-256, y luego la borra. Los registros de explotación seudonimizan la dirección IP (SHA-256 y sal) y se purgan a los {{jours_journaux}} días. Puedes pedir la eliminación de los datos de tu cuenta en cualquier momento.</p>
     </div>
   </div>
 </section>

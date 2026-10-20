@@ -181,7 +181,7 @@ def test_les_chiffres_sont_injectes_pas_recopies(lang, monkeypatch):
     assert texte.count(n(8642)) == 1
     assert texte.count(n(7531)) == 2
     assert texte.count(n(9753)) == 1
-    assert texte.count(n(864)) == 3
+    assert texte.count(n(864)) == 4  # D88 : la note « ce que nous conservons » dit aussi la durée du cache
     assert texte.count(n(975)) == 1
     assert texte.count(n(0.05)) == 5 and n(0.02) not in texte
     assert texte.count('{"x402Version": 7}') == 2

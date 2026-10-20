@@ -468,3 +468,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D87: the home page in all six languages is the animated v3 design: one address field posting to the free test, CSS-only animations with a reduced-motion fallback, every price, quota and cache duration from the code in the page currency, no false promise (cache not billed, most shops, fraction of a second, plugin, CSV script, not stored), Arabic right to left
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D87
   EXPECT: DECISION OK D87
+- [ ] D88: pricing, guide (six languages) and PRIVACY.md say what the cache really keeps: the standardized address, under a SHA-256 fingerprint, for CACHE_TTL days, free test included; no page says the address is never kept in clear text or that the free test keeps nothing
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D88
+  EXPECT: DECISION OK D88

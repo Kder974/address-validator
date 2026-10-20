@@ -625,7 +625,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
         </details>
         <details class="qa">
           <summary>What happens to the addresses I send you?</summary>
-          <p>They are used for validation. The cache keeps a SHA-256 fingerprint, never the address in clear text. Nothing is resold or used for advertising.</p>
+          <p>They are used for validation. The cache keeps the address in standard form for {{jours_cache}} days, filed under a SHA-256 fingerprint, then deletes it. Nothing is resold or used for advertising.</p>
         </details>
         <details class="qa">
           <summary>Do you cover Réunion and international addresses?</summary>
@@ -636,7 +636,7 @@ h3{font-size:1.25rem;line-height:1.25;font-weight:600;letter-spacing:-.02em}
           <p>A first call takes a few minutes: <code class="inline">POST /validate</code> with your key in the <code class="inline">X-API-Key</code> header. To connect it to your orders, the guide covers the direct call, CSV import, Shopify and WooCommerce, with code examples. There is no Shopify app to install: the call is made from your own service.</p>
         </details>
       </div>
-      <p class="rgpd"><strong>GDPR compliance.</strong> The addresses you send are used only for validation and are neither resold nor used for advertising. The cache keeps a SHA-256 fingerprint, never the address in clear text. Operating logs pseudonymize the IP address (SHA-256 and salt) and are purged after {{jours_journaux}} days. You can request deletion of your account data at any time.</p>
+      <p class="rgpd"><strong>GDPR compliance.</strong> The addresses you send are used only for validation and are neither resold nor used for advertising. The cache keeps the address in standard form for {{jours_cache}} days, filed under a SHA-256 fingerprint, then deletes it. Operating logs pseudonymize the IP address (SHA-256 and salt) and are purged after {{jours_journaux}} days. You can request deletion of your account data at any time.</p>
     </div>
   </div>
 </section>
