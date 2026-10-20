@@ -23,12 +23,12 @@ OFFRES_PAR_NOM = {offre["nom"]: offre for offre in OFFRES}
 
 #: PRIX-PAR-LANGUE.md : essai, Starter, Pro, unitaire Starter, unitaire Pro, colis raté, fourchette.
 TABLE = {
-    "fr": ("0 €", "29 €", "79 €", "0,0145 €", "0,0079 €", "15 €", "15–26 €"),
-    "es": ("0 €", "29 €", "79 €", "0,0145 €", "0,0079 €", "15 €", "15–26 €"),
-    "en": ("$0", "$33", "$90", "$0.0165", "$0.0090", "$17", "$17–30"),
-    "ar": ("$0", "$33", "$90", "$0.0165", "$0.0090", "$17", "$17–30"),
-    "zh": ("¥0", "¥223", "¥608", "¥0.1115", "¥0.0608", "¥115", "¥115–200"),
-    "hi": ("₹0", "₹3,160", "₹8,620", "₹1.58", "₹0.862", "₹1,600", "₹1,600–2,900"),
+    "fr": ("0 €", "29 €", "79 €", "0,0145 €", "0,0132 €", "15 €", "15–26 €"),
+    "es": ("0 €", "29 €", "79 €", "0,0145 €", "0,0132 €", "15 €", "15–26 €"),
+    "en": ("$0", "$33", "$90", "$0.0165", "$0.0150", "$17", "$17–30"),
+    "ar": ("$0", "$33", "$90", "$0.0165", "$0.0150", "$17", "$17–30"),
+    "zh": ("¥0", "¥223", "¥608", "¥0.1115", "¥0.1013", "¥115", "¥115–200"),
+    "hi": ("₹0", "₹3,160", "₹8,620", "₹1.58", "₹1.44", "₹1,600", "₹1,600–2,900"),
 }
 
 
@@ -85,8 +85,10 @@ def test_la_conversion_suit_les_euros_du_code(devise):
 @pytest.mark.parametrize("devise", sorted(i18n.MONTANTS))
 def test_le_prix_unitaire_est_le_prix_divise_par_le_quota(devise):
     montants = i18n.MONTANTS[devise]
-    assert montants["unitaire_starter"] == montants["starter"] / accounts.PLANS["starter"]
-    assert montants["unitaire_pro"] == montants["pro"] / accounts.PLANS["pro"]
+    # Arrondi au dernier chiffre affiché (D94 : 79 € ÷ 6 000 ne tombe pas juste).
+    for plan in ("starter", "pro"):
+        unitaire = montants[f"unitaire_{plan}"]
+        assert unitaire == (montants[plan] / accounts.PLANS[plan]).quantize(unitaire), (devise, plan)
 
 
 def test_le_colis_rate_en_dollars_est_celui_du_code():

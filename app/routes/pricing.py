@@ -79,7 +79,9 @@ def valeurs(settings, lang: str) -> dict:
         # Jauges de volume : la part du quota Pro (le plus grand quota chiffré).
         "jauge_essai": plans["trial"] * 100 // plans["pro"],
         "jauge_starter": plans["starter"] * 100 // plans["pro"],
-        # « 45 % de moins par validation qu'en Starter » : arrondi par défaut, jamais flatteur.
+        # « 3 fois le volume de Starter » (D94 : le rapport des quotas, plus écrit en lettres).
+        "fois_pro": i18n.nombre(lang, plans["pro"] // plans["starter"]),
+        # « 8 % de moins par validation qu'en Starter » : arrondi par défaut, jamais flatteur.
         "baisse_pro": int(100 - 100 * montants["unitaire_pro"] / montants["unitaire_starter"]),
         "jours_cache": i18n.nombre(lang, CACHE_TTL // 86400),
         "jours_journaux": i18n.nombre(lang, settings.discovery_log_retention_days),

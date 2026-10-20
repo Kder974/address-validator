@@ -56,7 +56,7 @@ Copie fidèle de `address-validator/EMAIL_BIENVENUE.md` § 2. Aucune clé n'y fi
 le texte renvoie à `/signup`, où elle s'affiche une seule fois.
 
 Objet : `Votre accès à la validation d'adresses est prêt — Tiitoune Art`
-Pré-en-tête : `Votre clé API, 100 validations offertes, puis 29 €/mois — sans engagement.`
+Pré-en-tête : `Votre clé API, 50 validations offertes, puis 29 €/mois — sans engagement.`
 
 ```text
 Bonjour,
@@ -73,8 +73,8 @@ dans un fichier partagé. Perdue ? Elle se régénère en un clic depuis
 https://kder-ai.com/compte, et l'ancienne cesse de fonctionner immédiatement.
 
 CE QUE COMPREND VOTRE OFFRE
-14 jours et 100 validations offertes, sans carte bancaire. Ensuite : Starter
-29 €/mois (2 000 validations) ou Pro 79 €/mois (10 000), selon votre volume. Aucun
+14 jours et 50 validations offertes, sans carte bancaire. Ensuite : Starter
+29 €/mois (2 000 validations) ou Pro 79 €/mois (6 000), selon votre volume. Aucun
 prélèvement automatique : rien n'est prélevé sans votre accord écrit.
 
 COMMENT L'ENVOYER
@@ -152,7 +152,7 @@ Trois raisons, toutes vérifiables :
 
 1. les liens remplacent le document : l'email ne contient **aucune** capture ni
    aucun PDF — si une page est `404`, le client clique dans le vide ;
-2. l'email promet des valeurs (`14 jours`, `100 validations`, `29 €`, `79 €`,
+2. l'email promet des valeurs (`14 jours`, `50 validations`, `29 €`, `79 €`,
    `X-API-Key`, `X-Quota-Remaining`) qui viennent du **code déployé** : un service
    qui n'a pas été redémarré depuis le déploiement annonce une offre qu'il ne
    sert pas ;

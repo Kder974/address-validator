@@ -490,3 +490,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D93: on the pricing page, Starter and Pro buttons say Subscribe and lead to signup with ?offre=starter or ?offre=pro (only those two are kept); the form carries the offer; the key page then opens the Stripe link of that offer with the account id, in a new tab; the account stays a trial until the signed Stripe payment (D54, D91)
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D93
   EXPECT: DECISION OK D93
+- [ ] D94: the free test without account allows 3 tries per IP per 24 h (was 10); the free trial gives 50 validations over 14 days (was 100); Pro stays 79 EUR a month for 6,000 validations (was 10,000), still cheaper per validation than Starter; the pricing page computes the Pro volume ratio and shows 0.0132 EUR per Pro validation; the welcome email cites the new quotas
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D94
+  EXPECT: DECISION OK D94

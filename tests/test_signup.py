@@ -215,9 +215,9 @@ def test_statistiques_reelles_dans_l_espace_client(base):
 
     page = client.get("/compte", headers=_auth(FORME["email"], MOT_DE_PASSE)).text
     lu = unescape(page)
-    # D64 : le tableau de bord. Le mois en tête : 5 validations, 3 invalides, reste 95 sur 100.
+    # D64 : le tableau de bord. Le mois en tête : 5 validations, 3 invalides, reste 45 sur 50.
     assert "<span>Validations ce mois-ci</span><b>5 " in page
-    assert "\u206695 / 100\u2069" in page
+    assert "\u206645 / 50\u2069" in page
     assert "3 adresses fausses arrêtées ce mois-ci." in lu
     # D45 : le quota publie est mensuel, et la page dit que le mois est compte en UTC.
     assert "(UTC) · votre clé API" in page

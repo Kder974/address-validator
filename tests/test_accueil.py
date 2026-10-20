@@ -102,7 +102,7 @@ def test_les_chiffres_sont_ceux_du_code():
     assert f"{accounts.JOURS_ESSAI} jours" in texte
     assert f"{accounts.VALIDATIONS_ESSAI} validations" in texte
     assert prix["Starter"] in texte and prix["Pro"] in texte
-    assert "2 000 validations" in texte and "10 000 validations" in texte
+    assert "2 000 validations" in texte and "6 000 validations" in texte
     assert get_settings().contact_email in texte
 
 

@@ -120,7 +120,7 @@ def test_cle_valide_sert_et_debite_le_compte(comptes, ledger):
     assert corps["price_paid"] == 0.0
     assert reponse.headers["x-payment-mode"] == "api_key"
     assert reponse.headers["x-plan"] == "trial"
-    assert reponse.headers["x-quota-remaining"] == "99"
+    assert reponse.headers["x-quota-remaining"] == str(accounts.VALIDATIONS_ESSAI - 1)
     # Rien au registre USDC : le revenu publie (D40) ne compte pas un abonnement
     # comme un encaissement, et l'y inscrire le ferait mentir.
     assert ledger == []
@@ -182,7 +182,7 @@ def test_quota_du_mois_atteint_vaut_402(comptes, ledger):
     assert reponse.status_code == 402
     corps = reponse.json()
     assert corps["reason"] == "quota_atteint"
-    assert corps["quota"] == 100 and corps["validations_this_month"] == 100
+    assert corps["quota"] == corps["validations_this_month"] == accounts.VALIDATIONS_ESSAI
     # 402 pour un plafond d'usage, 401 pour une cle inconnue : deux situations,
     # deux codes — sinon le client cherche une faute de cle qui n'existe pas.
     assert _appel("sk_live_" + "z" * 32).status_code == 401

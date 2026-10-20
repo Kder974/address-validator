@@ -101,8 +101,9 @@ EUROS = {
     "essai": Decimal(0),
     "starter": _euros("Starter"),
     "pro": _euros("Pro"),
-    "unitaire_starter": _euros("Starter") / _offre("Starter")["validations"],
-    "unitaire_pro": _euros("Pro") / _offre("Pro")["validations"],
+    # Arrondis au dixième de centime d'euro affiché (D94 : 79 € ÷ 6 000 ne tombe pas juste).
+    "unitaire_starter": (_euros("Starter") / _offre("Starter")["validations"]).quantize(Decimal("0.0001")),
+    "unitaire_pro": (_euros("Pro") / _offre("Pro")["validations"]).quantize(Decimal("0.0001")),
     "colis_rate": Decimal(15),
     "colis_rate_max": Decimal(26),
 }
@@ -110,21 +111,22 @@ EUROS = {
 #: Table de `PRIX-PAR-LANGUE.md`, recopiée telle quelle : conversion arrondie de
 #: 29 € et 79 € aux `TAUX`. `tests/test_i18n.py` et la porte D57 vérifient qu'elle
 #: suit les euros du code (à 1 % près) et que le prix unitaire vaut le prix divisé
-#: par le quota : changer `accounts.OFFRES` sans refaire cette table les fait échouer.
+#: par le quota, arrondi au dernier chiffre affiché : changer `accounts.OFFRES` sans
+#: refaire cette table les fait échouer.
 CONVERTIS = {
     "USD": {
         "essai": "0", "starter": "33", "pro": "90",
-        "unitaire_starter": "0.0165", "unitaire_pro": "0.0090",
+        "unitaire_starter": "0.0165", "unitaire_pro": "0.0150",
         "colis_rate": "17", "colis_rate_max": "30",
     },
     "CNY": {
         "essai": "0", "starter": "223", "pro": "608",
-        "unitaire_starter": "0.1115", "unitaire_pro": "0.0608",
+        "unitaire_starter": "0.1115", "unitaire_pro": "0.1013",
         "colis_rate": "115", "colis_rate_max": "200",
     },
     "INR": {
         "essai": "0", "starter": "3160", "pro": "8620",
-        "unitaire_starter": "1.58", "unitaire_pro": "0.862",
+        "unitaire_starter": "1.58", "unitaire_pro": "1.44",
         "colis_rate": "1600", "colis_rate_max": "2900",
     },
 }
