@@ -88,6 +88,9 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);
 CREATE INDEX IF NOT EXISTS idx_customers_api_key_hash ON customers(api_key_hash);
+-- D91 : client Stripe du compte (`cus_…`), pour arrêter l'abonnement que Stripe termine.
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS stripe_customer VARCHAR(64);
+CREATE INDEX IF NOT EXISTS idx_customers_stripe ON customers(stripe_customer);
 
 -- D44 : une validation servie a un compte. C'est la source des statistiques du
 -- tableau de bord client (validations, adresses invalides, economies estimees) :

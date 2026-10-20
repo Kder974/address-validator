@@ -188,6 +188,14 @@ class Settings(BaseSettings):
     # la variable CONTACT_EMAIL du .env.
     contact_email: str = "address-validator@kder-ai.com"
 
+    # D91 : paiement des offres par Stripe. Les liens de paiement sont publics (créés
+    # par Fzed le 20/10/2026, mode réel) ; le portail client (résiliation) est
+    # facultatif ; le secret du webhook ne vit que dans le .env (STRIPE_WEBHOOK_SECRET).
+    stripe_lien_starter: str = "https://buy.stripe.com/6oUaEX5oIcd0eD93Mvcwg00"
+    stripe_lien_pro: str = "https://buy.stripe.com/8x26oHaJ2cd0gLher9cwg01"
+    stripe_portail: str = ""
+    stripe_webhook_secret: str = ""
+
     class Config:
         env_file = ".env"
         case_sensitive = False

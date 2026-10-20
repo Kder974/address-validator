@@ -28,7 +28,7 @@ import html
 import math
 from datetime import datetime, timedelta
 from functools import partial
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from fastapi.responses import HTMLResponse
 
@@ -54,6 +54,7 @@ TEXTES = {
         "essai": "Votre essai se termine le {fin}. Il vous reste {restant} validations sur {quota}.",
         "rythme_payant": "Au rythme actuel, le quota du mois sera épuisé vers le {date}, avant sa remise à zéro le {remise}.",
         "passer": "Passer à Starter, {prix} par mois",
+        "passer_pro": "Passer à Pro, {prix} par mois", "gerer": "Gérer mon abonnement (Stripe)",
         "comparer": "Comparer les offres",
         "guide": "Ouvrir le guide",
         "changer": "Demander un changement de plan",
@@ -98,6 +99,7 @@ TEXTES = {
         "essai": "Your trial ends on {fin}. You have {restant} of {quota} validations left.",
         "rythme_payant": "At the current pace, this month's quota will run out around {date}, before it resets on {remise}.",
         "passer": "Switch to Starter, {prix} per month",
+        "passer_pro": "Switch to Pro, {prix} per month", "gerer": "Manage my subscription (Stripe)",
         "comparer": "Compare the plans",
         "guide": "Open the guide",
         "changer": "Ask for a plan change",
@@ -141,6 +143,7 @@ TEXTES = {
         "essai": "您的试用期将于 {fin} 结束。{quota} 次验证中还剩 {restant} 次。",
         "rythme_payant": "按目前的速度，本月配额大约会在 {date} 用完，早于 {remise} 的重置。",
         "passer": "升级到 Starter，每月 {prix}",
+        "passer_pro": "升级到 Pro，每月 {prix}", "gerer": "管理我的订阅（Stripe）",
         "comparer": "比较套餐",
         "guide": "打开指南",
         "changer": "申请更换套餐",
@@ -184,6 +187,7 @@ TEXTES = {
         "essai": "आपका ट्रायल {fin} को खत्म होगा। {quota} में से {restant} वैलिडेशन बचे हैं।",
         "rythme_payant": "अभी की रफ़्तार से इस महीने का कोटा लगभग {date} तक खत्म हो जाएगा, {remise} को रीसेट होने से पहले।",
         "passer": "Starter पर जाएँ, {prix} प्रति माह",
+        "passer_pro": "Pro पर जाएँ, {prix} प्रति माह", "gerer": "मेरी सदस्यता प्रबंधित करें (Stripe)",
         "comparer": "प्लान की तुलना करें",
         "guide": "गाइड खोलें",
         "changer": "प्लान बदलने का अनुरोध करें",
@@ -228,6 +232,7 @@ TEXTES = {
         "essai": "Tu prueba termina el {fin}. Te quedan {restant} de {quota} validaciones.",
         "rythme_payant": "Al ritmo actual, la cuota del mes se agotará hacia el {date}, antes de reiniciarse el {remise}.",
         "passer": "Pasar a Starter, {prix} al mes",
+        "passer_pro": "Pasar a Pro, {prix} al mes", "gerer": "Gestionar mi suscripción (Stripe)",
         "comparer": "Comparar planes",
         "guide": "Abrir la guía",
         "changer": "Pedir un cambio de plan",
@@ -271,6 +276,7 @@ TEXTES = {
         "essai": "تنتهي تجربتك في {fin}. يبقى لك {restant} من أصل {quota} عملية تحقق.",
         "rythme_payant": "بالوتيرة الحالية، ستنفد حصة الشهر نحو {date}، قبل إعادة ضبطها في {remise}.",
         "passer": "الانتقال إلى Starter، {prix} شهريًا",
+        "passer_pro": "الانتقال إلى Pro، {prix} شهريًا", "gerer": "إدارة اشتراكي (Stripe)",
         "comparer": "قارن الباقات",
         "guide": "افتح الدليل",
         "changer": "اطلب تغيير الباقة",
@@ -346,6 +352,13 @@ def courbe(jours: list[tuple[int, int]], jours_du_mois: int, quota: int | None, 
     )
 
 
+def lien_paiement(base: str, infos: dict) -> str:
+    """D91 : lien de paiement Stripe qui dit à quel compte rattacher le paiement (`client_reference_id`)."""
+    champs = {"client_reference_id": infos.get("id"), "prefilled_email": infos.get("email")}
+    requete = urlencode({cle: valeur for cle, valeur in champs.items() if valeur})
+    return f"{base}?{requete}" if requete else base
+
+
 def _bouton(classe: str, lien: str, texte: str) -> str:
     return f'<a class="{classe}" href="{html.escape(lien, quote=True)}">{html.escape(texte)} {FLECHE}</a>'
 
@@ -371,7 +384,17 @@ def page(lang: str, *, infos: dict, statut: dict, maintenant: datetime, jours: l
     date_fin = s._date(lang, fin, "longue") if fin else ""
     periode = s._date(lang, maintenant, "mois")
     communs = s._communs(lang, "compte")
-    url_plan = f"mailto:{reglages.contact_email}?subject={quote(t['sujet_plan'])}"
+    # D91 : on paie une offre par son lien Stripe ; au-delà de Pro (Enterprise), on écrit.
+    url_plan = lien_paiement(reglages.stripe_lien_starter, infos)
+    url_pro = lien_paiement(reglages.stripe_lien_pro, infos)
+    url_contact = f"mailto:{reglages.contact_email}?subject={quote(t['sujet_plan'])}"
+    if statut["plan"] == accounts.PLAN_PAR_DEFAUT:
+        offres = (_bouton("btn btn-accent", url_plan, t["passer"].format(prix=communs["prix_starter"]))
+                  + _bouton("btn btn-glass", url_pro, t["passer_pro"].format(prix=communs["prix_pro"])))
+    elif statut["plan"] == "starter":
+        offres = _bouton("btn btn-accent", url_pro, t["passer_pro"].format(prix=communs["prix_pro"]))
+    else:
+        offres = _bouton("btn btn-accent", url_contact, t["changer"])
 
     # Au rythme du mois (règle de trois), quand le quota serait-il épuisé ?
     rythme = mois_n / max(len(jours), 1)
@@ -398,12 +421,12 @@ def page(lang: str, *, infos: dict, statut: dict, maintenant: datetime, jours: l
     boutons = ""
     if statut["expire"] or statut["quota_atteint"]:
         corps = s._etat(lang, "expire" if statut["expire"] else "quota", champs_etat)
-        boutons = _bouton("btn btn-accent", url_plan, t["changer"]) + _bouton("link", communs["url_pricing"], t["comparer"])
+        boutons = offres + _bouton("link", communs["url_pricing"], t["comparer"])
     elif fin is None:
         corps = s._etat(lang, "payant", champs_etat)
         if epuise and epuise < suivant:
             corps += f'<p>{html.escape(t["rythme_payant"].format(date=date_epuise, remise=remise))}</p>'
-            boutons = _bouton("btn btn-accent", url_plan, t["changer"])
+            boutons = offres
     elif not statut["validations"]:
         corps = f'<p>{html.escape(t["premier"])}</p>'
         boutons = _bouton("btn btn-accent", communs["url_guide"], t["guide"])
@@ -416,6 +439,8 @@ def page(lang: str, *, infos: dict, statut: dict, maintenant: datetime, jours: l
             phrase = t["essai"].format(fin=date_fin, restant=nombre(restant or 0), quota=s._quota(lang, quota))
         corps = f"<p>{html.escape(phrase)}</p>"
         boutons += _bouton("link", communs["url_pricing"], t["comparer"])
+    if reglages.stripe_portail and statut["plan"] in ("starter", "pro"):
+        boutons += _bouton("link", reglages.stripe_portail, t["gerer"])
     prochaine = f'<p class="next-top"><i aria-hidden="true"></i>{html.escape(t["prochaine"])}</p>{corps}<div class="next-row">{boutons}</div>'
 
     # Le conseil du jour change chaque jour, dans l'ordre de la liste.

@@ -88,6 +88,11 @@ OFFRES = (
     },
 )
 
+#: D91 : montant d'un paiement Stripe (centimes d'euro) -> plan. Les liens de paiement
+#: facturent exactement le prix des offres, sans taxe (franchise en base) : un
+#: montant inconnu ne change aucun plan.
+PLAN_PAR_MONTANT = {round(offre["prix_eur"] * 100): offre["nom"].lower() for offre in OFFRES if offre["prix_eur"]}
+
 #: Coût évité par adresse invalide détectée : borne basse de la fourchette
 #: publiée sur `/pricing` (17 à 30 $). Borne basse = estimation prudente.
 COUT_ECHEC_USD = 17.0
@@ -354,6 +359,33 @@ def finish_password_reset(session, ligne: PasswordReset, client: Customer, mot_d
     ).delete()
     session.query(CustomerSession).filter(CustomerSession.customer_id == client.id).delete()
     session.commit()
+
+
+def activer_abonnement(session, client_id: int, montant: int, stripe_customer: str) -> Customer | None:
+    """D91 : un paiement Stripe réussi passe le compte au plan payé. None si rien ne correspond."""
+    plan = PLAN_PAR_MONTANT.get(montant)
+    client = session.get(Customer, client_id) if plan else None
+    if client is None:
+        return None
+    client.plan = plan
+    client.stripe_customer = stripe_customer or client.stripe_customer
+    session.commit()
+    return client
+
+
+def resilier_abonnement(session, stripe_customer: str, maintenant: datetime | None = None) -> Customer | None:
+    """D91 : Stripe a terminé l'abonnement : retour à l'essai, déjà échu, donc la clé n'est plus servie."""
+    if not stripe_customer:
+        return None
+    client = session.query(Customer).filter_by(stripe_customer=stripe_customer).first()
+    if client is None:
+        return None
+    client.plan = PLAN_PAR_DEFAUT
+    moment = _naif_utc(maintenant or now_utc())
+    if client.trial_ends_at is None or client.trial_ends_at > moment:
+        client.trial_ends_at = moment
+    session.commit()
+    return client
 
 
 def regenerate_api_key(session, client: Customer) -> str:

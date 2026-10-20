@@ -65,6 +65,9 @@ class Customer(Base):
     plan = Column(String(20), nullable=False, default="trial")
     trial_ends_at = Column(DateTime)
     created_at = Column(DateTime, server_default=func.current_timestamp(), index=True)
+    # D91 : le client Stripe (`cus_…`) du compte, pour arrêter l'abonnement quand
+    # Stripe le termine. Ni carte ni moyen de paiement : Stripe les garde, pas nous.
+    stripe_customer = Column(String(64), index=True)
 
 
 class CustomerSession(Base):
