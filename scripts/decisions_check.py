@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D90, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D91, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 90
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 91
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7196,7 +7196,93 @@ def d90() -> None:
     guard(re.search(r"^\| D90 \|", read("DECISIONS.md"), re.M) is not None, "la decision D90 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 91)}
+def d91() -> None:
+    """Un paiement Stripe signé active l'offre payée ; sans signature, rien ne change ; plus de « sur demande »."""
+    import hashlib
+    import html
+    import hmac
+    import json
+    import tempfile
+    import time
+    from datetime import datetime, timedelta, timezone
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import accounts
+    from app.config import get_settings
+    from app.main import app
+    from app.models import Customer, CustomerValidation
+    from app.routes import stripe_webhook, tableau
+
+    secret = "whsec_porte_d91"
+    signer = lambda corps, cle=secret, t=None: (lambda t: f"t={t},v1=" + hmac.new(cle.encode(), f"{t}.".encode() + corps, hashlib.sha256).hexdigest())(int(time.time()) if t is None else t)  # noqa: E731
+    corps = b'{"type":"x"}'
+    guard(stripe_webhook.signature_valide(corps, signer(corps), secret), "une signature Stripe juste est refusee")
+    guard(not stripe_webhook.signature_valide(corps, signer(corps, "whsec_autre"), secret), "une signature d'un autre secret est acceptee")
+    guard(not stripe_webhook.signature_valide(corps, signer(corps, t=int(time.time()) - 600), secret), "une signature vieille de 10 minutes est acceptee (rejeu)")
+
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp()) / 'd91.sqlite'}")
+    Customer.__table__.create(moteur)
+    CustomerValidation.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+    with fabrique() as s:
+        compte, _cle = accounts.create_customer(s, email="d91@example.re", password="un-mot-de-passe-solide-12", shop_name="D91", platform="shopify")
+        identifiant = compte.id
+    client = TestClient(app)
+    reglages = get_settings().model_copy(update={"stripe_webhook_secret": secret})
+
+    def envoyer(evenement: dict, cle: str = secret) -> int:
+        brut = json.dumps(evenement).encode()
+        return client.post("/stripe/webhook", content=brut, headers={"Stripe-Signature": signer(brut, cle)}).status_code
+
+    def paiement(montant: int, client_stripe: str = "cus_d91") -> dict:
+        return {"type": "checkout.session.completed", "data": {"object": {"client_reference_id": str(identifiant), "amount_total": montant,
+                "currency": "eur", "payment_status": "paid", "customer": client_stripe}}}
+
+    def plan() -> str:
+        with fabrique() as s:
+            return s.get(Customer, identifiant).plan
+
+    with mock.patch.object(stripe_webhook, "_session", fabrique), mock.patch.object(stripe_webhook, "get_settings", lambda: reglages):
+        guard(envoyer(paiement(2900), "whsec_autre") == 400 and plan() == "trial", "un paiement mal signe change le plan")
+        guard(envoyer(paiement(1234)) == 200 and plan() == "trial", "un montant inconnu change le plan")
+        guard(envoyer(paiement(2900)) == 200 and plan() == "starter", "un paiement Starter signe n'active pas Starter")
+        guard(envoyer(paiement(7900)) == 200 and plan() == "pro", "un paiement Pro signe n'active pas Pro")
+        guard(envoyer({"type": "customer.subscription.deleted", "data": {"object": {"customer": "cus_d91"}}}) == 200 and plan() == "trial",
+              "la fin de l'abonnement ne ramene pas le compte a l'essai")
+        with fabrique() as s:
+            guard(accounts.plan_status(s, s.get(Customer, identifiant), datetime.now(timezone.utc) + timedelta(seconds=1))["expire"],
+                  "apres la fin de l'abonnement, la cle est encore servie")
+    sans_secret = get_settings().model_copy(update={"stripe_webhook_secret": ""})
+    with mock.patch.object(stripe_webhook, "get_settings", lambda: sans_secret):
+        guard(envoyer(paiement(2900)) == 503, "sans secret configure, le webhook ne refuse pas")
+
+    lien = tableau.lien_paiement(get_settings().stripe_lien_starter, {"id": 5, "email": "x@y.re"})
+    guard(lien.endswith("?client_reference_id=5&prefilled_email=x%40y.re"), f"le lien de paiement ne designe pas le compte : {lien}")
+    maintenant = datetime(2026, 10, 20, 12, tzinfo=timezone.utc)
+    statut = {"plan": "trial", "quota": 100, "validations": 100, "invalides": 0, "validations_mois": 100, "restant": 0,
+              "trial_ends_at": maintenant - timedelta(days=1), "trial_expire": True, "expire": True, "trial_jours_restants": 0, "quota_atteint": True}
+    page = tableau.page("fr", infos={"id": 5, "shop_name": "S", "email": "x@y.re", "prefixe": "sk_live_ab12", "cree_le": None},
+                        statut=statut, maintenant=maintenant, jours=[(5, 0)] * 19).body.decode()
+    guard(html.escape(lien) in page, "l'espace client n'ouvre pas le lien Stripe du compte")
+
+    # « عند الطلب » seul veut aussi dire « au moment de la commande » (conseils) : on cherche les tournures du passage.
+    faux = ("on request", "sur demande", "a petición", "अनुरोध पर", "يتم عند الطلب", "باقتك عند الطلب", ")، عند الطلب", "按申请", "提出申请")
+    for famille in ("pricing", "inscription", "inscription-cle", "compte"):
+        for lang in ("en", "fr", "es", "zh", "hi", "ar"):
+            gabarit = (ROOT / "app" / "templates" / famille / f"{lang}.html").read_text(encoding="utf-8")
+            for phrase in faux:
+                guard(phrase not in gabarit, f"{famille}/{lang} : le passage a un plan payant est encore dit « sur demande » ({phrase!r})")
+    inscription = read("app/routes/signup.py")
+    for phrase in ("se fait sur demande", "done on request", "升级需提出申请", "बदलाव अनुरोध पर", "se hace a petición", "يتم الانتقال عند الطلب"):
+        guard(phrase not in inscription, f"signup.py dit encore « sur demande » ({phrase!r})")
+    guard(re.search(r"^\| D91 \|", read("DECISIONS.md"), re.M) is not None, "la decision D91 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 92)}
 
 
 def catalog() -> list[tuple[str, str]]:

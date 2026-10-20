@@ -82,7 +82,9 @@ def _sans_ressource_externe(page: str, lang: str) -> None:
     assert bool(balise.group(2)) == (lang in i18n.RTL)
     for interdit in ("<script", "{{", "<!--@", "@import", "url("):
         assert interdit not in page, interdit
-    assert not re.search(r"https?://", page)
+    # D91 : seuls les liens de paiement Stripe sortent du site (on y va, rien n'en est chargé).
+    externes = re.findall(r"https?://[^\s\"'<>]+", page)
+    assert all(u.startswith(("https://buy.stripe.com/", "https://billing.stripe.com/")) for u in externes), externes
     assert all('rel="alternate"' in lien for lien in re.findall(r"<link\b[^>]*>", page))
     assert page.count("<h1") == 1
 

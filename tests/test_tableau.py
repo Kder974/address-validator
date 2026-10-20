@@ -23,13 +23,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app import accounts, i18n
+from app.config import get_settings
 from app.models import Customer, CustomerValidation
 from app.routes import signup as s
 from app.routes import tableau
 
 MAINTENANT = datetime(2026, 10, 14, 12, tzinfo=timezone.utc)
 FIN = datetime(2026, 10, 28, 12, tzinfo=timezone.utc)
-INFOS = {"shop_name": "Boutique <b>", "email": "boutique@example.re", "prefixe": "sk_live_ab12", "cree_le": None}
+INFOS = {"id": 7, "shop_name": "Boutique <b>", "email": "boutique@example.re", "prefixe": "sk_live_ab12", "cree_le": None}
 
 
 def _statut(**changes):
@@ -59,7 +60,9 @@ def test_chaque_langue_se_rend_proprement(lang):
     assert reponse.status_code == 200 and reponse.headers["cache-control"] == "no-store"
     for interdit in ("{{", "<!--@", "<script"):
         assert interdit not in texte
-    assert not re.search(r"https?://", texte)
+    # D91 : les seules adresses externes sont les liens de paiement Stripe (on y va, rien n'en est chargé).
+    externes = re.findall(r"https?://[^\s\"'<>]+", texte)
+    assert externes and all(u.startswith(("https://buy.stripe.com/", "https://billing.stripe.com/")) for u in externes)
     assert "Boutique &lt;b&gt;" in texte and "Boutique <b>" not in texte
     assert texte.count("<polyline") == 5  # deux étincelles, la courbe bleue, la rouge et le pointillé
     assert f'action="{i18n.chemin(lang, "compte")}/cle"' in texte
@@ -101,7 +104,8 @@ def test_plan_payant_bandeau_et_prevision_avant_la_remise_a_zero():
     _, lu = _page(statut=statut, jours=[(135, 0)] * 14)
     prochaine = _prochaine(lu)
     assert 'class="state s-paid"' in prochaine
-    assert "avant sa remise à zéro le" in prochaine and "Demander un changement de plan" in prochaine
+    assert "avant sa remise à zéro le" in prochaine and "Passer à Pro, 79 € par mois" in prochaine
+    assert f'href="{get_settings().stripe_lien_pro}?client_reference_id=7&amp;prefilled_email=boutique%40example.re"' in _page(statut=statut, jours=[(135, 0)] * 14)[0].body.decode()
     assert "2 000 validations par mois" in lu
 
 
@@ -109,7 +113,7 @@ def test_essai_termine_puis_quota_atteint():
     expire = _prochaine(_page(statut=_statut(trial_expire=True, expire=True, quota_atteint=True, validations=100,
                                               validations_mois=100, restant=0), jours=[(7, 0)] * 14)[1])
     assert 'class="state s-expired"' in expire and 's-quota' not in expire
-    assert "Demander un changement de plan" in expire
+    assert "Passer à Starter, 29 € par mois" in expire and "Passer à Pro, 79 € par mois" in expire
     quota = _prochaine(_page(statut=_statut(quota_atteint=True, validations=100, validations_mois=100, restant=0),
                              jours=[(7, 0)] * 14)[1])
     assert 'class="state s-quota"' in quota and f'"reason": "{accounts.REFUS_QUOTA_ATTEINT}"' in quota

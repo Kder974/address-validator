@@ -36,6 +36,7 @@ from app.routes import (
     prospection,
     revenue,
     signup,
+    stripe_webhook,
     validate,
     validate_form,
 )
@@ -151,6 +152,8 @@ app.include_router(accueil.router, tags=["commercial"])
 app.include_router(contenu.router, tags=["commercial"])
 # robots.txt, sitemap.xml, favicon.ico : ce que les moteurs lisent en premier (D65).
 app.include_router(seo.router, tags=["commercial"])
+# POST /stripe/webhook : un paiement Stripe signé active le plan du compte (D91).
+app.include_router(stripe_webhook.router, tags=["commercial"])
 
 
 @app.middleware("http")

@@ -477,3 +477,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D90: the ten other page families (test, guide, signup, compare, agents, account, login, forgotten password, new password, signup key) in all six languages use the home page style; the guide no longer says a repeated check is free
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D90
   EXPECT: DECISION OK D90
+- [ ] D91: a signed Stripe checkout.session.completed (paid, EUR) switches the account named by client_reference_id to the plan of its amount (2900 Starter, 7900 Pro); bad or stale signature, unknown amount or no secret change nothing; subscription deleted brings the account back to an expired trial; the dashboard opens the Stripe links with the account id; no page says plan changes happen on request
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D91
+  EXPECT: DECISION OK D91
