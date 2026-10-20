@@ -1057,3 +1057,41 @@ Le catalogue Coinbase (Bazaar) a mis à jour la fiche à la seconde du paiement
 trouvés par ce catalogue. Prochaine étape pour l'exploitant : réclamer le wallet
 payTo sur Settled (`https://settled.tools/claim?wallet=0x0fE9…2d339`) pour
 activer la veille vendeur offerte.
+
+## 21. Deuxième acheteur externe — vet402 Observatory (19/10/2026)
+
+Après SettledScout (§20), un deuxième agent extérieur a payé le service, la même
+journée : **vet402 Observatory**, l'index indépendant de mesure du protocole x402
+([vet402.com](https://vet402.com/observatory/methodology)).
+
+| Élément | Mesure |
+|---|---|
+| Date | 19/10/2026 21:32:18–19 UTC |
+| Transaction | `0xf57029a310c1c31abca3c2d00b339c3848d88bfc6dd5a93b25cf23155996752e` (bloc 52 828 097) |
+| Explorateur | https://basescan.org/tx/0xf57029a310c1c31abca3c2d00b339c3848d88bfc6dd5a93b25cf23155996752e |
+| Payeur | `0xc9c7b38c0942914fc8ea12063bc92dcd3b581670` (payeur Base de vet402 depuis le 04/09) |
+| Montant | 0,02 USDC ; gaz payé par le facilitateur-relais `0xe72f…b1b8` |
+| Séquence | probe L0 gratuit (`402`) le 19/10 à 10:30, puis `402` → `200` en 1 s ; pays d'appel **US** |
+| Solde du service | 1,10 → **1,12 USDC** |
+| Revenu réel publié | **4 paiements réels / 0,08 USDC** (registre total : 7 / 0,14, dont 3 recettes de test) |
+
+Verdict public de vet402 sur cette transaction (registre
+`/api/v1/observatory/export.csv`, `resource_key: kder-ai.com/validate`) :
+
+- `status: settled` — paiement confirmé on-chain, `confirmed_units: 20000` ;
+- `http_status_paid: 200`, `latency_ms: 1629`, `request_body: declared`
+  (l'exemple d'entrée de la fiche Bazaar), `settlement_source: seller_claim` ;
+- `l2_schema: no_declaration` — la fiche du catalogue ne déclare pas de schéma
+  de sortie exploitable par leur contrôle L2. **Piste d'amélioration** : enrichir
+  l'extension `bazaar` du 402/du catalogue avec un schéma de sortie
+  (`extensions.bazaar.info.output.schema`) pour passer de `no_declaration` à
+  `match` — c'est une modification de code à décider (D89), pas une urgence.
+
+Aucun autre paiement n'a eu lieu depuis : environ 30 probes non payés par jour
+(mako-pulse-prober, CarbonMonitor, x402-census-probe, Agent402, ToolVetProbe,
+lumiere-paycheck-prober, x402-observer, AgentRankProbe, MPP32…) continuent de
+tester le `402` sans payer. Les deux acheteurs sont des services de mesure/
+d'indexation, pas encore des e-commerçants : c'est la validation externe du
+protocole et du catalogue, pas encore de la demande commerciale.
+
+Retour arrière si besoin : `/opt/address-validator-avant-20261019-135141`.
