@@ -793,7 +793,7 @@ API = <span class="s">"{{base}}/validate"</span>
         <div class="ref-row"><dt><code>degraded: true</code> <span class="st st-info">需重新验证</span></dt><dd>服务商没有响应。该响应不说明地址本身的任何情况，也不是拒绝。请稍后重试。</dd></div>
         <div class="ref-row"><dt>集成</dt><dd>没有 Shopify 应用，也没有 WooCommerce 插件：调用从您自己的服务发出。</dd></div>
       </dl>
-      <div class="note note-ok"><strong>我们保存什么，不保存什么。</strong>对于付费调用或订阅调用：保存地址的指纹（<code>cache_key</code>）和处理结果，绝不保存地址本身。对于无需账户的免费测试：<strong>什么都不保存</strong>，只有一个匿名计数器用来执行上限。删除请求通过 <code>cache_key</code> 提出。</div>
+      <div class="note note-ok"><strong>我们保存什么，不保存什么。</strong>在数据库中，付费调用或订阅调用只留下地址的指纹（<code>cache_key</code>）和处理结果；无需账户的免费测试<strong>什么都不留下</strong>，只有一个匿名计数器用来执行上限。缓存以该指纹为索引，将每个结果（标准化地址、坐标和结论）保存 {{cache_jours}} 天，之后删除。删除请求通过 <code>cache_key</code> 提出。</div>
 
       <div class="next">
         <h2>开始动手</h2>

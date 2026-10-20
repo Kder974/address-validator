@@ -472,4 +472,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [x] D87: the home page in all six languages is the animated v3 design: one address field posting to the free test, CSS-only animations with a reduced-motion fallback, every price, quota and cache duration from the code in the page currency, no false promise (cache not billed, most shops, fraction of a second, plugin, CSV script, not stored), Arabic right to left
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D87
   EXPECT: DECISION OK D87
-  EVIDENCE: automatic-evidence=v1; definition-sha256=51ee8872e2093a08c581f01c1a47d472d5d160d094806fdc5e29550bf1a284d9; exit=0; EXPECT=matched; output-sha256=0c1353a0d95ac14f70be680ef316078966360e47b3a3f1f1a8eda82d25461304; output-bytes=435; shell=C:\WINDOWS\system32\cmd.exe; cwd=C:\Users\kder_\Documents\PDF Suite Files\Surveillant PC\Plan de richesse\address-validator; path=7b70d0fe75c0/27 entries
+- [ ] D88: pricing, guide (six languages) and PRIVACY.md say what the cache really keeps: the standardized address, under a SHA-256 fingerprint, for CACHE_TTL days, free test included; no page says the address is never kept in clear text or that the free test keeps nothing
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D88
+  EXPECT: DECISION OK D88

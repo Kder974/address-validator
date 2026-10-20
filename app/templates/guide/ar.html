@@ -788,7 +788,7 @@ API = <span class="s">"{{base}}/validate"</span>
         <div class="ref-row"><dt><code dir="ltr">degraded: true</code> <span class="st st-info">أعد التحقق</span></dt><dd>لم يستجب المزوّد. الرد لا يقول شيئًا عن العنوان: إنه ليس رفضًا. أعد المحاولة لاحقًا.</dd></div>
         <div class="ref-row"><dt>التكاملات</dt><dd>لا تطبيق Shopify ولا إضافة WooCommerce: الاستدعاء ينطلق من خدمتك أنت.</dd></div>
       </dl>
-      <div class="note note-ok"><strong>ما نحتفظ به، وما لا نحتفظ به.</strong> لاستدعاء مدفوع أو ضمن اشتراك: بصمة للعنوان (<code dir="ltr">cache_key</code>) والنتيجة، ولا نحتفظ أبدًا بالعنوان نفسه. للتجربة المجانية دون حساب: <strong>لا شيء</strong>، سوى عدّاد مجهول الهوية يفرض الحد الأقصى. يُقدَّم طلب الحذف باستخدام <code dir="ltr">cache_key</code>.</div>
+      <div class="note note-ok"><strong>ما نحتفظ به، وما لا نحتفظ به.</strong> في قاعدة البيانات، لا يترك الاستدعاء المدفوع أو ضمن اشتراك سوى بصمة للعنوان (<code dir="ltr">cache_key</code>) والنتيجة؛ ولا تترك التجربة المجانية دون حساب <strong>شيئًا</strong>، سوى عدّاد مجهول الهوية يفرض الحد الأقصى. تحتفظ ذاكرة التخزين المؤقت بكل نتيجة (العنوان بصيغته الموحّدة وإحداثياته والحكم) لمدة <bdi>{{cache_jours}}</bdi> يومًا تحت هذه البصمة، ثم تحذفها. يُقدَّم طلب الحذف باستخدام <code dir="ltr">cache_key</code>.</div>
 
       <div class="next">
         <h2>انتقل إلى التطبيق</h2>

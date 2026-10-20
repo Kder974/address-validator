@@ -637,7 +637,7 @@ h1,h2{text-wrap:wrap}
         </details>
         <details class="qa">
           <summary>我发送的地址会怎样处理？</summary>
-          <p>地址仅用于验证。缓存只保存 SHA-256 指纹，从不保存明文地址。不会转售，也不会用于广告。</p>
+          <p>地址仅用于验证。缓存以 SHA-256 指纹为索引，保存标准化后的地址 {{jours_cache}} 天，之后删除。不会转售，也不会用于广告。</p>
         </details>
         <details class="qa">
           <summary>是否覆盖留尼汪和其他国际地址？</summary>
@@ -648,7 +648,7 @@ h1,h2{text-wrap:wrap}
           <p>第一次调用几分钟即可完成：发起 <code class="inline">POST /validate</code>，并把密钥放在请求头 <code class="inline">X-API-Key</code> 中。接入订单时，指南涵盖直接调用、CSV 导入、Shopify 和 WooCommerce，并附代码示例。无需安装 Shopify 应用：调用从您自己的服务发出。</p>
         </details>
       </div>
-      <p class="rgpd"><strong>符合 GDPR。</strong>提交的地址仅用于验证，不会转售，也不会用于广告。缓存保存 SHA-256 指纹，从不保存明文地址。运行日志对 IP 地址做假名化处理（SHA-256 加盐），{{jours_journaux}} 天后清除。您可以随时申请删除账户数据。</p>
+      <p class="rgpd"><strong>符合 GDPR。</strong>提交的地址仅用于验证，不会转售，也不会用于广告。缓存以 SHA-256 指纹为索引，保存标准化后的地址 {{jours_cache}} 天，之后删除。运行日志对 IP 地址做假名化处理（SHA-256 加盐），{{jours_journaux}} 天后清除。您可以随时申请删除账户数据。</p>
     </div>
   </div>
 </section>

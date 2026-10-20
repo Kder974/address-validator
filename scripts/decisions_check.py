@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D87, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D88, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 87
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 88
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -5242,7 +5242,8 @@ def d58() -> None:
     try:
         for lang in i18n.LANGUES:
             page = hors_bloc(guide.page(autres, lang))  # D65 : le bloc a sa propre porte
-            for valeur, fois in ((8642, 1), (7531, 2), (9753, 1), (864, 3), (975, 1), (0.05, 5)):
+            # D88 : la note « ce que nous conservons » dit aussi la duree du cache (864 : 3 -> 4).
+            for valeur, fois in ((8642, 1), (7531, 2), (9753, 1), (864, 4), (975, 1), (0.05, 5)):
                 vu = page.count(i18n.nombre(lang, valeur))
                 guard(vu == fois, f"guide {lang} : {valeur} affiche {vu} fois au lieu de {fois} : un chiffre est recopie dans le gabarit")
             guard(page.count('{"x402Version": 7}') == 2, f"guide {lang} : la version x402 n'est pas celle du code")
@@ -7114,7 +7115,37 @@ def d87() -> None:
     guard(re.search(r"^\| D87 \|", read("DECISIONS.md"), re.M) is not None, "la decision D87 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 88)}
+def d88() -> None:
+    """Ce que garde le cache est dit tel quel : l'adresse standardisée, 30 jours, sous une empreinte."""
+    from fastapi.testclient import TestClient
+
+    from app import i18n
+    from app.cache import CACHE_TTL
+    from app.main import app
+
+    client = TestClient(app)
+    faux = {"en": ("never the address in clear text", "never the address itself"), "fr": ("jamais l'adresse en clair", "jamais l'adresse elle-même"),
+            "es": ("nunca la dirección en claro", "nunca la dirección en sí", "la página no guarda nada"), "zh": ("从不保存明文地址", "绝不保存地址本身"),
+            "hi": ("पता कभी सादे रूप में नहीं", "पता खुद कभी नहीं"), "ar": ("ولا تحتفظ أبدًا بالعنوان كما هو", "ولا نحتفظ أبدًا بالعنوان نفسه")}
+    vrai = {"en": ("filed under a SHA-256 fingerprint", "under that fingerprint"), "fr": ("rangée sous une empreinte SHA-256", "sous cette empreinte"),
+            "es": ("archivada bajo una huella SHA-256", "bajo esa huella"), "zh": ("缓存以 SHA-256 指纹为索引", "缓存以该指纹为索引"),
+            "hi": ("SHA-256 फ़िंगरप्रिंट के नीचे", "उसी फ़िंगरप्रिंट के नीचे"), "ar": ("مفهرسًا ببصمة SHA-256", "تحت هذه البصمة")}
+    jours = None
+    for lang in i18n.LANGUES:
+        jours = i18n.nombre(lang, CACHE_TTL // 86400)
+        for page, attendu in zip(("pricing", "guide"), vrai[lang]):
+            adresse = i18n.chemin(lang, page)
+            texte = hors_bloc(client.get(adresse).text)
+            for phrase in faux[lang]:
+                guard(phrase not in texte, f"{adresse} : promesse fausse sur le cache : {phrase!r}")
+            phrase = re.search(r"[^.。।]*" + re.escape(attendu) + r"[^.。।]*", texte)
+            guard(phrase is not None and jours in phrase.group(0), f"{adresse} : la duree reelle du cache ({jours} jours) n'est pas dite avec l'empreinte")
+    prive = read("PRIVACY.md")
+    guard("n'est **pas** conservée" not in prive and "même cache que l'API" in prive, "PRIVACY.md dit encore que l'essai gratuit ne garde pas l'adresse")
+    guard(re.search(r"^\| D88 \|", read("DECISIONS.md"), re.M) is not None, "la decision D88 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 89)}
 
 
 def catalog() -> list[tuple[str, str]]:
