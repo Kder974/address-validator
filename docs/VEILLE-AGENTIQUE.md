@@ -33,15 +33,16 @@
   non payée, un 200 est un paiement accepté.
 
 ### C. Écosystème (externe, gratuit)
-- **GitHub releases** (API publique, 60 req/h sans jeton) :
-  `coinbase/x402`, `coinbase/agentkit`, `x402-index/x402-discovery-index`,
-  `google-agentic-commerce/AP2`, `stripe/agentic-commerce-protocol` ;
+- **GitHub releases** via les flux Atom publics (`/<repo>/releases.atom`,
+  sans jeton ni quota) : `coinbase/x402`, `coinbase/agentkit`,
+  `x402-index/x402-discovery-index`, `google-agentic-commerce/AP2` ;
 - **x402 Discovery Index** : nombre d'API annoncées (README public) ;
-- **Bazaar** : catalogue public s'il répond (`BAZAAR_URL` surchargeable), et
-  présence de `kder-ai.com` ;
-- **On-chain** : transferts USDC reçus sur la wallet `payTo` via le nœud
-  JSON-RPC Base (`BASE_RPC_URL`), sans indexeur payant. L'état garde le dernier
-  bloc vu pour ne compter que les nouveaux transferts.
+- **Bazaar** : catalogue public s'il répond (`BAZAAR_URL` surchargeable, liste
+  `items`), et présence de `kder-ai.com` ;
+- **On-chain** : **solde USDC** de la wallet `payTo` via `eth_call balanceOf`
+  (un seul appel, repli sur des nœuds publics Base : `BASE_RPC_URL`,
+  `base-rpc.publicnode.com`, `base.drpc.org`). La variation de solde entre deux
+  passages est l'alerte ; le revenu détaillé vient du registre.
 
 ### D. Alertes (uniquement les changements)
 - nouveau paiement réel (cumul qui augmente) ;
@@ -117,8 +118,8 @@ dépôt.
 | Poste | Coût |
 |---|---:|
 | Script, timer, email | **0 €** |
-| GitHub API (60 req/h sans jeton) | 0 € |
-| Nœud Base public (`mainnet.base.org`) | 0 € |
+| Flux GitHub Atom (releases) | 0 € |
+| Nœud Base public (`mainnet.base.org` + repli publicnode/drpc) | 0 € |
 | Journal de découverte et Nginx | déjà payés avec le VPS |
 | Total mensuel | **0 €** |
 
@@ -170,9 +171,10 @@ Constat tiré des journaux de production sur ~10 jours :
   intégration framework) et mesurer son effet.
 
 ## 7. Limites assumées
-- GitHub non authentifié : 60 requêtes/h ; suffisant pour 5 dépôts/jour.
-- Le nœud Base public peut limiter : le rapport écrit « on-chain indisponible »
-  au lieu d'un faux zéro.
+- GitHub : flux Atom public, sans quota ; un dépôt renommé ou supprimé est écrit
+  « indisponible ».
+- Les nœuds Base publics peuvent limiter : le rapport écrit « on-chain
+  indisponible » au lieu d'un faux zéro, et réessaie sur un nœud de repli.
 - Bazaar n'est pas garanti public : l'erreur est écrite, pas masquée.
 - Le digest ne remplace pas un vrai APM payant : il mesure le seul funnel qui
   compte (découverte → 402 → paiement → revenu) à coût nul.

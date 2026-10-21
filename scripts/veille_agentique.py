@@ -33,6 +33,7 @@ une donnee, elle est ecrite) ; 2 usage invalide.
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
 import re
@@ -66,9 +67,23 @@ DEPOTS = (
     "stripe/agentic-commerce-protocol",
 )
 
-#: Adresse USDC sur Base et topic ERC-20 `Transfer(from, to, value)`.
+#: Depots suivis (flux Atom des releases, public et sans limite d'API).
+DEPOTS = (
+    "coinbase/x402",
+    "coinbase/agentkit",
+    "x402-index/x402-discovery-index",
+    "google-agentic-commerce/AP2",
+)
+
+#: Adresse USDC sur Base ; selecteur ERC-20 `balanceOf(address)`.
 USDC_BASE = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
-TOPIC_TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+SELECTEUR_BALANCE_OF = "0x70a08231"
+
+#: Nœuds Base publics essayes dans l'ordre pour le solde on-chain (aucun jeton).
+RPC_PUBLICS = (
+    "https://base-rpc.publicnode.com",
+    "https://base.drpc.org",
+)
 
 #: Fenetre par defaut du journal et de l'acces Nginx.
 FENETRE_DEFAUT = "24h"
@@ -106,13 +121,14 @@ def depuis_texte(texte: str) -> datetime:
         raise ValueError(f"fenetre illisible : {texte!r} (attendu 24h, 7d, 30d)") from erreur
 
 
-def _get(url: str, timeout: float = 15.0) -> tuple[int, str, str]:
+def _get(url: str, timeout: float = 15.0, accept: str | None = None) -> tuple[int, str, str]:
     """Lecture HTTP identifiee ; `(code, corps, note)` — 0 et note si echec."""
     demande = urllib.request.Request(
         url,
         headers={
             "User-Agent": AGENT_HTTP,
-            "Accept": "application/json, text/plain;q=0.9, text/html;q=0.8",
+            "Accept": accept
+            or "application/json, text/plain;q=0.9, text/html;q=0.8",
         },
     )
     try:
@@ -126,7 +142,7 @@ def _get(url: str, timeout: float = 15.0) -> tuple[int, str, str]:
 
 
 def _get_json(url: str) -> tuple[Any, str]:
-    """JSON distant, ou `(None, note)` sans jamais lever."""
+    """JSON distant, ou `(None, note)` sans jamais lever (garde pour extensions)."""
     code, corps, note = _get(url)
     if code != 200 or not corps:
         return None, note or f"HTTP {code}"
@@ -266,18 +282,31 @@ def analyser_acces(chemin: Path | str, depuis: datetime) -> dict[str, Any]:
 
 
 def releases_github() -> dict[str, Any]:
-    """Derniere release de chaque depot suivi (GitHub API publique)."""
+    """Derniere release de chaque depot suivi, via son flux Atom public.
+
+    L'API REST de GitHub renvoie 404 derriere certains reseaux ; le flux Atom
+    `/<repo>/releases.atom` est public, sans jeton et sans quota. Il ne demande
+    qu'un GET par depot et donne le dernier titre de release.
+    """
     resultat: dict[str, Any] = {}
     for depot in DEPOTS:
-        document, note = _get_json(f"https://api.github.com/repos/{depot}/releases/latest")
-        if document is None:
-            resultat[depot] = {"disponible": False, "erreur": note}
+        code, texte, note = _get(
+            f"https://github.com/{depot}/releases.atom",
+            accept="application/atom+xml, application/xml;q=0.9, */*;q=0.8",
+        )
+        if code != 200 or not texte:
+            resultat[depot] = {"disponible": False, "erreur": note or f"HTTP {code}"}
             continue
+        bloc = re.search(r"<entry>(.*?)</entry>", texte, re.S)
+        if not bloc:
+            resultat[depot] = {"disponible": True, "version": "aucune release", "publie_le": None}
+            continue
+        titre = re.search(r"<title>(.*?)</title>", bloc.group(1), re.S)
+        mise_a_jour = re.search(r"<updated>(.*?)</updated>", bloc.group(1), re.S)
         resultat[depot] = {
             "disponible": True,
-            "version": str(document.get("tag_name") or document.get("name") or "?"),
-            "publie_le": document.get("published_at"),
-            "url": document.get("html_url"),
+            "version": html.unescape(titre.group(1)).strip() if titre else "?",
+            "publie_le": mise_a_jour.group(1) if mise_a_jour else None,
         }
     return resultat
 
@@ -292,7 +321,7 @@ def index_x402() -> dict[str, Any]:
 
 
 def bazaar() -> dict[str, Any]:
-    """Catalogue Coinbase Bazaar s'il est public, et presence de kder-ai.com."""
+    """Catalogue Coinbase Bazaar s'il est public, et présence de kder-ai.com."""
     url = os.environ.get("BAZAAR_URL", "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources")
     code, corps, note = _get(url)
     if code != 200 or not corps:
@@ -301,63 +330,68 @@ def bazaar() -> dict[str, Any]:
         document = json.loads(corps)
     except json.JSONDecodeError:
         return {"disponible": False, "erreur": "json_illisible", "url": url}
-    ressources = document.get("resources") if isinstance(document, dict) else None
+    if not isinstance(document, dict):
+        return {"disponible": False, "erreur": "structure_inattendue", "url": url}
+    entrees = document.get("items") or document.get("resources")
+    if not isinstance(entrees, list):
+        return {"disponible": False, "erreur": "liste_absente_du_catalogue", "url": url}
     return {
         "disponible": True,
         "url": url,
-        "entrees": len(ressources) if isinstance(ressources, list) else "?",
+        "entrees": len(entrees),
         "nous_listes": "kder-ai.com" in corps,
     }
 
 
-def transferts_usdc(dernier_bloc: int | None) -> dict[str, Any]:
-    """Transferts USDC recus sur la wallet `payTo`, via le nœud JSON-RPC Base."""
+def solde_usdc() -> dict[str, Any]:
+    """Solde USDC de la wallet `payTo`, via `eth_call balanceOf` (aucun indexeur paye).
+
+    Un seul appel par nœud, avec repli sur des nœuds publics si le premier
+    limite : c'est la variation de ce solde, comparée à l'état precedent, qui
+    signale un paiement on-chain. Les montants viennent du registre pour le
+    revenu ; le solde est la vérification indépendante.
+    """
     reglages = get_settings()
-    rpc = str(getattr(reglages, "base_rpc_url", "") or "https://mainnet.base.org")
     wallet = str(getattr(reglages, "cdp_wallet_address", "") or "").strip()
     if not wallet.startswith("0x") or len(wallet) != 42:
         return {"disponible": False, "erreur": "wallet payTo absente de la configuration"}
-    bloc_reponse, note = _post_json(rpc, {"jsonrpc": "2.0", "id": 1, "method": "eth_blockNumber", "params": []})
-    if not bloc_reponse or "result" not in bloc_reponse:
-        return {"disponible": False, "erreur": "eth_blockNumber : " + (note or "reponse inattendue")}
-    bloc_courant = int(str(bloc_reponse["result"]), 16)
-    debut = int(dernier_bloc) + 1 if dernier_bloc else max(0, bloc_courant - 2000)
-    debut = max(0, min(debut, bloc_courant))
-    filtre = {
-        "address": USDC_BASE,
-        "fromBlock": hex(debut),
-        "toBlock": hex(bloc_courant),
-        "topics": [TOPIC_TRANSFER, None, "0x" + "0" * 24 + wallet[2:].lower()],
-    }
-    reponse, note = _post_json(
-        rpc,
-        {"jsonrpc": "2.0", "id": 2, "method": "eth_getLogs", "params": [filtre]},
-        timeout=25.0,
-    )
-    if reponse is None or "result" not in reponse:
-        return {"disponible": False, "erreur": "eth_getLogs : " + (note or "reponse inattendue")}
-    transferts = []
-    for entree in reponse["result"]:
-        try:
-            montant = int(str(entree.get("data") or "0x0"), 16) / 1_000_000
-        except ValueError:
-            continue
-        transferts.append(
+    donnees = SELECTEUR_BALANCE_OF + "0" * 24 + wallet[2:].lower()
+    candidats: list[str] = []
+    for noeud in (
+        os.environ.get("VEILLE_RPC_URL", "").strip(),
+        str(getattr(reglages, "base_rpc_url", "") or "").strip(),
+        *RPC_PUBLICS,
+    ):
+        if noeud and noeud not in candidats:
+            candidats.append(noeud)
+    erreurs: list[str] = []
+    for noeud in candidats:
+        reponse, note = _post_json(
+            noeud,
             {
-                "tx": str(entree.get("transactionHash") or ""),
-                "de": "0x" + str((entree.get("topics") or ["", ""])[1])[-40:],
-                "montant_usdc": round(montant, 6),
-                "bloc": int(str(entree.get("blockNumber") or "0x0"), 16),
-            }
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "eth_call",
+                "params": [{"to": USDC_BASE, "data": donnees}, "latest"],
+            },
         )
-    return {
-        "disponible": True,
-        "bloc_courant": bloc_courant,
-        "bloc_debut": debut,
-        "nombre": len(transferts),
-        "montant_usdc": round(sum(t["montant_usdc"] for t in transferts), 6),
-        "transferts": transferts[-5:],
-    }
+        if reponse and "result" in reponse:
+            try:
+                solde = int(str(reponse["result"]), 16) / 1_000_000
+            except ValueError:
+                erreurs.append(f"{noeud}: resultat illisible")
+                continue
+            return {
+                "disponible": True,
+                "solde_usdc": round(solde, 6),
+                "rpc": noeud,
+                "wallet": wallet[:10] + "..." + wallet[-6:],
+            }
+        detail = ""
+        if isinstance(reponse, dict) and isinstance(reponse.get("error"), dict):
+            detail = str(reponse["error"].get("message") or "")
+        erreurs.append(f"{noeud}: {detail or note or 'reponse inattendue'}")
+    return {"disponible": False, "erreur": " ; ".join(erreurs[-2:])}
 
 
 # --------------------------------------------------------------------------- #
@@ -402,11 +436,13 @@ def diff_etat(ancien: dict[str, Any], nouveau: dict[str, Any]) -> list[str]:
         alertes.append(
             "nouvelle(s) classe(s) d'appelant : " + ", ".join(sorted(nouvelles_classes - anciennes_classes))
         )
-    if (nouveau.get("onchain") or {}).get("nombre", 0) > 0:
-        alertes.append(
-            f"transfert(s) USDC on-chain : {(nouveau.get('onchain') or {}).get('nombre')} "
-            f"({(nouveau.get('onchain') or {}).get('montant_usdc')} USDC)"
-        )
+    solde = (nouveau.get("onchain") or {}).get("solde_usdc")
+    ancien_solde = ancien.get("solde_usdc")
+    if solde is not None:
+        if ancien_solde is None:
+            alertes.append(f"premier releve du solde USDC on-chain : {solde} USDC")
+        elif round(float(solde), 6) != round(float(ancien_solde), 6):
+            alertes.append(f"solde USDC on-chain : {ancien_solde} -> {solde} USDC")
     return alertes
 
 
@@ -479,14 +515,12 @@ def formater_markdown(donnees: dict[str, Any]) -> str:
         lignes.append(f"- Bazaar : {bazaar_.get('entrees')} entree(s), nous listes : {oui_non(bool(bazaar_.get('nous_listes')))}")
     else:
         lignes.append(f"- Bazaar : indisponible ({bazaar_.get('erreur')})")
-    lignes.extend(["", "## 5. USDC recus on-chain (Base)"])
+    lignes.extend(["", "## 5. Solde USDC de la wallet payTo (Base)"])
     if onchain.get("disponible"):
-        lignes.append(
-            f"- {onchain.get('nombre')} transfert(s) / {onchain.get('montant_usdc')} USDC "
-            f"(blocs {onchain.get('bloc_debut')} -> {onchain.get('bloc_courant')})"
-        )
-        for transfert in onchain.get("transferts") or []:
-            lignes.append(f"  - {transfert.get('montant_usdc')} USDC de {transfert.get('de')} (tx {str(transfert.get('tx'))[:18]}...)")
+        lignes.append(f"- solde on-chain : **{onchain.get('solde_usdc')} USDC** (nœud {onchain.get('rpc')})")
+        variation = onchain.get("variation_usdc")
+        if variation is not None:
+            lignes.append(f"- variation depuis le passage precedent : {variation:+.6f} USDC")
     else:
         lignes.append(f"- **on-chain indisponible** : {onchain.get('erreur')}")
     lignes.extend(["", "## 6. Alertes"])
@@ -538,7 +572,7 @@ def envoyer_email(sujet: str, texte: str) -> tuple[bool, str]:
 
 
 def construire_donnees(
-    *, sans_reseau: bool, fenetre_texte: str, chemin_acces: str | None, dernier_bloc: int | None = None
+    *, sans_reseau: bool, fenetre_texte: str, chemin_acces: str | None
 ) -> dict[str, Any]:
     """Reunit toutes les sources ; une source en echec est notee, pas fatale."""
     depuis = depuis_texte(fenetre_texte)
@@ -564,7 +598,7 @@ def construire_donnees(
         indisponibles.append(f"index x402 : {donnees['ecosysteme']['index'].get('erreur')}")
     if not donnees["ecosysteme"]["bazaar"].get("disponible"):
         indisponibles.append(f"bazaar : {donnees['ecosysteme']['bazaar'].get('erreur')}")
-    donnees["onchain"] = transferts_usdc(dernier_bloc)
+    donnees["onchain"] = solde_usdc()
     if not donnees["onchain"].get("disponible"):
         indisponibles.append(f"on-chain : {donnees['onchain'].get('erreur')}")
     donnees["sources_indisponibles"] = indisponibles
@@ -580,7 +614,7 @@ def preparer_etat(donnees: dict[str, Any], ancien: dict[str, Any]) -> dict[str, 
         "dernier_paiement": (donnees.get("revenu") or {}).get("dernier_paiement"),
         "releases": {depot: {"version": version.get("version")} for depot, version in ((donnees.get("ecosysteme") or {}).get("releases") or {}).items() if version.get("disponible")},
         "classes_agents": (donnees.get("journal") or {}).get("classes"),
-        "dernier_bloc_base": (donnees.get("onchain") or {}).get("bloc_courant") or ancien.get("dernier_bloc_base"),
+        "solde_usdc": (donnees.get("onchain") or {}).get("solde_usdc"),
         "refus_402_total": (donnees.get("journal") or {}).get("refus_402_total"),
     }
 
@@ -609,8 +643,11 @@ def main(argv: list[str] | None = None) -> int:
         sans_reseau=args.sans_reseau,
         fenetre_texte=args.depuis,
         chemin_acces=chemin_acces,
-        dernier_bloc=(ancien.get("dernier_bloc_base") if isinstance(ancien.get("dernier_bloc_base"), int) else None),
     )
+    solde_ancien = ancien.get("solde_usdc")
+    solde_actuel = (donnees.get("onchain") or {}).get("solde_usdc")
+    if isinstance(solde_ancien, (int, float)) and isinstance(solde_actuel, (int, float)):
+        donnees["onchain"]["variation_usdc"] = round(float(solde_actuel) - float(solde_ancien), 6)
     donnees["alertes"] = diff_etat(ancien, donnees)
     rapport = formater_markdown(donnees)
 

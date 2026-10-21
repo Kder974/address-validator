@@ -99,6 +99,7 @@ def test_diff_etat_signale_paiement_release_classe_et_transfert():
         "dernier_paiement": "2026-10-19T21:32:19Z",
         "releases": {"coinbase/x402": {"version": "v1.0.0"}},
         "classes_agents": {"agent_ia": 10},
+        "solde_usdc": 1.10,
     }
     nouveau = {
         "reels_cumul": 5,
@@ -106,7 +107,7 @@ def test_diff_etat_signale_paiement_release_classe_et_transfert():
         "dernier_paiement": "2026-10-21T09:00:00Z",
         "releases": {"coinbase/x402": {"disponible": True, "version": "v1.1.0"}},
         "journal": {"classes": {"agent_ia": 10, "moteur": 2}},
-        "onchain": {"nombre": 1, "montant_usdc": 0.02},
+        "onchain": {"solde_usdc": 1.12},
     }
     alertes = " | ".join(veille.diff_etat(ancien, nouveau))
     assert "nouveau paiement" in alertes
@@ -121,14 +122,14 @@ def test_diff_etat_sans_changement_ne_crie_pas():
         "dernier_paiement": "2026-10-19T21:32:19Z",
         "releases": {"coinbase/x402": {"version": "v1"}},
         "classes_agents": {"agent_ia": 3},
-        "onchain": {"nombre": 0},
+        "solde_usdc": 1.12,
     }
     nouveau = {
         "reels_cumul": 4,
         "dernier_paiement": "2026-10-19T21:32:19Z",
         "releases": {"coinbase/x402": {"disponible": True, "version": "v1"}},
         "journal": {"classes": {"agent_ia": 3}},
-        "onchain": {"nombre": 0},
+        "onchain": {"solde_usdc": 1.12},
     }
     assert veille.diff_etat(etat, nouveau) == []
 
@@ -151,13 +152,13 @@ def test_preparer_etat_ne_garde_que_les_releases_disponibles():
                 "absent": {"disponible": False, "erreur": "HTTP 404"},
             }
         },
-        "onchain": {"bloc_courant": 12345},
+        "onchain": {"solde_usdc": 1.12},
     }
     etat = veille.preparer_etat(donnees, {})
     assert etat["classes_agents"] == {"agent_ia": 3}
     assert "coinbase/x402" in etat["releases"]
     assert "absent" not in etat["releases"]
-    assert etat["dernier_bloc_base"] == 12345
+    assert etat["solde_usdc"] == 1.12
 
 
 # --------------------------------------------------------------------------- #

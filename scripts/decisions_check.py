@@ -7430,8 +7430,8 @@ def d96() -> None:
     for marqueur in (
         "revenue_stats",
         "read_events",
-        "api.github.com",
-        "eth_getLogs",
+        "releases.atom",
+        "eth_call",
         "smtplib",
         "--sans-reseau",
     ):
