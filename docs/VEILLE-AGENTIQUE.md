@@ -37,8 +37,11 @@
   sans jeton ni quota) : `coinbase/x402`, `coinbase/agentkit`,
   `x402-index/x402-discovery-index`, `google-agentic-commerce/AP2` ;
 - **x402 Discovery Index** : nombre d'API annoncées (README public) ;
-- **Bazaar** : catalogue public s'il répond (`BAZAAR_URL` surchargeable, liste
-  `items`), et présence de `kder-ai.com` ;
+- **Bazaar** : **endpoint officiel de validation CDP**
+  (`POST /platform/v2/x402/validate`, gratuit) — il répond ce que le catalogue
+  voit : `valid`, `index.active`, `lastCrawledAt`, checks requis en échec. Le
+  catalogue `/discovery/resources`, lui, ne pagine pas (100 entrées sur ~34 000) :
+  s'y fier donne un faux « absent » ;
 - **On-chain** : **solde USDC** de la wallet `payTo` via `eth_call balanceOf`
   (un seul appel, repli sur des nœuds publics Base : `BASE_RPC_URL`,
   `base-rpc.publicnode.com`, `base.drpc.org`). La variation de solde entre deux
@@ -153,12 +156,14 @@ Constat tiré des journaux de production sur ~10 jours :
    officielles (A2A agent card, OAuth PRM) ou rediriger vers le manifest —
    jamais un fichier qui promet une intégration inexistante.
 3. **Annuaires** : rester sur les listings gratuits (MCP registry, awesome-lists) ;
-   vérifier l'entrée Bazaar (prix, réseau, `outputSchema` déjà présent) ;
    ne pas payer de listing avant revenu.
-   **Constat du 21/10** : l'API Bazaar publique expose **100 entrées** mais
-   `kder-ai.com` n'y apparaît pas — vérifier la pagination et le référencement
-   de l'offre (`PAYMENT-REQUIRED` / `bazaar`), c'est une action de conversion
-   gratuite à fort effet.
+   **Constat du 21/10 corrigé** : nous **sommes déjà dans l'index Bazaar** —
+   l'endpoint officiel de validation répond `valid: true`, `index.active: true`,
+   dernier crawl **19/10 13:19** (paiement SettledScout). Le faux « absent »
+   venait du catalogue public, qui ne pagine pas. Actions faites : marqueur
+   `discoverable: true` dans l'extension `bazaar` et phrase « Use when… » dans la
+   description (règles v2 du catalogue) ; la veille alerte désormais si
+   `index.active` passe à faux ou si la validation échoue.
 4. **Preuve de valeur** : publier un exemple « agent qui paie » (curl x402 v1/v2
    et client MCP) dans la documentation ; c'est gratuit et c'est ce que les
    crawlers ne trouvent pas aujourd'hui.

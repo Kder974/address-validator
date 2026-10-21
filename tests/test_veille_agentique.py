@@ -150,7 +150,8 @@ def test_preparer_etat_ne_garde_que_les_releases_disponibles():
             "releases": {
                 "coinbase/x402": {"disponible": True, "version": "v1"},
                 "absent": {"disponible": False, "erreur": "HTTP 404"},
-            }
+            },
+            "bazaar": {"disponible": True, "index_actif": True, "dernier_crawl": "2026-10-19T13:19:52.983Z", "valide": True},
         },
         "onchain": {"solde_usdc": 1.12},
     }
@@ -159,6 +160,38 @@ def test_preparer_etat_ne_garde_que_les_releases_disponibles():
     assert "coinbase/x402" in etat["releases"]
     assert "absent" not in etat["releases"]
     assert etat["solde_usdc"] == 1.12
+    assert etat["bazaar"]["index_actif"] is True
+
+
+def test_analyser_bazaar_lit_l_index_et_les_checks_requis():
+    resultat = veille.analyser_bazaar(
+        {
+            "valid": True,
+            "index": {"active": True, "lastCrawledAt": "2026-10-19T13:19:52.983Z"},
+            "bazaarExtension": {"info": {"input": {"discoverable": True}}},
+            "preflight": [
+                {"check": "returns_402", "severity": "required", "passed": True},
+                {"check": "bazaar.info.output", "severity": "advisory", "passed": False},
+            ],
+        }
+    )
+    assert resultat["disponible"] is True
+    assert resultat["index_actif"] is True
+    assert resultat["valide"] is True
+    assert resultat["dernier_crawl"] == "2026-10-19T13:19:52.983Z"
+    assert resultat["avertissements"] == ["bazaar.info.output"]
+
+
+def test_diff_etat_signale_un_index_bazaar_inactif():
+    ancien = {"bazaar": {"index_actif": True, "dernier_crawl": "2026-10-19T13:19:52Z", "valide": True}}
+    nouveau = {
+        "journal": {"classes": {}},
+        "releases": {},
+        "onchain": {},
+        "bazaar": {"disponible": True, "index_actif": False, "dernier_crawl": "2026-10-19T13:19:52Z", "valide": True},
+    }
+    alertes = " | ".join(veille.diff_etat(ancien, nouveau))
+    assert "Bazaar" in alertes and "inactif" in alertes
 
 
 # --------------------------------------------------------------------------- #
