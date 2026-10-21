@@ -155,6 +155,10 @@ Constat tiré des journaux de production sur ~10 jours :
 3. **Annuaires** : rester sur les listings gratuits (MCP registry, awesome-lists) ;
    vérifier l'entrée Bazaar (prix, réseau, `outputSchema` déjà présent) ;
    ne pas payer de listing avant revenu.
+   **Constat du 21/10** : l'API Bazaar publique expose **100 entrées** mais
+   `kder-ai.com` n'y apparaît pas — vérifier la pagination et le référencement
+   de l'offre (`PAYMENT-REQUIRED` / `bazaar`), c'est une action de conversion
+   gratuite à fort effet.
 4. **Preuve de valeur** : publier un exemple « agent qui paie » (curl x402 v1/v2
    et client MCP) dans la documentation ; c'est gratuit et c'est ce que les
    crawlers ne trouvent pas aujourd'hui.
