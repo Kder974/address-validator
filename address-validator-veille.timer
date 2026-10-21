@@ -1,0 +1,14 @@
+[Unit]
+Description=Veille agentique quotidienne (07:10 UTC, cout 0 EUR)
+
+[Timer]
+# 07:10 UTC : avant la journee, apres la purge de retention (03:30) et la
+# sauvegarde (03:01). Le rapport couvre alors la veille complete.
+OnCalendar=*-*-* 07:10:00 UTC
+# Si le VPS etait eteint, la veille est rattrapee au demarrage : deux jours
+# sans rapport ne doivent pas passer inapercus.
+Persistent=true
+Unit=address-validator-veille.service
+
+[Install]
+WantedBy=timers.target

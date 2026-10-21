@@ -40,3 +40,10 @@ demo.sqlite*
 
 # Carte du projet produite par le skill graphify (.claude/skills/graphify)
 graphify-out/
+
+# --- veille agentique (D96) ---
+# Rapport et etat produits chaque jour par `scripts/veille_agentique.py` :
+# des mesures d'exploitation, pas du contenu de depot.
+docs/VEILLE-AGENTIQUE-DERNIER.md
+data/veille_agentique_etat.json
+

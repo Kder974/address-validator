@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D95, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D96, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -7416,7 +7416,72 @@ def d95() -> None:
     guard(re.search(r"^\| D95 \|", read("DECISIONS.md"), re.M) is not None, "la decision D95 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 96)}
+
+def d96() -> None:
+    """La veille agentique quotidienne, a cout zero (D96)."""
+    import importlib.util
+    from datetime import datetime, timedelta, timezone
+
+    script = read("scripts/veille_agentique.py")
+    guard(
+        script.splitlines()[0].strip() in ("#!/usr/bin/env python", "#!/usr/bin/env python3"),
+        "scripts/veille_agentique.py n'a pas de shebang python",
+    )
+    for marqueur in (
+        "revenue_stats",
+        "read_events",
+        "api.github.com",
+        "eth_getLogs",
+        "smtplib",
+        "--sans-reseau",
+    ):
+        guard(marqueur in script, f"la veille ne porte plus : {marqueur}")
+    guard(
+        not re.search(r"(sk_live_|whsec_|-----BEGIN)", script),
+        "un secret est code en dur dans la veille",
+    )
+
+    for unit in ("address-validator-veille.service", "address-validator-veille.timer"):
+        guard((ROOT / unit).is_file(), f"unit systemd absente : {unit}")
+    service = read("address-validator-veille.service")
+    timer = read("address-validator-veille.timer")
+    guard("EnvironmentFile=-/opt/address-validator/.env" in service, "le service ne charge pas le .env")
+    guard("--email" in service, "le service n'envoie pas le digest par email")
+    guard("OnCalendar=*-*-* 07:10:00 UTC" in timer, "la veille n'est pas planifiee a 07:10 UTC")
+    guard("Persistent=true" in timer, "la veille ne rattrape pas un demarrage manque")
+
+    docs = read("docs/VEILLE-AGENTIQUE.md")
+    guard("0 EUR" in docs or "0 €" in docs, "le cout zero n'est pas documente")
+    guard("SMTP_*" in docs, "la configuration email n'est pas documentee")
+    tests = read("tests/test_veille_agentique.py")
+    guard("analyser_journal" in tests and "diff_etat" in tests, "les tests de la veille ont disparu")
+    ignore = read(".gitignore")
+    guard("docs/VEILLE-AGENTIQUE-DERNIER.md" in ignore, "le rapport de veille n'est pas ignore")
+    guard("data/veille_agentique_etat.json" in ignore, "l'etat de veille n'est pas ignore")
+
+    # Comportement hors ligne : les fonctions pures doivent rester justes.
+    spec = importlib.util.spec_from_file_location("veille_oracle", ROOT / "scripts" / "veille_agentique.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    moment = datetime.now(timezone.utc)
+    resultat = module.analyser_journal(
+        [{"ts": moment.isoformat(), "endpoint": "/validate", "user_agent": "mako-pulse-prober/0.1"}],
+        moment - timedelta(hours=1),
+    )
+    guard(resultat["refus_402_fenetre"] == 1, "la veille ne compte plus les refus 402")
+    alertes = module.diff_etat(
+        {"reels_cumul": 4, "classes_agents": {}},
+        {
+            "reels_cumul": 5,
+            "journal": {"classes": {"agent_ia": 1}},
+            "releases": {},
+            "onchain": {"nombre": 0},
+        },
+    )
+    guard(any("nouveau paiement" in alerte for alerte in alertes), "la veille n'alerte plus sur un nouveau paiement")
+    guard("Veille agentique" in module.formater_markdown({"genere_le": moment.isoformat()}), "le rapport n'a plus de titre")
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 97)}
 
 
 def catalog() -> list[tuple[str, str]]:
