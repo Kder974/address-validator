@@ -246,15 +246,7 @@ def bazaar_extension(price: float) -> dict[str, Any]:
     }
     return {
         "info": {
-            "input": {
-                "type": "http",
-                "method": "POST",
-                "bodyType": "json",
-                "body": EXAMPLE_REQUEST,
-                # D96/Bazaar : le catalogue v2 exige que l'entree soit marquee
-                # decouvrable ; sans ce champ, le catalogue peut ignorer la fiche.
-                "discoverable": True,
-            },
+            "input": {"type": "http", "method": "POST", "bodyType": "json", "body": EXAMPLE_REQUEST},
             "output": {"type": "json", "example": exemple_reponse},
         },
         "schema": {
@@ -268,9 +260,8 @@ def bazaar_extension(price: float) -> dict[str, Any]:
                         "method": {"type": "string", "enum": ["POST"]},
                         "bodyType": {"type": "string", "enum": ["json"]},
                         "body": _inline(ValidationRequest.model_json_schema()),
-                        "discoverable": {"type": "boolean", "const": True},
                     },
-                    "required": ["type", "method", "bodyType", "body", "discoverable"],
+                    "required": ["type", "method", "bodyType", "body"],
                     "additionalProperties": False,
                 },
                 "output": {
