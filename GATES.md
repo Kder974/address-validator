@@ -499,3 +499,7 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D96: no page in any of the six languages says HT, hors taxes, excl. VAT, sin IVA or their zh/hi/ar equivalents (franchise en base, VAT not applicable), except the compare page's method sentence about other services' prices; every pricing page shows the art. 293 B VAT-not-applicable mention; the euro billing mention no longer says excl. VAT
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D96
   EXPECT: DECISION OK D96
+
+- [ ] D97: a daily zero-cost agentic watch (systemd timer 07:10 UTC) writes a digest from the discovery journal, real revenue, Nginx access log, public GitHub releases and x402 index and on-chain USDC transfers; it reports unavailable sources instead of zeros and sends email only when SMTP_* is configured
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D97
+  EXPECT: DECISION OK D97
