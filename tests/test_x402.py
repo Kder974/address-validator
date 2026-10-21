@@ -383,6 +383,9 @@ def test_402_publishes_the_same_offer_in_v2():
     assert (v2["payTo"], v2["asset"], v2["extra"]) == (v1["payTo"], v1["asset"], v1["extra"])
     assert offre["resource"]["url"] == "https://kder-ai.com/validate"
     assert offre["resource"]["description"].isascii() and "0.02 USDC" in offre["resource"]["description"]
+    # Bazaar exige une description <= 500 caracteres et une phrase « quand l'utiliser ».
+    assert len(offre["resource"]["description"]) <= 500
+    assert "Use when" in offre["resource"]["description"]
     # Regles du catalogue (bazaar.md) : nom ASCII <= 32, au plus 5 etiquettes ASCII <= 32.
     assert offre["resource"]["serviceName"].isascii() and len(offre["resource"]["serviceName"]) <= 32
     assert len(offre["resource"]["tags"]) <= 5 and all(t.isascii() and len(t) <= 32 for t in offre["resource"]["tags"])
@@ -399,6 +402,8 @@ def test_bazaar_card_matches_the_route():
     assert set(entree) <= set(schema["properties"]) and set(schema["required"]) <= set(entree)
     assert entree["type"] == schema["properties"]["type"]["const"] == "http"
     assert entree["method"] in schema["properties"]["method"]["enum"] and entree["bodyType"] == "json"
+    # Le catalogue v2 marque l'entree comme decouvrable (constat du 21/10).
+    assert entree["discoverable"] is True and schema["properties"]["discoverable"]["const"] is True
     ValidationRequest.model_validate(entree["body"])
     assert "$ref" not in json.dumps(bazaar), "Bazaar refuse les references hors du document"
     # Bazaar rejoue l'exemple sans payer : il doit recevoir le 402, pas une erreur.

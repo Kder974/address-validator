@@ -320,27 +320,56 @@ def index_x402() -> dict[str, Any]:
     return {"disponible": True, "api_annoncees": nombres[0] if nombres else "?"}
 
 
-def bazaar() -> dict[str, Any]:
-    """Catalogue Coinbase Bazaar s'il est public, et présence de kder-ai.com."""
-    url = os.environ.get("BAZAAR_URL", "https://api.cdp.coinbase.com/platform/v2/x402/discovery/resources")
-    code, corps, note = _get(url)
-    if code != 200 or not corps:
-        return {"disponible": False, "erreur": note or f"HTTP {code}", "url": url}
-    try:
-        document = json.loads(corps)
-    except json.JSONDecodeError:
-        return {"disponible": False, "erreur": "json_illisible", "url": url}
-    if not isinstance(document, dict):
-        return {"disponible": False, "erreur": "structure_inattendue", "url": url}
-    entrees = document.get("items") or document.get("resources")
-    if not isinstance(entrees, list):
-        return {"disponible": False, "erreur": "liste_absente_du_catalogue", "url": url}
+def analyser_bazaar(resultat: dict[str, Any]) -> dict[str, Any]:
+    """Lit la reponse de l'endpoint officiel de validation CDP (`/x402/validate`).
+
+    C'est la source qui dit ce que Bazaar voit : `index.active`, date du dernier
+    crawl, checks requis en echec. Le catalogue `/discovery/resources` ne pagine
+    pas (100 entrees sur ~34 000) : s'y fier produisait un faux « absent ».
+    """
+    index = resultat.get("index") or {}
+    preflight = resultat.get("preflight") or []
+    echecs = [
+        str(check.get("check"))
+        for check in preflight
+        if check.get("severity") == "required" and not check.get("passed")
+    ]
+    avis = [
+        str(check.get("check"))
+        for check in preflight
+        if check.get("severity") == "advisory" and not check.get("passed")
+    ]
     return {
         "disponible": True,
-        "url": url,
-        "entrees": len(entrees),
-        "nous_listes": "kder-ai.com" in corps,
+        "valide": bool(resultat.get("valid")),
+        "index_actif": bool(index.get("active")),
+        "dernier_crawl": index.get("lastCrawledAt"),
+        "echecs": echecs[:6],
+        "avertissements": avis[:6],
+        "extension": bool(resultat.get("bazaarExtension")),
     }
+
+
+def bazaar() -> dict[str, Any]:
+    """Interroge l'endpoint officiel de validation CDP pour notre ressource."""
+    from app.x402 import resource_url  # import local : evite un cycle au chargement
+
+    url = os.environ.get(
+        "CDP_VALIDATE_URL", "https://api.cdp.coinbase.com/platform/v2/x402/validate"
+    )
+    ressource = resource_url()
+    reponse, note = _post_json(url, {"resource": ressource, "method": "POST"})
+    if reponse is None:
+        return {"disponible": False, "erreur": f"validation : {note or 'injoignable'}"}
+    if not isinstance(reponse, dict) or "valid" not in reponse:
+        detail = ""
+        if isinstance(reponse.get("error"), dict):
+            detail = str(reponse["error"].get("message") or "")
+        return {"disponible": False, "erreur": f"validation : {detail or 'reponse inattendue'}"}
+    resultat = analyser_bazaar(reponse)
+    resultat["url"] = url
+    resultat["ressource"] = ressource
+    return resultat
 
 
 def solde_usdc() -> dict[str, Any]:
@@ -443,6 +472,18 @@ def diff_etat(ancien: dict[str, Any], nouveau: dict[str, Any]) -> list[str]:
             alertes.append(f"premier releve du solde USDC on-chain : {solde} USDC")
         elif round(float(solde), 6) != round(float(ancien_solde), 6):
             alertes.append(f"solde USDC on-chain : {ancien_solde} -> {solde} USDC")
+    ancien_b = ancien.get("bazaar") or {}
+    nouveau_b = nouveau.get("bazaar") or {}
+    if nouveau_b.get("disponible"):
+        if ancien_b.get("index_actif") and not nouveau_b.get("index_actif"):
+            alertes.append("Bazaar : index inactif (offre peut-etre retiree du catalogue)")
+        elif ancien_b.get("index_actif") is False and nouveau_b.get("index_actif"):
+            alertes.append("Bazaar : index de nouveau actif")
+        if nouveau_b.get("dernier_crawl") and nouveau_b.get("dernier_crawl") != ancien_b.get("dernier_crawl"):
+            alertes.append(f"Bazaar : nouveau crawl ({nouveau_b['dernier_crawl']})")
+        if not nouveau_b.get("valide"):
+            detail = ", ".join(nouveau_b.get("echecs") or []) or "checks requis"
+            alertes.append(f"Bazaar : validation de l'offre en echec ({detail})")
     return alertes
 
 
@@ -512,9 +553,16 @@ def formater_markdown(donnees: dict[str, Any]) -> str:
         lignes.append(f"- x402 Discovery Index : indisponible ({ecosysteme.get('index', {}).get('erreur')})")
     bazaar_ = ecosysteme.get("bazaar") or {}
     if bazaar_.get("disponible"):
-        lignes.append(f"- Bazaar : {bazaar_.get('entrees')} entree(s), nous listes : {oui_non(bool(bazaar_.get('nous_listes')))}")
+        lignes.append(
+            f"- Bazaar : index actif={oui_non(bool(bazaar_.get('index_actif')))}, "
+            f"dernier crawl={bazaar_.get('dernier_crawl') or 'jamais'}, "
+            f"validation={'OK' if bazaar_.get('valide') else 'ECHEC'}"
+            + (f", avertissements={len(bazaar_.get('avertissements') or [])}" if bazaar_.get("avertissements") else "")
+        )
+        for echec in bazaar_.get("echecs") or []:
+            lignes.append(f"  - check requis en echec : {echec}")
     else:
-        lignes.append(f"- Bazaar : indisponible ({bazaar_.get('erreur')})")
+        lignes.append(f"- Bazaar : validation indisponible ({bazaar_.get('erreur')})")
     lignes.extend(["", "## 5. Solde USDC de la wallet payTo (Base)"])
     if onchain.get("disponible"):
         lignes.append(f"- solde on-chain : **{onchain.get('solde_usdc')} USDC** (nœud {onchain.get('rpc')})")
@@ -615,6 +663,11 @@ def preparer_etat(donnees: dict[str, Any], ancien: dict[str, Any]) -> dict[str, 
         "releases": {depot: {"version": version.get("version")} for depot, version in ((donnees.get("ecosysteme") or {}).get("releases") or {}).items() if version.get("disponible")},
         "classes_agents": (donnees.get("journal") or {}).get("classes"),
         "solde_usdc": (donnees.get("onchain") or {}).get("solde_usdc"),
+        "bazaar": {
+            "index_actif": ((donnees.get("ecosysteme") or {}).get("bazaar") or {}).get("index_actif"),
+            "dernier_crawl": ((donnees.get("ecosysteme") or {}).get("bazaar") or {}).get("dernier_crawl"),
+            "valide": ((donnees.get("ecosysteme") or {}).get("bazaar") or {}).get("valide"),
+        },
         "refus_402_total": (donnees.get("journal") or {}).get("refus_402_total"),
     }
 
