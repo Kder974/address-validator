@@ -87,6 +87,25 @@ def test_le_lien_serveur_mcp_mene_a_la_page_des_agents():
             assert f'href="{i18n.chemin(lang, "agents")}"' in texte and f'href="{i18n.chemin(lang, "compare")}"' in texte
 
 
+@pytest.mark.parametrize("lang", i18n.LANGUES)
+def test_la_page_agents_publie_le_snippet_mcp_copiable(lang):
+    """D96 : le snippet MCP est sur la page, dans chaque langue, sans placeholder."""
+    texte = unescape(contenu.page(get_settings(), lang, "agents"))
+    assert 'id="mcp-payer"' in texte
+    assert 'params._meta["x402/payment"]' in texte
+    assert "Account.sign_typed_data" in texte and 'method": "tools/call' in texte
+    assert "{{" not in texte, "un placeholder du snippet n'a pas ete rendu"
+
+
+def test_le_snippet_mcp_est_aussi_dans_llms_et_agents_md():
+    racine = Path(__file__).resolve().parents[1]
+    for nom in ("llms.txt", "AGENTS.md"):
+        texte = (racine / nom).read_text(encoding="utf-8")
+        assert 'params._meta["x402/payment"]' in texte, nom
+        assert "Account.sign_typed_data" in texte, nom
+        assert "tools/call" in texte, nom
+
+
 # D83 : les prix des autres services, publiés en dollars, sont montrés dans la
 # monnaie de la page, avec le prix publié entre parenthèses.
 @pytest.mark.parametrize("lang, attendu", [("fr", "≈\u00a015\u00a0€"), ("es", "≈\u00a015\u00a0€"), ("zh", "≈\u00a0¥115"),
