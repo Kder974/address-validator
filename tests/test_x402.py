@@ -402,8 +402,6 @@ def test_bazaar_card_matches_the_route():
     assert set(entree) <= set(schema["properties"]) and set(schema["required"]) <= set(entree)
     assert entree["type"] == schema["properties"]["type"]["const"] == "http"
     assert entree["method"] in schema["properties"]["method"]["enum"] and entree["bodyType"] == "json"
-    # Le catalogue v2 marque l'entree comme decouvrable (constat du 21/10).
-    assert entree["discoverable"] is True and schema["properties"]["discoverable"]["const"] is True
     ValidationRequest.model_validate(entree["body"])
     assert "$ref" not in json.dumps(bazaar), "Bazaar refuse les references hors du document"
     # Bazaar rejoue l'exemple sans payer : il doit recevoir le 402, pas une erreur.

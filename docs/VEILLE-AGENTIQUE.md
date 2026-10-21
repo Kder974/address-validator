@@ -160,9 +160,12 @@ Constat tiré des journaux de production sur ~10 jours :
    **Constat du 21/10 corrigé** : nous **sommes déjà dans l'index Bazaar** —
    l'endpoint officiel de validation répond `valid: true`, `index.active: true`,
    dernier crawl **19/10 13:19** (paiement SettledScout). Le faux « absent »
-   venait du catalogue public, qui ne pagine pas. Actions faites : marqueur
-   `discoverable: true` dans l'extension `bazaar` et phrase « Use when… » dans la
-   description (règles v2 du catalogue) ; la veille alerte désormais si
+   venait du catalogue public, qui ne pagine pas. Action faite : phrase
+   « Use when… » dans la description (règle v2 : ≤ 500 caractères, dire quand
+   utiliser l'endpoint). L'ajout de `discoverable` a été retiré : il faisait
+   échouer la validation officielle (`(root).input: discoverable is required`,
+   la même erreur apparaissant sur une entrée pourtant déjà listée), alors que
+   l'état `valid: true` est conservé sans lui. La veille alerte désormais si
    `index.active` passe à faux ou si la validation échoue.
 4. **Preuve de valeur** : publier un exemple « agent qui paie » (curl x402 v1/v2
    et client MCP) dans la documentation ; c'est gratuit et c'est ce que les
