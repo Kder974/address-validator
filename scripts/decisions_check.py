@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D98, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D99, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 98
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 99
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7528,7 +7528,48 @@ def d98() -> None:
     guard(re.search(r"^\| D98 \|", read("DECISIONS.md"), re.M) is not None, "la decision D98 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 99)}
+def d99() -> None:
+    """Page de vente du Kit Anti-Colis Perdu : bouton Gumroad configure ou « Bientot disponible », chiffres du code, ni avis ni garantie inventes."""
+    from decimal import Decimal
+
+    from fastapi.testclient import TestClient
+
+    from app import i18n
+    from app.config import get_settings
+    from app.main import app
+    from app.routes import kit
+
+    reponse = TestClient(app).get("/kit-anti-colis-perdu")
+    guard(reponse.status_code == 200 and reponse.headers.get("cache-control") == "public, max-age=300", f"/kit-anti-colis-perdu : {reponse.status_code}")
+    guard("script-src" not in reponse.headers.get("content-security-policy", ""), "/kit-anti-colis-perdu : CSP inattendue")
+    for interdit in ("<script", "<img", "src=", "<form", "{{", "<!--@"):
+        guard(interdit not in reponse.text, f"/kit-anti-colis-perdu contient {interdit!r}")
+    sans = kit.page(get_settings().model_copy(update={"gumroad_kit_url": ""}))
+    guard(sans.count("Bientôt disponible") == 2 and "Acheter maintenant" not in sans and 'content="noindex, follow"' in sans,
+          "sans lien Gumroad, un bouton d'achat s'affiche ou la page reste indexable")
+    lien = "https://exemple.gumroad.com/l/kit?x=1&y=2"
+    avec = kit.page(get_settings().model_copy(update={"gumroad_kit_url": lien}))
+    guard(avec.count('href="https://exemple.gumroad.com/l/kit?x=1&amp;y=2" rel="noopener">Acheter maintenant') == 2
+          and 'content="index, follow"' in avec, "le lien Gumroad configure ne mene pas les deux boutons d'achat")
+    sauve = kit.PRIX_KIT_EUR
+    kit.PRIX_KIT_EUR = Decimal(41)
+    try:
+        lu = kit.page(get_settings())
+    finally:
+        kit.PRIX_KIT_EUR = sauve
+    guard("41 €" in lu and "29 €" not in lu, "le prix du kit n'est plus lu dans le code (D48)")
+    haut = i18n.prix("fr", "colis_rate_fourchette").split("–")[-1].strip()
+    guard(f"jusqu'à {haut}" in reponse.text, "le titre ne cite plus le haut de la fourchette de Tarifs")
+    bas = reponse.text.lower()
+    for interdit in ("★", "témoign", "avis client", "satisfait ou rembours", "garanti"):
+        guard(interdit not in bas, f"/kit-anti-colis-perdu affiche « {interdit} » : aucun avis ni garantie n'existe encore")
+    regles = read(".gitignore")
+    guard("docs/commercial/produits/kit_anti_colis_final.*" in regles and "docs/commercial/produits/calculateur_pertes.xlsx" in regles,
+          "les fichiers du kit (le produit vendu) peuvent entrer dans le depot public")
+    guard(re.search(r"^\| D99 \|", read("DECISIONS.md"), re.M) is not None, "la decision D99 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 100)}
 
 
 def catalog() -> list[tuple[str, str]]:

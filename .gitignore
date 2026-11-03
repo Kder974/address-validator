@@ -40,3 +40,8 @@ demo.sqlite*
 
 # Carte du projet produite par le skill graphify (.claude/skills/graphify)
 graphify-out/
+
+# D99 : les fichiers du Kit Anti-Colis Perdu sont le produit vendu (29 €) : jamais
+# dans ce dépôt public. Ils vivent sur Gumroad et sur le poste de Fzed.
+docs/commercial/produits/kit_anti_colis_final.*
+docs/commercial/produits/calculateur_pertes.xlsx
