@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="index, follow">
 <title>价格 · Address Validator</title>
-<meta name="description" content="发货前先核对收货地址：免费试用 {{jours_essai}} 天，之后 每月 {{prix_starter}}（{{quota_starter}} 次验证）或每月 {{prix_pro}}（{{quota_pro}} 次验证）。价格不含税，无合约期限。">
+<meta name="description" content="发货前先核对收货地址：免费试用 {{jours_essai}} 天，之后 每月 {{prix_starter}}（{{quota_starter}} 次验证）或每月 {{prix_pro}}（{{quota_pro}} 次验证）。无合约期限，不适用增值税。">
 <link rel="alternate" hreflang="fr" href="{{lien_fr}}">
 <link rel="alternate" hreflang="en" href="{{lien_en}}">
 <link rel="alternate" hreflang="zh" href="{{lien_zh}}">
@@ -485,7 +485,7 @@ h1,h2,h3,.amount strong{letter-spacing:0}h1{line-height:1.2}
     <div class="guides" aria-hidden="true"></div>
     <div class="wrap head-grid">
       <div class="hero-copy">
-        <p class="pill in" style="--i:0"><b>价格</b>价格不含税，无合约期限</p>
+        <p class="pill in" style="--i:0"><b>价格</b>无合约期限，不适用增值税</p>
         <h1 id="titre"><span class="w" style="--i:1">别再因为地址无效，</span><span class="w" style="--i:3">白白损失金钱。</span></h1>
         <p class="lead in" style="--i:5"><span class="nb">退回的包裹要付两次钱：</span><span class="nb">先是运费，</span><span class="nb">客户没有取消订单的话，</span><span class="nb">还要再付一次重新寄出的费用。</span><span class="nb">API 会在打印面单之前核对地址。</span></p>
         <div class="cta in" style="--i:6">
@@ -497,7 +497,7 @@ h1,h2,h3,.amount strong{letter-spacing:0}h1{line-height:1.2}
       <aside class="promise in" style="--i:6" aria-label="所有套餐均包含">
         <p class="promise-h">所有套餐均包含</p>
         <ul class="facts">
-          <li>价格不含税，无合约期限：您可以随时停用。</li>
+          <li>无合约期限：您可以随时停用。显示的价格就是您支付的价格，不适用增值税。</li>
           <li>不会自动扣款：只有在您选择套餐时，才通过 Stripe 用银行卡付款。</li>
           <li>不收集姓名或邮箱：已核对的地址保存 {{jours_cache}} 天以便更快响应，之后删除。</li>
           <li>无论哪个套餐，API 和响应都完全相同。</li>
@@ -528,7 +528,7 @@ h1,h2,h3,.amount strong{letter-spacing:0}h1{line-height:1.2}
       <li class="tier" style="--i:1">
         <div class="tier-head"><h3>Starter</h3><span class="badge">网店</span></div>
         <p class="pitch">适合每天发出几十个包裹的网店。</p>
-        <p class="amount"><strong>{{prix_starter}}</strong><span>每月，不含税</span></p>
+        <p class="amount"><strong>{{prix_starter}}</strong><span>每月</span></p>
         <dl class="specs">
           <div class="spec"><dt>验证次数</dt><dd>每月 <b>{{quota_starter}}</b> 次<span class="gauge" aria-hidden="true"><i style="--v:{{jauge_starter}}%;--i:1"></i></span></dd></div>
           <div class="spec unit"><dt>每次验证价格</dt><dd><b>{{prix_unitaire_starter}}</b><span class="calc">{{prix_starter}} ÷ {{quota_starter}} 次验证</span></dd></div>
@@ -544,7 +544,7 @@ h1,h2,h3,.amount strong{letter-spacing:0}h1{line-height:1.2}
       <li class="tier tier-pro" style="--i:2">
         <div class="tier-head"><h3>Pro</h3><span class="badge">大用量</span></div>
         <p class="pitch">适合退货会明显拉低利润的大用量。</p>
-        <p class="amount"><strong>{{prix_pro}}</strong><span>每月，不含税</span></p>
+        <p class="amount"><strong>{{prix_pro}}</strong><span>每月</span></p>
         <dl class="specs">
           <div class="spec"><dt>验证次数</dt><dd>每月 <b>{{quota_pro}}</b> 次<span class="gauge" aria-hidden="true"><i style="--v:100%;--i:2"></i></span></dd></div>
           <div class="spec unit"><dt>每次验证价格</dt><dd><b>{{prix_unitaire_pro}}</b><span class="calc">{{prix_pro}} ÷ {{quota_pro}} 次验证</span></dd></div>
@@ -759,7 +759,7 @@ h1,h2,h3,.amount strong{letter-spacing:0}h1{line-height:1.2}
         </ul>
       </div>
     </div>
-    <p class="legal">价格不含税。无订阅直接调用：每次验证 {{prix_x402}} USDC。</p>
+    <p class="legal">不适用增值税（法国税法典第 293 B 条）。无订阅直接调用：每次验证 {{prix_x402}} USDC。</p>
   </div>
 </footer>
 </body>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D95, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D96, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 94
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 96
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7416,7 +7416,40 @@ def d95() -> None:
     guard(re.search(r"^\| D95 \|", read("DECISIONS.md"), re.M) is not None, "la decision D95 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 96)}
+def d96() -> None:
+    """Franchise en base de TVA : plus aucun « HT » ni equivalent, la mention de l'article 293 B du CGI."""
+    from fastapi.testclient import TestClient
+
+    from app import i18n
+    from app.main import app
+
+    interdits = {
+        "fr": (r"\bHT\b", "hors taxes"), "en": (r"excl\. VAT",), "es": ("sin IVA",),
+        "zh": ("不含税",), "hi": ("कर के बिना",), "ar": ("قبل الضريبة",),
+    }
+    mention = {
+        "fr": "TVA non applicable, art. 293 B du CGI", "en": "VAT not applicable", "es": "IVA no aplicable",
+        "zh": "不适用增值税", "hi": "VAT लागू नहीं", "ar": "ضريبة القيمة المضافة غير مطبقة",
+    }
+    for chemin in sorted((ROOT / "app" / "templates").glob("*/*.html")):
+        lang = chemin.stem
+        texte = chemin.read_text(encoding="utf-8")
+        if chemin.parent.name == "compare":
+            # La methode du comparatif parle des prix publies par les autres services, toujours hors taxes.
+            texte = re.sub(r'<p class="sub">.*?</p>', "", texte, flags=re.S)
+        for motif in interdits.get(lang, ()):
+            guard(re.search(motif, texte) is None, f"{chemin.parent.name}/{lang} : « {motif} » alors que la TVA n'est pas applicable")
+    for lang in i18n.LANGUES:
+        for motif in interdits[lang]:
+            guard(re.search(motif, i18n.MENTION_EUROS[lang]) is None, f"i18n.MENTION_EUROS[{lang}] dit encore « {motif} »")
+    client = TestClient(app)
+    for lang in i18n.LANGUES:
+        page = re.sub(r"<[^>]+>", "", client.get(i18n.chemin(lang, "pricing")).text)
+        guard(mention[lang] in page, f"{i18n.chemin(lang, 'pricing')} n'affiche pas « {mention[lang]} »")
+    guard(re.search(r"^\| D96 \|", read("DECISIONS.md"), re.M) is not None, "la decision D96 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 97)}
 
 
 def catalog() -> list[tuple[str, str]]:

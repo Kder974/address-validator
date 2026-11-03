@@ -98,7 +98,7 @@ def test_le_colis_rate_en_dollars_est_celui_du_code():
 
 def test_la_mention_facture_en_euros():
     assert i18n.mention_euros("en") == (
-        "Approximate prices. Billed in euros: €29 and €79 per month, excl. VAT "
+        "Approximate prices. Billed in euros: €29 and €79 per month, VAT not applicable "
         "(exchange rate of September 2026)."
     )
     assert i18n.mention_euros("fr") == i18n.mention_euros("es") == ""
