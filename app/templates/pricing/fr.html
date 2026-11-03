@@ -485,7 +485,7 @@ h2{font-weight:750;letter-spacing:-.028em}
         <p class="promise-h">Dans tous les plans</p>
         <ul class="facts">
           <li>Sans engagement : vous arrêtez quand vous voulez. Le prix affiché est le prix payé, TVA non applicable.</li>
-          <li>Aucun prélèvement automatique : vous payez par carte avec Stripe seulement quand vous choisissez une offre.</li>
+          <li>Rien n'est prélevé sans votre accord : l'essai s'arrête tout seul, sans carte. Une offre choisie est prélevée chaque mois par Stripe, jusqu'à ce que vous l'arrêtiez.</li>
           <li>Ni nom ni e-mail : les adresses vérifiées sont gardées {{jours_cache}} jours pour répondre plus vite, puis effacées.</li>
           <li>La même API et la même réponse, quel que soit le plan.</li>
         </ul>
@@ -680,7 +680,7 @@ h2{font-weight:750;letter-spacing:-.028em}
         </details>
         <details class="qa">
           <summary>Que se passe-t-il si je dépasse mon quota ?</summary>
-          <p>Le quota est mensuel et repart le 1er du mois (UTC). Une fois atteint, l'API répond <code class="inline">402</code> avec <code class="inline">quota_atteint</code> : rien n'est facturé en plus et aucun prélèvement automatique n'a lieu. Votre consommation est visible dans votre espace client. Pour passer au plan supérieur, écrivez-nous.</p>
+          <p>Le quota est mensuel et repart le 1er du mois (UTC). Une fois atteint, l'API répond <code class="inline">402</code> avec <code class="inline">quota_atteint</code> : rien n'est facturé en plus, aucun dépassement n'est prélevé. Votre consommation est visible dans votre espace client. Pour passer au plan supérieur, écrivez-nous.</p>
         </details>
         <details class="qa">
           <summary>Que deviennent les adresses que je vous envoie ?</summary>
