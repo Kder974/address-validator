@@ -1,0 +1,592 @@
+<!doctype html>
+<!-- La Checklist Anti-Colis Perdu (D98), page gratuite en français. Contenu : docs/commercial/produits/01_checklist.md. Les champs entre doubles accolades sont remplis par app/routes/checklist.py. -->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="index, follow">
+<title>La Checklist Anti-Colis Perdu, gratuite · Address Validator</title>
+<meta name="description" content="27 contrôles concrets pour livrer juste du premier coup : vérifier l'adresse, étiqueter, corriger un incident. Checklist gratuite à cocher et à imprimer.">
+<link rel="canonical" href="{{base}}/checklist">
+<style>
+:root{
+  --ink:#0b1b34;--ink-soft:#14223d;--muted:#4b5974;--faint:#66738c;
+  --line:#e2e7f0;--bg:#fff;--soft:#f5f7fb;
+  --accent:#1f3bff;--accent-deep:#1429cc;--accent-wash:#e9edff;
+  --ok:#0a7350;--ok-bg:#dff5ea;--warn:#9a5b00;--warn-bg:#fff1d6;--bad:#b42318;
+  --navy:#0b1b34;--navy-2:#0d2242;
+  --saffron:#ffc15e;--tang:#ff9455;--coral:#ff6f61;--aqua:#2fd3c1;--sky:#4ab3ff;--cobalt:#3150ff;
+  --sans:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --expo:cubic-bezier(.16,1,.3,1);
+  --sh-lg:0 50px 100px -20px rgba(20,40,110,.26),0 30px 60px -30px rgba(0,0,0,.3);
+  --sh-md:0 13px 27px -5px rgba(20,40,110,.16),0 8px 16px -8px rgba(0,0,0,.16);
+  --sh-sm:0 2px 5px -1px rgba(20,40,110,.12),0 1px 3px -1px rgba(0,0,0,.1);
+  --g:clamp(16px,4vw,40px);
+  --nav-h:84px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1.0625rem/1.6 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:inherit}
+h1,h2,h3,p,ul,ol,dl,dd,figure{margin:0}
+h1,h2,h3{text-wrap:balance}
+p,li,dd{text-wrap:pretty}
+code,.mono{font-family:var(--mono)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:8px}
+.dark :focus-visible{outline-color:#9db2ff}
+.wrap{width:min(100% - 2*var(--g),1180px);margin-inline:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.skip{position:absolute;left:16px;top:-80px;z-index:99;background:var(--ink);color:#fff;padding:12px 16px;border-radius:10px;text-decoration:none}
+.skip:focus{top:12px}
+
+/* ---------- Boutons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;min-height:48px;padding:0 1.35rem;border:0;border-radius:999px;font:600 .97rem/1 var(--sans);letter-spacing:-.005em;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background-color .2s ease,box-shadow .35s var(--expo)}
+.btn-accent{background:var(--accent);color:#fff;box-shadow:0 1px 1px rgba(11,27,52,.14),0 8px 18px -8px rgba(31,59,255,.6)}
+.btn-accent:hover{background:var(--accent-deep)}
+.btn-glass{background:rgba(255,255,255,.74);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.btn-glass:hover{background:#fff}
+.btn-ink{background:var(--ink);color:#fff}
+.btn-ink:hover{background:#1b2f52}
+.btn-light{background:#fff;color:var(--ink)}
+.btn-light:hover{background:#e9eef7}
+.btn-sm{min-height:44px;padding:0 1.1rem;font-size:.93rem}
+.arr{width:10px;height:10px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+.arr .l{opacity:0;transition:opacity .2s ease}
+.arr .h{transition:transform .35s var(--expo)}
+a:hover .arr .l,button:hover .arr .l{opacity:1}
+a:hover .arr .h,button:hover .arr .h{transform:translateX(2px)}
+.link{display:inline-flex;align-items:center;gap:.45em;min-height:44px;font-weight:600;color:var(--accent);text-decoration:none}
+.link:hover{color:var(--accent-deep)}
+
+/* ---------- En-tête ---------- */
+.top{position:sticky;top:0;z-index:50;height:var(--nav-h);padding-top:12px;pointer-events:none}
+.bar{pointer-events:auto;display:flex;align-items:center;gap:20px;height:60px;padding:0 10px 0 16px;border-radius:16px;background:rgba(255,255,255,.72);box-shadow:inset 0 0 0 1px rgba(255,255,255,.7),0 10px 30px -18px rgba(20,40,110,.45);-webkit-backdrop-filter:saturate(1.6) blur(16px);backdrop-filter:saturate(1.6) blur(16px)}
+.brand{display:inline-flex;align-items:center;gap:10px;min-height:44px;text-decoration:none;font-weight:650;font-size:1.02rem;letter-spacing:-.015em;white-space:nowrap}
+.mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:conic-gradient(from 210deg,var(--cobalt),var(--aqua),var(--saffron),var(--coral),var(--cobalt));box-shadow:inset 0 0 0 1px rgba(11,27,52,.08)}
+.mark svg{width:17px;height:17px}
+.nav{display:flex;gap:2px;margin-left:auto}
+.nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;border-radius:10px;text-decoration:none;font-weight:500;font-size:.95rem;color:var(--ink-soft)}
+.nav a:hover{background:rgba(11,27,52,.06)}
+.nav a[aria-current="page"],.menu-panel a[aria-current="page"]{color:var(--accent)}
+.menu{display:none;position:relative;margin-left:auto}
+.menu summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;background:var(--ink);color:#fff;font-weight:600;font-size:.93rem}
+.menu summary::-webkit-details-marker{display:none}
+.menu summary i{display:block;width:14px;height:8px;border-block:2px solid currentColor}
+.menu-panel{position:absolute;right:0;top:calc(100% + 10px);width:min(86vw,300px);display:grid;gap:2px;padding:8px;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.menu-panel a{display:flex;align-items:center;min-height:46px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.menu-panel a:hover{background:var(--soft)}
+.menu-panel .btn{margin-top:6px;color:#fff;justify-content:center}
+/* Sélecteur de langue */
+.lang{position:relative}
+.lang summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;min-width:44px;padding:0 12px;border-radius:999px;font-weight:600;font-size:.9rem;color:var(--ink-soft);box-shadow:inset 0 0 0 1px rgba(11,27,52,.12)}
+.lang summary::-webkit-details-marker{display:none}
+.lang summary:hover,.lang[open] summary{background:rgba(11,27,52,.06)}
+.lang summary svg{width:15px;height:15px;flex:none}
+.lang-panel{position:absolute;right:0;top:calc(100% + 10px);width:200px;display:grid;gap:2px;padding:8px;list-style:none;background:#fff;border-radius:14px;box-shadow:var(--sh-lg)}
+.lang-panel a{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:0 14px;border-radius:9px;text-decoration:none;font-weight:500}
+.lang-panel a:hover{background:var(--soft)}
+.lang-panel [lang="ar"]{font-size:1.12em}
+.lang-panel [aria-current]{color:var(--accent);background:var(--accent-wash);font-weight:600}
+.lang-panel [aria-current]::after{content:"";width:9px;height:5px;margin-top:-3px;border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg)}
+
+/* ---------- En-tête de page (bande adoucie) ---------- */
+.phead{position:relative;margin-top:calc(-1*var(--nav-h));padding:calc(var(--nav-h) + clamp(36px,5vw,72px)) 0 clamp(44px,5vw,72px);overflow-x:clip}
+.band{position:absolute;inset:0;overflow:hidden;clip-path:polygon(0 0,100% 0,100% calc(100% - 7vw),0 100%);background:linear-gradient(102deg,#fff6ea 0%,#ffe8c6 17%,#ffd391 33%,#ffb469 47%,#ff9160 57%,#ff7766 66%,#3fd4c4 80%,#4cb2ff 91%,#3552ff 100%)}
+.band::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.86) 0%,rgba(255,255,255,.7) 46%,rgba(255,255,255,.18) 78%,rgba(255,255,255,0) 100%)}
+.band i{position:absolute;display:block;border-radius:50%}
+.b2{width:40vw;height:32vw;left:58%;top:-10%;background:radial-gradient(closest-side,rgba(47,211,193,.8),rgba(47,211,193,0))}
+.b4{width:46vw;height:34vw;left:-8%;top:10%;background:radial-gradient(closest-side,rgba(255,196,100,.7),rgba(255,196,100,0))}
+.b5{width:30vw;height:26vw;left:80%;top:4%;background:radial-gradient(closest-side,rgba(74,179,255,.85),rgba(74,179,255,0))}
+.guides{position:absolute;inset:0;width:min(100% - 2*var(--g),1180px);margin-inline:auto;pointer-events:none;background:linear-gradient(90deg,rgba(11,27,52,.075) 1px,transparent 1px) 0 0/25% 100%;box-shadow:inset -1px 0 rgba(11,27,52,.075);-webkit-mask-image:repeating-linear-gradient(180deg,#000 0 4px,transparent 4px 9px);mask-image:repeating-linear-gradient(180deg,#000 0 4px,transparent 4px 9px)}
+.phead-in{position:relative}
+.pill{display:inline-flex;align-items:center;gap:10px;padding:5px 14px 5px 5px;border-radius:999px;background:rgba(255,255,255,.78);box-shadow:inset 0 0 0 1px rgba(11,27,52,.08);font-size:.875rem;font-weight:500;color:var(--ink-soft)}
+.pill b{font:700 .72rem/1 var(--sans);letter-spacing:.06em;color:#fff;background:var(--ink);padding:6px 9px;border-radius:999px}
+h1{margin-top:22px;font-size:clamp(2.5rem,1.2rem + 3.6vw,4rem);line-height:1.03;font-weight:400;letter-spacing:-.026em;color:var(--ink)}
+.lead{margin-top:20px;max-width:36em;font-size:clamp(1.06rem,.98rem + .35vw,1.22rem);line-height:1.55;color:var(--ink-soft)}
+.quick{list-style:none;padding:0;margin-top:28px;display:flex;flex-wrap:wrap;gap:10px}
+.quick li{display:inline-flex;align-items:center;gap:8px;min-height:38px;padding:0 12px 0 6px;border-radius:10px;background:rgba(255,255,255,.82);box-shadow:inset 0 0 0 1px rgba(11,27,52,.08),var(--sh-sm);font:600 .82rem/1 var(--mono);color:var(--ink)}
+.quick li:not(:has(.verb)){padding-left:12px}
+
+/* ---------- Badges ---------- */
+.verb{font:700 11px/1 var(--mono);color:var(--accent);background:var(--accent-wash);padding:5px 7px;border-radius:5px;letter-spacing:.02em}
+.inline{font-size:.86em;padding:.12em .4em;border-radius:6px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
+.st{display:inline-block;font:600 .72rem/1 var(--sans);letter-spacing:.04em;padding:5px 8px;border-radius:6px}
+.st-ok{color:var(--ok);background:var(--ok-bg)}
+.st-warn{color:var(--warn);background:var(--warn-bg)}
+.st-info{color:var(--accent);background:var(--accent-wash)}
+
+/* ---------- Mise en page documentation ---------- */
+.doc{display:grid;grid-template-columns:220px minmax(0,1fr);gap:clamp(40px,5vw,72px);align-items:start;padding-block:clamp(24px,3vw,40px) clamp(72px,8vw,120px)}
+.toc{position:sticky;top:calc(var(--nav-h) + 16px);max-height:calc(100vh - var(--nav-h) - 32px);overflow-y:auto;padding:4px 4px 12px 0;font-size:.92rem}
+.toc-h{font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.toc ol{list-style:none;padding:0;margin:12px 0 0;border-left:1px solid var(--line)}
+.toc li a{display:flex;align-items:center;min-height:36px;padding:4px 0 4px 16px;margin-left:-1px;border-left:2px solid transparent;color:var(--muted);text-decoration:none;line-height:1.3}
+.toc li a:hover{color:var(--ink);border-left-color:var(--ink)}
+.toc .toc-sub a{padding-left:30px;font-size:.86rem;min-height:32px}
+.toc-codes{list-style:none;display:flex;flex-wrap:wrap;gap:4px;padding:6px 0 8px 16px;margin:0}
+.toc .toc-codes a{display:inline-grid;place-items:center;min-width:44px;min-height:30px;padding:0 6px;margin:0;border:0;border-radius:6px;font:700 .76rem/1 var(--mono);color:var(--fam);background:var(--fam-bg)}
+.toc .toc-codes a:hover{box-shadow:inset 0 0 0 1.5px var(--fam);border:0}
+.content{min-width:0}
+.dsec{padding-top:clamp(44px,5vw,64px);scroll-margin-top:calc(var(--nav-h) + 8px)}
+.dsec:first-child{padding-top:8px}
+[id]{scroll-margin-top:calc(var(--nav-h) + 16px)}
+.eyebrow{font-size:.92rem;font-weight:600;color:var(--accent);letter-spacing:-.005em}
+h2{margin-top:10px;font-size:clamp(1.7rem,1.25rem + 1.4vw,2.35rem);line-height:1.12;font-weight:500;letter-spacing:-.022em}
+h3{font-size:1.18rem;line-height:1.3;font-weight:600;letter-spacing:-.018em}
+.content h3.sub{margin-top:40px}
+.prose{max-width:68ch}
+.prose p,.content > .dsec > p{max-width:68ch}
+.dsec > p:not(.eyebrow),.dsec .prose{margin-top:16px;color:var(--ink-soft)}
+.dsec p + p{margin-top:14px}
+.dsec a:not([class]){color:var(--accent);text-underline-offset:3px}
+.dsec a:not([class]):hover{color:var(--accent-deep)}
+.content p code,.content li code,.content dd code,.content dt code,.note code{font-size:.88em;padding:.1em .38em;border-radius:6px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);overflow-wrap:anywhere}
+.hr{height:1px;margin-top:clamp(44px,5vw,64px);background:var(--line)}
+
+/* Étapes */
+.steps{list-style:none;padding:0;margin-top:24px;display:grid;gap:14px;counter-reset:s;max-width:68ch}
+.steps li{position:relative;padding-left:44px;color:var(--ink-soft)}
+.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:-1px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:700 .8rem/1 var(--mono);color:var(--accent);background:var(--accent-wash)}
+.steps strong{color:var(--ink)}
+
+/* Blocs de code (thème de la carte API) */
+.cb{margin-top:20px;border-radius:12px;background:#071429;box-shadow:var(--sh-md),inset 0 0 0 1px rgba(255,255,255,.06);overflow:hidden;min-width:0}
+.cb-top{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.08);font:600 .74rem/1.2 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#a3b3cf}
+.cb-top .dots{display:flex;gap:6px;margin-right:2px}
+.cb-top .dots i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.14)}
+.cb-top .verb{background:rgba(147,197,255,.14);color:#b9d8ff;text-transform:none}
+.cb-top .cb-path{font:600 .8rem/1 var(--mono);color:#e8eef8;text-transform:none;letter-spacing:0}
+.cb-top .cb-lang{margin-left:auto}
+.cb pre{margin:0;padding:16px 18px 18px;overflow-x:auto;font:500 13px/1.72 var(--mono);font-variant-ligatures:none;color:#dbe4f3;white-space:pre;tab-size:4;scrollbar-color:rgba(255,255,255,.25) transparent}
+.cb pre:focus-visible{outline:3px solid #9db2ff;outline-offset:-3px;border-radius:0 0 12px 12px}
+.cb .k{color:#93c5ff}.cb .s{color:#ffcf9a}.cb .c{color:#93a5c3}.cb .v{color:#7ff0c4}.cb .n{color:#ffb3a6}
+.cb-note{margin-top:10px;font-size:.88rem;color:var(--muted)}
+
+/* Encadrés */
+.note{margin-top:22px;max-width:68ch;padding:16px 18px 16px 20px;border-radius:12px;background:var(--accent-wash);box-shadow:inset 3px 0 var(--accent);color:var(--ink-soft);font-size:.98rem}
+.note strong{color:var(--ink)}
+.note-warn{background:var(--warn-bg);box-shadow:inset 3px 0 #d98a00}
+.note-ok{background:var(--ok-bg);box-shadow:inset 3px 0 var(--ok)}
+
+/* Deux portes d'authentification */
+.auth{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:24px}
+.door{padding:24px;border-radius:16px;background:#fff;box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm)}
+.door-dev{background:var(--navy);color:#e8eef8;box-shadow:var(--sh-md)}
+.kicker{font:600 .78rem/1 var(--mono);letter-spacing:.02em;color:var(--accent)}
+.door-dev .kicker{color:#7ff0c4}
+.door h3{margin-top:10px}
+.door dl{margin-top:16px;display:grid;gap:14px}
+.door dt{font-size:.78rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+.door-dev dt{color:#a3b3cf}
+.door dd{margin-top:4px;font-size:.96rem;color:var(--ink-soft)}
+.door-dev dd{color:#dbe4f3}
+.door-dev dd code{background:rgba(255,255,255,.08);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);color:#fff}
+.door-dev strong{color:#fff}
+
+/* Références en lignes (champs, en-têtes, cache, intégrations) */
+.ref{margin-top:24px;border-top:1px solid var(--line)}
+.ref-head{display:grid;gap:8px 24px;padding:12px 0 10px;border-bottom:1px solid var(--line);font-size:.76rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.ref-row{display:grid;gap:6px 24px;padding:16px 0;border-bottom:1px solid var(--line)}
+.ref-2 .ref-head,.ref-2 .ref-row{grid-template-columns:minmax(0,190px) minmax(0,1fr)}
+.ref-3 .ref-head,.ref-3 .ref-row{grid-template-columns:minmax(0,160px) minmax(0,1fr) minmax(0,1fr)}
+.ref dt{font-weight:600;color:var(--ink);font-size:.98rem}
+.ref dt code{font-weight:600}
+.ref dd{color:var(--ink-soft);font-size:.96rem}
+.ref .rr-l{display:none}
+.map{list-style:none;padding:0;display:grid;gap:6px}
+.ref-wide .ref-head,.ref-wide .ref-row{grid-template-columns:minmax(0,210px) minmax(0,1fr)}
+
+/* ---------- Codes de retour (le détail fort) ---------- */
+.f-ok{--fam:var(--ok);--fam-bg:var(--ok-bg)}
+.f-fix{--fam:var(--bad);--fam-bg:#fde8e5}
+.f-lim{--fam:var(--warn);--fam-bg:var(--warn-bg)}
+.f-srv{--fam:var(--accent);--fam-bg:var(--accent-wash)}
+.codemap{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:28px}
+.cm{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:14px;background:#fff;box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm);border-top:3px solid var(--fam)}
+.cm-h{font-size:.92rem;font-weight:600;line-height:1.25;color:var(--ink)}
+.cm-codes{display:flex;flex-wrap:wrap;gap:6px}
+.cm-codes a{display:inline-grid;place-items:center;min-width:52px;min-height:44px;padding:0 10px;border-radius:9px;font:700 1.05rem/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--fam);background:var(--fam-bg);text-decoration:none;transition:box-shadow .25s var(--expo)}
+.cm-codes a:hover{box-shadow:inset 0 0 0 2px var(--fam)}
+.cm-d{font-size:.86rem;line-height:1.45;color:var(--muted)}
+.codes-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.55fr) 184px;gap:24px;margin-top:32px;padding:0 20px 10px 23px;font-size:.76rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.codes{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+.code-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.55fr) 184px;gap:12px 24px;align-items:start;padding:18px 20px 18px 23px;border-radius:14px;background:#fff;box-shadow:inset 3px 0 var(--fam),inset 0 0 0 1px var(--line),var(--sh-sm)}
+.code-row:target{box-shadow:inset 3px 0 var(--fam),inset 0 0 0 2px var(--fam),var(--sh-md)}
+.cr-id h3{display:flex;align-items:flex-start;gap:14px;font-size:1.02rem;line-height:1.35}
+.sc{flex:none;display:inline-grid;place-items:center;min-width:64px;padding:8px 0;border-radius:9px;font:700 1.32rem/1 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:var(--fam);background:var(--fam-bg)}
+.cr-t{padding-top:3px}
+.cr-fam{margin-top:10px;margin-left:78px;font-size:.8rem;font-weight:600;color:var(--fam)}
+.cr-do{color:var(--ink-soft);font-size:.96rem}
+.cr-do p + p{margin-top:8px}
+.cr-do strong{color:var(--ink)}
+.rt{position:relative;display:inline-block;padding:7px 10px 7px 26px;border-radius:8px;font-size:.84rem;font-weight:600;line-height:1.25;color:var(--fam);background:var(--fam-bg)}
+.rt::before{content:"";position:absolute;left:10px;top:calc(7px + .625em - 4px);width:8px;height:8px;border-radius:50%;background:currentColor}
+.rt-no::before{border-radius:2px;width:9px;height:2.5px;top:calc(7px + .625em - 1px)}
+.rt-none{color:var(--muted);background:var(--soft)}
+.rt code{padding:0!important;background:none!important;box-shadow:none!important;color:inherit;font-size:.95em!important;overflow-wrap:normal!important}
+.split{grid-column:2/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:-2px}
+.split div{padding:12px 14px;border-radius:10px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line);font-size:.88rem;line-height:1.45}
+.split .sb{display:block;margin-bottom:6px;padding:0!important;background:none!important;box-shadow:none!important;font-size:.82rem!important;font-weight:600;color:var(--ink);overflow-wrap:anywhere}
+.never{display:inline-block;margin-top:8px;padding:3px 8px;border-radius:6px;font-size:.84rem;font-weight:600;color:var(--accent);background:var(--accent-wash)}
+
+/* Agents */
+.flow{list-style:none;padding:0;margin-top:24px;display:grid;gap:0;max-width:72ch}
+.flow li{position:relative;padding:0 0 22px 44px;color:var(--ink-soft)}
+.flow li::before{content:"";position:absolute;left:13px;top:30px;bottom:2px;width:2px;background:linear-gradient(180deg,var(--aqua),var(--cobalt));border-radius:2px;opacity:.5}
+.flow li:last-child::before{display:none}
+.flow b{position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:700 .8rem/1 var(--mono);color:#fff;background:var(--navy)}
+.flow strong{color:var(--ink)}
+.res{list-style:none;padding:0;margin-top:22px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.res a{display:flex;flex-direction:column;gap:4px;min-height:44px;height:100%;padding:14px 16px;border-radius:12px;background:#fff;box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm);text-decoration:none;color:var(--muted)!important;font-size:.9rem;line-height:1.4;transition:box-shadow .3s var(--expo)}
+.res a:hover{box-shadow:inset 0 0 0 1px var(--accent),var(--sh-md)}
+.res .rp{font:700 .95rem/1.2 var(--mono);color:var(--accent)}
+
+
+/* Fin de page */
+.next{margin-top:clamp(56px,6vw,80px);padding:clamp(24px,3vw,36px);border-radius:20px;background:linear-gradient(160deg,#fff7ec 0%,#fff 46%,#eefbf8 100%);box-shadow:inset 0 0 0 1px var(--line),var(--sh-sm)}
+.next h2{margin-top:0;font-size:clamp(1.5rem,1.2rem + 1vw,1.9rem)}
+.next > p{margin-top:10px;color:var(--muted);max-width:52ch}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}
+
+/* Pied de page */
+.foot{padding:56px 0 48px;border-top:1px solid var(--line)}
+.foot-grid{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(2,minmax(0,1fr));gap:36px}
+.foot-brand p{margin-top:14px;color:var(--muted);font-size:.95rem;max-width:30em}
+.foot-brand a.mail{display:inline-flex;align-items:center;min-height:44px;color:var(--accent);font-weight:600;text-decoration:none}
+.foot-brand a.mail:hover{text-decoration:underline}
+.foot-h{font-size:.85rem;font-weight:600;color:var(--ink)}
+.foot ul{list-style:none;padding:0;margin:8px 0 0}
+.foot li a{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);text-decoration:none;font-size:.95rem}
+.foot li a:hover{color:var(--ink)}
+.legal{margin-top:40px;padding-top:22px;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted)}
+
+/* ---------- Survol ---------- */
+@media (hover:hover){
+  .btn:hover{translate:0 -1px}
+  .btn{transition:background-color .2s ease,box-shadow .35s var(--expo),translate .35s var(--expo)}
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1060px){
+  .nav a{padding:0 9px;font-size:.92rem}
+  .codes-head,.code-row{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)}
+  .codes-head span:last-child{display:none}
+  .cr-retry{grid-column:2}
+  .split{grid-column:2}
+  .codemap{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:960px){
+  .nav{display:none}
+  .bar{gap:12px}
+  .menu{display:block;margin-left:0}
+  .lang{margin-left:auto}
+  .band{clip-path:polygon(0 0,100% 0,100% calc(100% - 12vw),0 100%)}
+  .band::after{background:linear-gradient(180deg,rgba(255,255,255,.8) 0%,rgba(255,255,255,.66) 60%,rgba(255,255,255,.3) 100%)}
+  .doc{grid-template-columns:minmax(0,1fr);gap:8px}
+  .toc{position:static;max-height:none;overflow:visible;padding:18px 18px 10px;border-radius:16px;background:var(--soft);box-shadow:inset 0 0 0 1px var(--line)}
+  .toc > ol{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;border-left:0}
+  .toc li a{padding-left:0;margin-left:0;border-left:0;min-height:44px}
+  .toc .toc-codes a{min-height:44px;min-width:46px}
+  .toc .toc-sub{display:none}
+  .toc-codes{grid-column:1/-1;padding-left:0}
+  .toc-li-codes{grid-column:1/-1}
+  .foot-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .foot-brand{grid-column:1/-1}
+}
+@media (max-width:720px){
+  .auth,.res{grid-template-columns:minmax(0,1fr)}
+  .codes-head{display:none}
+  .codes{margin-top:20px}
+  .code-row{grid-template-columns:minmax(0,1fr);padding:16px 16px 16px 19px}
+  .cr-retry,.split{grid-column:auto}
+  .cr-fam{margin-left:0;margin-top:8px}
+  .ref-head{display:none}
+  .ref-2 .ref-row,.ref-3 .ref-row,.ref-wide .ref-row{grid-template-columns:minmax(0,1fr)}
+  .ref .rr-l{display:block;margin-top:4px;font-size:.74rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+}
+@media (max-width:640px){
+  .bar > .btn{display:none}
+}
+@media (max-width:560px){
+  .split{grid-template-columns:minmax(0,1fr)}
+  .cb pre{font-size:12.5px;padding:14px 16px 16px}
+  .cta .btn{flex:1 1 100%}
+  .door{padding:20px}
+}
+@media (max-width:480px){
+  .menu summary{width:44px;padding:0;justify-content:center}
+  .menu-t{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .codemap{gap:8px}
+  .cm{padding:14px 12px}
+  .cm-codes{gap:5px}
+  .cm-codes a{min-width:44px;padding:0 6px;font-size:.95rem}
+}
+@media (pointer:coarse){
+  .toc li a{min-height:44px}
+  .toc .toc-codes a{min-height:44px;min-width:46px}
+}
+@media (max-width:370px){
+  .lang summary svg{display:none}
+}
+
+/* ---------- Mouvement (seulement si l'utilisateur l'accepte) ---------- */
+@keyframes rise{from{opacity:0;transform:translateY(20px)}}
+@keyframes d2{50%{transform:translate(7vw,-3vw) scale(.9)}100%{transform:translate(-4vw,-6vw) scale(1.1)}}
+@keyframes d4{50%{transform:translate(8vw,3vw) scale(1.08)}100%{transform:translate(2vw,-4vw) scale(.92)}}
+@media (prefers-reduced-motion:no-preference){
+  html{scroll-behavior:smooth}
+  .b2{animation:d2 22s ease-in-out infinite alternate}
+  .b4{animation:d4 28s ease-in-out infinite alternate}
+  .b5{animation:d2 30s ease-in-out -8s infinite alternate}
+  .bar{animation:rise .9s var(--expo) both}
+  .in{animation:rise 1.1s var(--expo) both;animation-delay:calc(var(--i,0)*90ms + 60ms)}
+  @supports (animation-timeline:view()){
+    .reveal{animation:rise both var(--expo);animation-timeline:view();animation-range:entry 5% cover 22%}
+    .code-row,.cm{animation:rise both var(--expo);animation-timeline:view();animation-range:entry 0% cover 18%}
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+
+/* ================= D90 : la page prend le style de la page d'accueil (D87) ================= */
+:root{--n8:#0b1b34;--n9:#060f22;--wash:#e9edff;--sh-xl:0 60px 120px -30px rgba(6,15,34,.55),0 30px 60px -30px rgba(6,15,34,.5)}
+/* En-tête de page : fond lumineux à halos et grille de points ; la bande en biais disparaît */
+.phead,.ct-head{isolation:isolate;background:linear-gradient(180deg,rgba(255,255,255,0) 62%,#fff),radial-gradient(1000px 560px at 6% -10%,rgba(255,148,85,.40),transparent 62%),radial-gradient(800px 620px at 98% 0%,rgba(74,179,255,.40),transparent 60%),radial-gradient(700px 460px at 60% 110%,rgba(47,211,193,.22),transparent 62%),linear-gradient(180deg,#fff7f1,#f6f8ff 60%,#fff)}
+.phead::before,.ct-head::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background-image:radial-gradient(rgba(11,27,52,.07) 1px,transparent 1.4px);background-size:26px 26px;-webkit-mask-image:radial-gradient(ellipse at 50% 30%,#000 30%,transparent 75%);mask-image:radial-gradient(ellipse at 50% 30%,#000 30%,transparent 75%)}
+.phead .band,.phead .guides,.ct-head .band,.ct-head .guides,.band-final{display:none}
+.dash-bg{background:linear-gradient(180deg,rgba(255,255,255,0) 62%,#fff),radial-gradient(1000px 560px at 6% -10%,rgba(255,148,85,.40),transparent 62%),radial-gradient(800px 620px at 98% 0%,rgba(74,179,255,.40),transparent 60%),radial-gradient(700px 460px at 60% 110%,rgba(47,211,193,.22),transparent 62%),linear-gradient(180deg,#fff7f1,#f6f8ff 60%,#fff)}
+/* Titres forts, pastille, boutons bleus : les briques de l'accueil */
+h1{font-weight:750;letter-spacing:-.03em;line-height:1.06}
+h2{font-weight:750;letter-spacing:-.028em}
+.pill{background:#fff;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+.pill b{background:linear-gradient(90deg,var(--tang),var(--coral));color:#fff}
+.btn-accent{background:linear-gradient(180deg,#3a55ff,#1f3bff);box-shadow:0 14px 30px -12px rgba(31,59,255,.85),inset 0 1px 0 rgba(255,255,255,.25)}
+.btn-glass{background:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+/* Appel final : la carte bleu nuit de l'accueil */
+.final-card{color:#fff;background:radial-gradient(700px 360px at 50% 120%,rgba(47,211,193,.35),transparent 65%),radial-gradient(600px 400px at 0% 0%,rgba(255,148,85,.35),transparent 60%),radial-gradient(700px 420px at 100% 0%,rgba(49,80,255,.6),transparent 60%),linear-gradient(180deg,var(--n8),var(--n9));box-shadow:var(--sh-xl)}
+.final-card p{color:#c6d0ee}
+.final-card .btn-accent{background:#fff;color:var(--ink);box-shadow:0 14px 30px -14px rgba(0,0,0,.5)}
+.final-card .btn-glass{background:transparent;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}
+
+/* D98 : la checklist (cases à cocher, tableau d'exemple, impression). */
+.ck-wrap{max-width:860px;margin:0 auto;padding:clamp(28px,5vw,56px) 20px 72px}
+.ck-howto{display:flex;gap:14px;align-items:flex-start;border-radius:18px;padding:18px 20px;background:#e9edff;color:#1d2c52;margin:0 0 34px;font-size:.98rem;line-height:1.55}
+.ck-howto b{color:#0b1b34}
+.ck-sec{margin:0 0 38px}
+.ck-sec h2{display:flex;align-items:center;gap:12px;font-size:clamp(1.35rem,2.6vw,1.75rem);font-weight:750;letter-spacing:-.02em;margin:0 0 6px}
+.ck-sec h2 .ck-tag{font-size:.7rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#fff;background:#0b1b34;border-radius:99px;padding:5px 11px}
+.ck-sec > p{color:#4b5974;margin:0 0 14px}
+.ck-list{list-style:none;margin:0;padding:0;border-radius:18px;background:#fff;box-shadow:inset 0 0 0 1px #e2e7f0,0 18px 40px -30px rgba(11,27,52,.35)}
+.ck-list li{border-bottom:1px solid #e2e7f0}
+.ck-list li:last-child{border-bottom:0}
+.ck-list input{position:absolute;opacity:0;width:1px;height:1px}
+.ck-list label{display:grid;grid-template-columns:26px 34px 1fr;gap:4px;align-items:start;padding:14px 18px;cursor:pointer;line-height:1.55;color:#22324d}
+.ck-list label::before{content:"";display:grid;place-items:center;width:20px;height:20px;border-radius:6px;box-shadow:inset 0 0 0 2px #0b1b34;margin-top:2px;background:#fff;color:#fff;font-size:14px;font-weight:800;line-height:1}
+.ck-list input:checked + label::before{content:"✓";background:#1f3bff;box-shadow:none}
+.ck-list input:checked + label > span:last-child{color:#66738c;text-decoration:line-through;text-decoration-color:rgba(11,27,52,.35)}
+.ck-list input:focus-visible + label{outline:3px solid #4ab3ff;outline-offset:-3px;border-radius:12px}
+.ck-n{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:.82rem;font-weight:700;color:#1f3bff;margin-top:3px}
+.ck-table{width:100%;border-collapse:collapse;margin:8px 0 10px;font-size:.98rem}
+.ck-table th{text-align:left;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:#66738c;padding:0 12px 8px;border-bottom:2px solid #0b1b34}
+.ck-table td{padding:12px;border-bottom:1px solid #e2e7f0}
+.ck-table th.n,.ck-table td.n{text-align:right;font-variant-numeric:tabular-nums}
+.ck-table td b{color:#0b1b34}
+.ck-fine{font-size:.9rem;color:#66738c;margin:0 0 30px}
+.ck-cta{border-radius:24px;padding:clamp(24px,4vw,36px);background:#0b1b34;color:#e7ecff}
+.ck-cta h2{color:#fff;font-size:clamp(1.35rem,2.6vw,1.75rem);font-weight:750;letter-spacing:-.02em;margin:0 0 8px}
+.ck-cta p{color:#cdd7f2;margin:0 0 16px}
+.ck-cta ol{margin:0 0 22px;padding-left:20px;color:#e7ecff;line-height:1.7}
+.ck-cta ol b{color:#fff}
+.ck-cta .cta{display:flex;flex-wrap:wrap;gap:10px}
+.ck-share{margin-top:26px;font-size:.9rem;color:#66738c;text-align:center}
+@media print{
+  .skip,header.top,footer.foot,.ck-cta,.ck-print,.phead .pill,.phead .cta,.band,.guides{display:none!important}
+  .phead{padding:0 0 10px!important;background:#fff!important}
+  .phead h1{font-size:22pt}
+  body{background:#fff}
+  .ck-wrap{padding:0}
+  .ck-list{box-shadow:none;border:1px solid #c9d1e0}
+  .ck-list li{break-inside:avoid}
+  .ck-list label{padding:7px 10px;font-size:10pt}
+  .ck-sec{break-inside:auto;margin-bottom:18px}
+  .ck-howto{background:#fff;border:1px solid #c9d1e0}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">Aller au contenu</a>
+
+<header class="top">
+  <div class="wrap bar">
+    <a class="brand" href="{{url_accueil}}" aria-label="Address Validator, accueil">
+      <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>
+      Address Validator
+    </a>
+    <nav class="nav" aria-label="Navigation principale">
+      <a href="{{url_pricing}}">Tarifs</a>
+      <a href="{{url_guide}}">Guide</a>
+      <a href="{{url_validate_form}}">Tester une adresse</a>
+      <a href="{{url_compte}}">Espace client</a>
+    </nav>
+    <details class="lang" name="entete">
+      <summary><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="8" cy="8" r="6.3"/><path d="M1.7 8h12.6M8 1.7c1.9 2 2.8 4.1 2.8 6.3S9.9 12.3 8 14.3C6.1 12.3 5.2 10.2 5.2 8S6.1 3.7 8 1.7z"/></svg><span class="sr">Langue : </span>FR</summary>
+      <ul class="lang-panel">
+        <li><a href="{{lien_fr}}" hreflang="fr" lang="fr" aria-current="page">Français</a></li>
+        <li><a href="{{lien_en}}" hreflang="en" lang="en">English</a></li>
+        <li><a href="{{lien_zh}}" hreflang="zh" lang="zh">中文</a></li>
+        <li><a href="{{lien_hi}}" hreflang="hi" lang="hi">हिन्दी</a></li>
+        <li><a href="{{lien_es}}" hreflang="es" lang="es">Español</a></li>
+        <li><a href="{{lien_ar}}" hreflang="ar" lang="ar">العربية</a></li>
+      </ul>
+    </details>
+    <a class="btn btn-ink btn-sm" href="{{url_signup}}">Créer un compte <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+    <details class="menu" name="entete">
+      <summary><i aria-hidden="true"></i><span class="menu-t">Menu</span></summary>
+      <nav class="menu-panel" aria-label="Navigation mobile">
+        <a href="{{url_pricing}}">Tarifs</a>
+        <a href="{{url_guide}}">Guide</a>
+        <a href="{{url_validate_form}}">Tester une adresse</a>
+        <a href="{{url_compte}}">Espace client</a>
+        <a class="btn btn-ink" href="{{url_signup}}">Créer un compte</a>
+      </nav>
+    </details>
+  </div>
+</header>
+
+<main id="contenu">
+
+<section class="phead" aria-labelledby="titre">
+  <div class="band" aria-hidden="true"><i class="b4"></i><i class="b2"></i><i class="b5"></i></div>
+  <div class="guides" aria-hidden="true"></div>
+  <div class="wrap phead-in">
+    <p class="pill in" style="--i:0"><b>GRATUIT</b>La Checklist Anti-Colis Perdu</p>
+    <h1 id="titre" class="in" style="--i:1">27 contrôles pour livrer juste, du premier coup.</h1>
+    <p class="lead in" style="--i:2">Un colis en échec coûte environ {{colis_rate}} : retour, réexpédition, appel au client. Cette checklist élimine les causes évitables, en trois temps. Comptez dix minutes par expédition.</p>
+    <div class="cta in" style="--i:3">
+      <a class="btn btn-accent" href="{{url_validate_form}}">Tester {{essais_jour}} adresses gratuitement <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+      <a class="btn btn-glass" href="#avant">Commencer la checklist</a>
+    </div>
+  </div>
+</section>
+
+<div class="ck-wrap">
+  <p class="ck-howto"><span><b>Comment l'utiliser :</b> cochez chaque point avant de valider l'expédition. Ce qui n'est pas coché est un risque assumé, pas un détail. <span class="ck-print">Pour l'imprimer ou l'enregistrer en PDF : <b>⌘ P</b> sur Mac, <b>Ctrl P</b> sous Windows, puis « Enregistrer au format PDF ».</span> Les cases cochées ne sont gardées nulle part : rien n'est envoyé.</span></p>
+
+  <section class="ck-sec" id="avant" aria-labelledby="h-avant">
+    <h2 id="h-avant"><span class="ck-tag">1</span>Avant l'expédition : vérifier l'adresse</h2>
+    <p>Neuf points, avant le paiement et avant l'étiquette.</p>
+    <ul class="ck-list">
+        <li><input type="checkbox" id="point-1"><label for="point-1"><span class="ck-n">01</span><span>Exiger le <b>prénom et le nom complets</b> du destinataire : pas d'initiales, pas de surnom, pas de « M. Dupont » sans prénom.</span></label></li>
+        <li><input type="checkbox" id="point-2"><label for="point-2"><span class="ck-n">02</span><span>Vérifier le <b>numéro et le nom exact de la voie</b> (rue, avenue, chemin, lieu-dit) : un numéro manquant est la première cause d'échec.</span></label></li>
+        <li><input type="checkbox" id="point-3"><label for="point-3"><span class="ck-n">03</span><span>Exiger le <b>complément d'adresse</b> : bâtiment, étage, appartement, porte, code d'accès. Sans lui, le transporteur ne peut pas livrer.</span></label></li>
+        <li><input type="checkbox" id="point-4"><label for="point-4"><span class="ck-n">04</span><span>Contrôler la cohérence <b>code postal + ville + pays</b> ; n'accepter un CEDEX que si le transporteur le prend en charge.</span></label></li>
+        <li><input type="checkbox" id="point-5"><label for="point-5"><span class="ck-n">05</span><span>Valider l'adresse <b>avant le paiement et avant l'impression</b> avec un outil de vérification (BAN pour la France, USPS DPV pour les États-Unis) — pas seulement à l'expédition.</span></label></li>
+        <li><input type="checkbox" id="point-6"><label for="point-6"><span class="ck-n">06</span><span><b>Bloquer les adresses incomplètes</b> : absence de numéro, boîte postale incompatible, pays non couvert, adresse inconnue. Afficher un message clair au client, pas une erreur technique.</span></label></li>
+        <li><input type="checkbox" id="point-7"><label for="point-7"><span class="ck-n">07</span><span>Distinguer <b>résidentiel et commercial</b> : cela change la surcharge, la signature et le créneau de livraison.</span></label></li>
+        <li><input type="checkbox" id="point-8"><label for="point-8"><span class="ck-n">08</span><span>Si le score de confiance est bas ou si l'adresse a été corrigée, <b>demander une confirmation écrite</b> au client avant d'expédier.</span></label></li>
+        <li><input type="checkbox" id="point-9"><label for="point-9"><span class="ck-n">09</span><span><b>Journaliser la décision</b> : adresse validée, horodatage, résultat et éventuelle correction. C'est votre preuve en cas de litige.</span></label></li>
+    </ul>
+  </section>
+
+  <section class="ck-sec" id="pendant" aria-labelledby="h-pendant">
+    <h2 id="h-pendant"><span class="ck-tag">2</span>Pendant l'emballage : lisibilité et étiquetage</h2>
+    <p>Neuf points, au poste d'emballage.</p>
+    <ul class="ck-list">
+        <li><input type="checkbox" id="point-10"><label for="point-10"><span class="ck-n">10</span><span>Imprimer l'étiquette <b>directement depuis la commande validée</b> : jamais de recopie manuelle, jamais de retour au fichier client.</span></label></li>
+        <li><input type="checkbox" id="point-11"><label for="point-11"><span class="ck-n">11</span><span>Utiliser une police <b>≥ 12 pt</b>, en majuscules, noir sur blanc, sans fond coloré ni texte décoratif.</span></label></li>
+        <li><input type="checkbox" id="point-12"><label for="point-12"><span class="ck-n">12</span><span>Coller l'étiquette sur la <b>plus grande face du colis</b>, sans pli et sans ruban adhésif par-dessus le code-barres.</span></label></li>
+        <li><input type="checkbox" id="point-13"><label for="point-13"><span class="ck-n">13</span><span><b>Une seule étiquette active</b> : retirer ou recouvrir intégralement les anciennes étiquettes d'expédition.</span></label></li>
+        <li><input type="checkbox" id="point-14"><label for="point-14"><span class="ck-n">14</span><span>Protéger l'étiquette dans une <b>pochette transparente</b> si la surface est exposée à l'humidité ou aux frottements.</span></label></li>
+        <li><input type="checkbox" id="point-15"><label for="point-15"><span class="ck-n">15</span><span>Vérifier que le <b>code-barres ou QR code est lisible à 30 cm</b>, sans reflet ni zone arrachée.</span></label></li>
+        <li><input type="checkbox" id="point-16"><label for="point-16"><span class="ck-n">16</span><span>Ajouter le <b>téléphone du destinataire au format international</b> si le transporteur l'exige ; sinon, ne pas l'inventer.</span></label></li>
+        <li><input type="checkbox" id="point-17"><label for="point-17"><span class="ck-n">17</span><span><b>Peser et mesurer</b> le colis, puis choisir le bon format et le bon tarif : un mauvais format peut être rejeté ou retourné.</span></label></li>
+        <li><input type="checkbox" id="point-18"><label for="point-18"><span class="ck-n">18</span><span>Pour l'international, vérifier les <b>mentions douane</b> (CN22/CN23, déclaration, valeur) et les dimensions maximales du transporteur.</span></label></li>
+    </ul>
+  </section>
+
+  <section class="ck-sec" id="erreur" aria-labelledby="h-erreur">
+    <h2 id="h-erreur"><span class="ck-tag">3</span>En cas d'erreur : protocole de correction</h2>
+    <p>Neuf points, dès qu'un incident apparaît dans le suivi.</p>
+    <ul class="ck-list">
+        <li><input type="checkbox" id="point-19"><label for="point-19"><span class="ck-n">19</span><span>Surveiller le <b>suivi quotidiennement</b> : détecter un incident, un retour ou une adresse introuvable dans les 24 à 48 h.</span></label></li>
+        <li><input type="checkbox" id="point-20"><label for="point-20"><span class="ck-n">20</span><span><b>Suspendre immédiatement toute réexpédition</b> vers l'adresse invalide : ne pas aggraver le coût avec un deuxième envoi perdu.</span></label></li>
+        <li><input type="checkbox" id="point-21"><label for="point-21"><span class="ck-n">21</span><span>Ouvrir un <b>dossier transporteur</b> avec le numéro de suivi, l'adresse validée, la preuve de validation et les photos de l'étiquette.</span></label></li>
+        <li><input type="checkbox" id="point-22"><label for="point-22"><span class="ck-n">22</span><span>Demander au client une <b>confirmation d'adresse écrite</b> (email ou SMS) avec l'adresse corrigée complète, puis archiver sa réponse.</span></label></li>
+        <li><input type="checkbox" id="point-23"><label for="point-23"><span class="ck-n">23</span><span>Mettre à jour l'adresse dans la <b>source de vérité</b> (commande, CRM, fiche client) — pas seulement dans un message.</span></label></li>
+        <li><input type="checkbox" id="point-24"><label for="point-24"><span class="ck-n">24</span><span>Décider et tracer : <b>réexpédition, remboursement ou avoir</b>, avec la date et le motif.</span></label></li>
+        <li><input type="checkbox" id="point-25"><label for="point-25"><span class="ck-n">25</span><span>Calculer le <b>coût réel</b> de l'incident (réexpédition, remboursement, temps SAV) et l'imputer à la commande.</span></label></li>
+        <li><input type="checkbox" id="point-26"><label for="point-26"><span class="ck-n">26</span><span>Enregistrer la <b>cause racine</b> : adresse incomplète, inconnue, refusée, absence, erreur de saisie.</span></label></li>
+        <li><input type="checkbox" id="point-27"><label for="point-27"><span class="ck-n">27</span><span>Corriger le processus pour empêcher la récidive : règle bloquante, message client plus clair, contrôle supplémentaire ; tester sur les 10 commandes suivantes.</span></label></li>
+    </ul>
+  </section>
+
+  <section class="ck-sec" aria-labelledby="h-cout">
+    <h2 id="h-cout">Ce que vous pouvez éviter</h2>
+    <p>Un exemple, à refaire avec vos chiffres : si {{taux_exemple}} des colis ont un problème d'adresse, et qu'un échec coûte {{colis_rate}}.</p>
+    <table class="ck-table">
+      <thead><tr><th scope="col">Boutique</th><th scope="col" class="n">Commandes par mois</th><th scope="col" class="n">Problèmes d'adresse</th><th scope="col" class="n">Coût évité par mois</th></tr></thead>
+      <tbody>
+        <tr><td>Petite boutique</td><td class="n">{{commandes_1}}</td><td class="n">{{incidents_1}}</td><td class="n"><b>{{cout_1}}</b></td></tr>
+        <tr><td>Boutique en croissance</td><td class="n">{{commandes_2}}</td><td class="n">{{incidents_2}}</td><td class="n"><b>{{cout_2}}</b></td></tr>
+      </tbody>
+    </table>
+    <p class="ck-fine">Ni le taux ni le coût ne sont mesurés par notre service : ce sont des ordres de grandeur. Votre transporteur connaît votre taux d'échec réel. La plupart de ces échecs se règlent avant l'expédition : c'est exactement ce que les points 5, 6 et 8 font.</p>
+  </section>
+
+  <section class="ck-cta" aria-labelledby="h-auto">
+    <h2 id="h-auto">Passez à la vitesse supérieure</h2>
+    <p>Les points 5, 6, 8 et 9 peuvent se faire tout seuls, à chaque adresse, sans ressaisie.</p>
+    <ol>
+      <li><b>Testez gratuitement</b> {{essais_jour}} adresses par jour, sans compte.</li>
+      <li><b>Automatisez la vérification</b> dans votre page de paiement ou votre outil d'expédition : Starter à {{prix_starter}} par mois pour {{quota_starter}} validations, Pro à {{prix_pro}} par mois pour {{quota_pro}}. L'essai gratuit offre {{jours_essai}} jours et {{validations_essai}} validations, sans carte bancaire.</li>
+      <li><b>Pour un agent IA</b> : {{prix_x402}} USDC par validation, payée à l'appel, sans compte.</li>
+    </ol>
+    <div class="cta">
+      <a class="btn btn-accent" href="{{url_validate_form}}">Tester une adresse <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
+      <a class="btn btn-glass" href="{{url_pricing}}">Voir les offres</a>
+      <a class="btn btn-glass" href="{{url_agents}}">Pour les agents IA</a>
+    </div>
+  </section>
+
+  <p class="ck-share">Checklist gratuite Address Validator. Partage autorisé sans modification.</p>
+</div>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="{{url_accueil}}"><span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5s-7-5.9-7-11.6a7 7 0 0 1 14 0c0 5.7-7 11.6-7 11.6z"/><path d="m9.2 10 2 2 3.8-3.9"/></svg></span>Address Validator</a>
+        <a class="mail" href="mailto:{{contact}}">{{contact}}</a>
+      </div>
+      <div>
+        <p class="foot-h">Boutiques</p>
+        <ul>
+          <li><a href="{{url_pricing}}">Tarifs</a></li><li><a href="{{url_compare}}">Comparatif des prix</a></li>
+          <li><a href="{{url_guide}}">Guide d'intégration</a></li>
+          <li><a href="{{url_validate_form}}">Tester une adresse</a></li>
+          <li><a href="{{url_compte}}">Espace client</a></li>
+          <li><a href="{{url_signup}}">Créer un compte</a></li>
+          <li><a href="/checklist">Checklist anti-colis perdu</a></li>
+          <li><a href="/checklist">Checklist anti-colis perdu</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="foot-h">Développeurs et agents</p>
+        <ul>
+          <li><a href="/docs">Documentation</a></li>
+          <li><a href="{{url_agents}}">Serveur MCP</a></li>
+          <li><a href="/manifest">Manifeste</a></li>
+          <li><a href="/llms.txt">llms.txt</a></li>
+          <li><a href="/AGENTS.md">AGENTS.md</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="legal">TVA non applicable, art. 293 B du CGI. Appel direct sans abonnement : {{prix_x402}} USDC par validation.</p>
+  </div>
+</footer>
+</body>
+</html>
