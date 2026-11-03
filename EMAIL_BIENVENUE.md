@@ -40,8 +40,9 @@ même nous — ne peut relire une clé existante.
 CE QUE COMPREND VOTRE OFFRE
 {{jours_essai}} jours et {{quota}} validations offertes, sans carte bancaire.
 Ensuite : Starter 29 €/mois (2 000 validations) ou Pro 79 €/mois (6 000), selon
-votre volume. Aucun prélèvement automatique : le passage à un plan payant se fait
-sur simple demande, et rien n'est prélevé sans votre accord écrit.
+votre volume. Aucun prélèvement automatique à la fin de l'essai : il s'arrête tout
+seul. Si vous choisissez une offre, vous la payez par carte avec Stripe, chaque
+mois, jusqu'à ce que vous l'arrêtiez depuis votre espace client.
 
 COMMENT L'ENVOYER
 Votre clé se place dans l'en-tête X-API-Key de POST /validate :
@@ -106,7 +107,8 @@ https://kder-ai.com/compte, et l'ancienne cesse de fonctionner immédiatement.
 CE QUE COMPREND VOTRE OFFRE
 14 jours et 50 validations offertes, sans carte bancaire. Ensuite : Starter
 29 €/mois (2 000 validations) ou Pro 79 €/mois (6 000), selon votre volume. Aucun
-prélèvement automatique : rien n'est prélevé sans votre accord écrit.
+prélèvement automatique à la fin de l'essai. Une offre choisie se paie par carte
+avec Stripe, chaque mois, jusqu'à ce que vous l'arrêtiez.
 
 COMMENT L'ENVOYER
 La clé va dans l'en-tête X-API-Key de POST https://kder-ai.com/validate :

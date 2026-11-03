@@ -415,7 +415,7 @@ h2{font-weight:750;letter-spacing:-.028em}
           <p class="trial-dates"><span>{{aujourdhui}}, today</span><span>{{fin_courte}}, end</span></p>
         </div><!--@fin:piste-->
         <!--@si:payer--><div class="pay"><p class="pay-h">Last step: pay for {{offre_nom}}</p><a class="btn btn-accent" href="{{lien_payer}}" target="_blank" rel="noopener noreferrer">Pay for {{offre_nom}}, {{offre_prix}} per month <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a><p class="pay-note">Copy your key first. Payment opens in a new tab; your account switches to {{offre_nom}} as soon as Stripe confirms it.</p></div><!--@fin:payer-->
-        <p class="offer-note">After that, {{prix_starter}} per month excl. VAT (Starter, {{quota_starter}} validations) or {{prix_pro}} per month excl. VAT (Pro, {{quota_pro}}), paid by card with Stripe from your dashboard. No automatic charge.</p>
+        <p class="offer-note">After that, {{prix_starter}} per month (Starter, {{quota_starter}} validations) or {{prix_pro}} per month (Pro, {{quota_pro}}), paid by card with Stripe from your dashboard. Nothing is charged until you choose a plan.</p>
         <p class="pnote">{{mention_euros}}</p>
         <a class="link" href="{{url_pricing}}">See pricing <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
       </aside>
@@ -479,7 +479,7 @@ h2{font-weight:750;letter-spacing:-.028em}
         </ul>
       </div>
     </div>
-    <p class="legal">Prices excl. VAT. Direct call, no subscription: {{prix_x402}} USDC per validation.</p>
+    <p class="legal">VAT not applicable (art. 293 B of the French tax code). Direct call, no subscription: {{prix_x402}} USDC per validation.</p>
   </div>
 </footer>
 </body>

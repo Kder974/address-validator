@@ -160,12 +160,12 @@ MENTION_EUROS = {
     "fr": "",
     "es": "",
     "en": "Approximate prices. Billed in euros: €{starter} and €{pro} per month, "
-          "excl. VAT (exchange rate of September 2026).",
-    "zh": "价格为约数。按欧元计费：每月 {starter} 欧元和 {pro} 欧元，不含税（2026 年 9 月汇率）。",
+          "VAT not applicable (exchange rate of September 2026).",
+    "zh": "价格为约数。按欧元计费：每月 {starter} 欧元和 {pro} 欧元，不适用增值税（2026 年 9 月汇率）。",
     "hi": "अनुमानित कीमतें। बिलिंग यूरो में होती है: €{starter} और €{pro} प्रति माह, "
-          "कर के बिना (सितंबर 2026 की विनिमय दर)।",
+          "VAT लागू नहीं (सितंबर 2026 की विनिमय दर)।",
     "ar": "أسعار تقريبية. تتم الفوترة باليورو: ⁦€{starter}⁩ و⁦€{pro}⁩ "
-          "شهريًا قبل الضريبة (سعر الصرف في سبتمبر 2026).",
+          "شهريًا، دون ضريبة القيمة المضافة (سعر الصرف في سبتمبر 2026).",
 }
 
 

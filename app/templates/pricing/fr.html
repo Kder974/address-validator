@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="index, follow">
 <title>Tarifs · Address Validator</title>
-<meta name="description" content="Vérifiez les adresses de livraison avant expédition : essai gratuit {{jours_essai}} jours, puis {{prix_starter}}/mois ({{quota_starter}} validations) ou {{prix_pro}}/mois ({{quota_pro}} validations). Prix hors taxes, sans engagement.">
+<meta name="description" content="Vérifiez les adresses de livraison avant expédition : essai gratuit {{jours_essai}} jours, puis {{prix_starter}}/mois ({{quota_starter}} validations) ou {{prix_pro}}/mois ({{quota_pro}} validations). Sans engagement, TVA non applicable.">
 <link rel="alternate" hreflang="fr" href="{{lien_fr}}">
 <link rel="alternate" hreflang="en" href="{{lien_en}}">
 <link rel="alternate" hreflang="zh" href="{{lien_zh}}">
@@ -472,7 +472,7 @@ h2{font-weight:750;letter-spacing:-.028em}
     <div class="guides" aria-hidden="true"></div>
     <div class="wrap head-grid">
       <div class="hero-copy">
-        <p class="pill in" style="--i:0"><b>TARIFS</b>Prix hors taxes, sans engagement</p>
+        <p class="pill in" style="--i:0"><b>TARIFS</b>Sans engagement, TVA non applicable</p>
         <h1 id="titre"><span class="w" style="--i:1">Arrêtez</span> <span class="w" style="--i:2">de</span> <span class="w" style="--i:3">perdre</span> <span class="w" style="--i:4">de</span> <span class="w" style="--i:5">l'argent</span> <span class="w" style="--i:6">à</span> <span class="w" style="--i:7">cause</span> <span class="w" style="--i:8">d'adresses</span> <span class="w" style="--i:9">invalides.</span></h1>
         <p class="lead in" style="--i:5">Un colis qui revient coûte deux fois : le transport, puis la réexpédition, quand le client n'annule pas. L'API vérifie l'adresse avant que l'étiquette soit imprimée.</p>
         <div class="cta in" style="--i:6">
@@ -484,8 +484,8 @@ h2{font-weight:750;letter-spacing:-.028em}
       <aside class="promise in" style="--i:6" aria-label="Dans tous les plans">
         <p class="promise-h">Dans tous les plans</p>
         <ul class="facts">
-          <li>Prix hors taxes, sans engagement : vous arrêtez quand vous voulez.</li>
-          <li>Aucun prélèvement automatique : vous payez par carte avec Stripe seulement quand vous choisissez une offre.</li>
+          <li>Sans engagement : vous arrêtez quand vous voulez. Le prix affiché est le prix payé, TVA non applicable.</li>
+          <li>Rien n'est prélevé sans votre accord : l'essai s'arrête tout seul, sans carte. Une offre choisie est prélevée chaque mois par Stripe, jusqu'à ce que vous l'arrêtiez.</li>
           <li>Ni nom ni e-mail : les adresses vérifiées sont gardées {{jours_cache}} jours pour répondre plus vite, puis effacées.</li>
           <li>La même API et la même réponse, quel que soit le plan.</li>
         </ul>
@@ -515,7 +515,7 @@ h2{font-weight:750;letter-spacing:-.028em}
       <li class="tier" style="--i:1">
         <div class="tier-head"><h3>Starter</h3><span class="badge">Boutique</span></div>
         <p class="pitch">Pour une boutique qui expédie quelques dizaines de colis par jour.</p>
-        <p class="amount"><strong>{{prix_starter}}</strong><span>par mois, HT</span></p>
+        <p class="amount"><strong>{{prix_starter}}</strong><span>par mois</span></p>
         <dl class="specs">
           <div class="spec"><dt>Validations</dt><dd><b>{{quota_starter}}</b> par mois<span class="gauge" aria-hidden="true"><i style="--v:{{jauge_starter}}%;--i:1"></i></span></dd></div>
           <div class="spec unit"><dt>Prix par validation</dt><dd><b>{{prix_unitaire_starter}}</b><span class="calc">{{prix_starter}} ÷ {{quota_starter}} validations</span></dd></div>
@@ -531,7 +531,7 @@ h2{font-weight:750;letter-spacing:-.028em}
       <li class="tier tier-pro" style="--i:2">
         <div class="tier-head"><h3>Pro</h3><span class="badge">Pour les volumes</span></div>
         <p class="pitch">Pour les volumes qui rendent chaque retour visible dans la marge.</p>
-        <p class="amount"><strong>{{prix_pro}}</strong><span>par mois, HT</span></p>
+        <p class="amount"><strong>{{prix_pro}}</strong><span>par mois</span></p>
         <dl class="specs">
           <div class="spec"><dt>Validations</dt><dd><b>{{quota_pro}}</b> par mois<span class="gauge" aria-hidden="true"><i style="--v:100%;--i:2"></i></span></dd></div>
           <div class="spec unit"><dt>Prix par validation</dt><dd><b>{{prix_unitaire_pro}}</b><span class="calc">{{prix_pro}} ÷ {{quota_pro}} validations</span></dd></div>
@@ -680,7 +680,7 @@ h2{font-weight:750;letter-spacing:-.028em}
         </details>
         <details class="qa">
           <summary>Que se passe-t-il si je dépasse mon quota ?</summary>
-          <p>Le quota est mensuel et repart le 1er du mois (UTC). Une fois atteint, l'API répond <code class="inline">402</code> avec <code class="inline">quota_atteint</code> : rien n'est facturé en plus et aucun prélèvement automatique n'a lieu. Votre consommation est visible dans votre espace client. Pour passer au plan supérieur, écrivez-nous.</p>
+          <p>Le quota est mensuel et repart le 1er du mois (UTC). Une fois atteint, l'API répond <code class="inline">402</code> avec <code class="inline">quota_atteint</code> : rien n'est facturé en plus, aucun dépassement n'est prélevé. Votre consommation est visible dans votre espace client. Pour passer au plan supérieur, écrivez-nous.</p>
         </details>
         <details class="qa">
           <summary>Que deviennent les adresses que je vous envoie ?</summary>
@@ -745,7 +745,7 @@ h2{font-weight:750;letter-spacing:-.028em}
         </ul>
       </div>
     </div>
-    <p class="legal">Prix hors taxes. Appel direct sans abonnement : {{prix_x402}} USDC par validation.</p>
+    <p class="legal">TVA non applicable, art. 293 B du CGI. Appel direct sans abonnement : {{prix_x402}} USDC par validation.</p>
   </div>
 </footer>
 </body>

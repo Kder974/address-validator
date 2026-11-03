@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="index, follow">
 <title>الأسعار · Address Validator</title>
-<meta name="description" content="تحقق من عناوين التسليم قبل الشحن: تجربة مجانية لمدة {{jours_essai}} يومًا، ثم نحو {{prix_starter}} شهريًا ({{quota_starter}} عملية تحقق) أو نحو {{prix_pro}} شهريًا ({{quota_pro}} عملية تحقق). الأسعار قبل الضريبة، دون التزام.">
+<meta name="description" content="تحقق من عناوين التسليم قبل الشحن: تجربة مجانية لمدة {{jours_essai}} يومًا، ثم نحو {{prix_starter}} شهريًا ({{quota_starter}} عملية تحقق) أو نحو {{prix_pro}} شهريًا ({{quota_pro}} عملية تحقق). دون التزام، ضريبة القيمة المضافة غير مطبقة.">
 <link rel="alternate" hreflang="fr" href="{{lien_fr}}">
 <link rel="alternate" hreflang="en" href="{{lien_en}}">
 <link rel="alternate" hreflang="zh" href="{{lien_zh}}">
@@ -479,7 +479,7 @@ h1,h2,h3,.amount strong,.pill b{letter-spacing:0}h1,h2{line-height:1.35}
     <div class="guides" aria-hidden="true"></div>
     <div class="wrap head-grid">
       <div class="hero-copy">
-        <p class="pill in" style="--i:0"><b>الأسعار</b>قبل الضريبة، دون التزام</p>
+        <p class="pill in" style="--i:0"><b>الأسعار</b>دون التزام، ضريبة القيمة المضافة غير مطبقة</p>
         <h1 id="titre"><span class="w" style="--i:1">توقّف</span> <span class="w" style="--i:2">عن</span> <span class="w" style="--i:3">خسارة</span> <span class="w" style="--i:4">المال</span> <span class="w" style="--i:5">بسبب</span> <span class="w" style="--i:6">العناوين</span> <span class="w" style="--i:7">غير</span> <span class="w" style="--i:8">الصحيحة.</span></h1>
         <p class="lead in" style="--i:5">الطرد الذي يعود يكلّفك مرتين: الشحن، ثم إعادة الإرسال إن لم يُلغِ العميل طلبه. تتحقق واجهة API من العنوان قبل طباعة ملصق الشحن.</p>
         <div class="cta in" style="--i:6">
@@ -491,8 +491,8 @@ h1,h2,h3,.amount strong,.pill b{letter-spacing:0}h1,h2{line-height:1.35}
       <aside class="promise in" style="--i:6" aria-label="في جميع الباقات">
         <p class="promise-h">في جميع الباقات</p>
         <ul class="facts">
-          <li>الأسعار قبل الضريبة ودون التزام: يمكنك التوقف متى شئت.</li>
-          <li>لا يوجد أي خصم تلقائي: تدفع بالبطاقة عبر Stripe فقط عندما تختار باقة.</li>
+          <li>دون التزام: يمكنك التوقف متى شئت. السعر المعروض هو السعر الذي تدفعه، وضريبة القيمة المضافة غير مطبقة.</li>
+          <li>لا يُخصم شيء دون موافقتك: تنتهي التجربة وحدها ودون بطاقة. أما الباقة التي تختارها فيخصمها Stripe كل شهر إلى أن توقفها.</li>
           <li>لا أسماء ولا بريد إلكتروني: تُحفظ العناوين المُتحقَّق منها <bdi>{{jours_cache}}</bdi> يومًا للرد أسرع، ثم تُحذف.</li>
           <li>واجهة API نفسها والرد نفسه، أيًّا كانت الباقة.</li>
         </ul>
@@ -522,7 +522,7 @@ h1,h2,h3,.amount strong,.pill b{letter-spacing:0}h1,h2{line-height:1.35}
       <li class="tier" style="--i:1">
         <div class="tier-head"><h3>Starter</h3><span class="badge">متجر</span></div>
         <p class="pitch">لمتجر يشحن بضع عشرات من الطرود يوميًا.</p>
-        <p class="amount"><strong dir="ltr">{{prix_starter}}</strong><span>شهريًا، قبل الضريبة</span></p>
+        <p class="amount"><strong dir="ltr">{{prix_starter}}</strong><span>شهريًا</span></p>
         <dl class="specs">
           <div class="spec"><dt>عمليات التحقق</dt><dd><b class="lat">{{quota_starter}}</b> شهريًا<span class="gauge" aria-hidden="true"><i style="--v:{{jauge_starter}}%;--i:1"></i></span></dd></div>
           <div class="spec unit"><dt>السعر لكل عملية تحقق</dt><dd><b dir="ltr">{{prix_unitaire_starter}}</b><span class="calc"><span dir="ltr">{{prix_starter}} ÷ {{quota_starter}}</span> عملية تحقق</span></dd></div>
@@ -538,7 +538,7 @@ h1,h2,h3,.amount strong,.pill b{letter-spacing:0}h1,h2{line-height:1.35}
       <li class="tier tier-pro" style="--i:2">
         <div class="tier-head"><h3>Pro</h3><span class="badge">للأحجام الكبيرة</span></div>
         <p class="pitch">للأحجام التي يظهر فيها كل طرد مُرتجَع في هامش الربح.</p>
-        <p class="amount"><strong dir="ltr">{{prix_pro}}</strong><span>شهريًا، قبل الضريبة</span></p>
+        <p class="amount"><strong dir="ltr">{{prix_pro}}</strong><span>شهريًا</span></p>
         <dl class="specs">
           <div class="spec"><dt>عمليات التحقق</dt><dd><b class="lat">{{quota_pro}}</b> شهريًا<span class="gauge" aria-hidden="true"><i style="--v:100%;--i:2"></i></span></dd></div>
           <div class="spec unit"><dt>السعر لكل عملية تحقق</dt><dd><b dir="ltr">{{prix_unitaire_pro}}</b><span class="calc"><span dir="ltr">{{prix_pro}} ÷ {{quota_pro}}</span> عملية تحقق</span></dd></div>
@@ -688,7 +688,7 @@ h1,h2,h3,.amount strong,.pill b{letter-spacing:0}h1,h2{line-height:1.35}
         </details>
         <details class="qa">
           <summary>ماذا يحدث إذا تجاوزت حصتي؟</summary>
-          <p>الحصة شهرية وتبدأ من جديد في اليوم الأول من كل شهر (UTC). عند بلوغها، تردّ واجهة API بالرمز <code class="inline" dir="ltr">402</code> مع <code class="inline" dir="ltr">quota_atteint</code>: لا يُحتسب أي مبلغ إضافي ولا يحدث أي خصم تلقائي. يظهر استهلاكك في حساب العميل. للانتقال إلى باقة أعلى، راسلنا.</p>
+          <p>الحصة شهرية وتبدأ من جديد في اليوم الأول من كل شهر (UTC). عند بلوغها، تردّ واجهة API بالرمز <code class="inline" dir="ltr">402</code> مع <code class="inline" dir="ltr">quota_atteint</code>: لا يُحتسب أي مبلغ إضافي ولا يُخصم أي تجاوز. يظهر استهلاكك في حساب العميل. للانتقال إلى باقة أعلى، راسلنا.</p>
         </details>
         <details class="qa">
           <summary>ماذا يحدث للعناوين التي أرسلها إليكم؟</summary>
@@ -753,7 +753,7 @@ h1,h2,h3,.amount strong,.pill b{letter-spacing:0}h1,h2{line-height:1.35}
         </ul>
       </div>
     </div>
-    <p class="legal">الأسعار قبل الضريبة. الاستدعاء المباشر دون اشتراك: <span class="lat" dir="ltr">{{prix_x402}}&nbsp;USDC</span> لكل عملية تحقق.</p>
+    <p class="legal">ضريبة القيمة المضافة غير مطبقة (المادة <span class="lat" dir="ltr">293 B</span> من قانون الضرائب الفرنسي). الاستدعاء المباشر دون اشتراك: <span class="lat" dir="ltr">{{prix_x402}}&nbsp;USDC</span> لكل عملية تحقق.</p>
   </div>
 </footer>
 </body>

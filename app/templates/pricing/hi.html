@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="index, follow">
 <title>कीमतें · Address Validator</title>
-<meta name="description" content="भेजने से पहले डिलीवरी पते जाँचें: {{jours_essai}} दिन का निःशुल्क ट्रायल, फिर {{prix_starter}}/माह ({{quota_starter}} वैलिडेशन) या {{prix_pro}}/माह ({{quota_pro}} वैलिडेशन)। कीमतें कर के बिना, कोई बाध्यता नहीं।">
+<meta name="description" content="भेजने से पहले डिलीवरी पते जाँचें: {{jours_essai}} दिन का निःशुल्क ट्रायल, फिर {{prix_starter}}/माह ({{quota_starter}} वैलिडेशन) या {{prix_pro}}/माह ({{quota_pro}} वैलिडेशन)। कोई बाध्यता नहीं, VAT लागू नहीं।">
 <link rel="alternate" hreflang="fr" href="{{lien_fr}}">
 <link rel="alternate" hreflang="en" href="{{lien_en}}">
 <link rel="alternate" hreflang="zh" href="{{lien_zh}}">
@@ -484,7 +484,7 @@ h1,h2,h3,.amount strong{letter-spacing:0}h1,h2{line-height:1.32}
     <div class="guides" aria-hidden="true"></div>
     <div class="wrap head-grid">
       <div class="hero-copy">
-        <p class="pill in" style="--i:0"><b>कीमतें</b>कर के बिना कीमतें, कोई बाध्यता नहीं</p>
+        <p class="pill in" style="--i:0"><b>कीमतें</b>कोई बाध्यता नहीं, VAT लागू नहीं</p>
         <h1 id="titre"><span class="w" style="--i:1">गलत</span> <span class="w" style="--i:2">पतों</span> <span class="w" style="--i:3">की</span> <span class="w" style="--i:4">वजह</span> <span class="w" style="--i:5">से</span> <span class="w" style="--i:6">पैसे</span> <span class="w" style="--i:7">गँवाना</span> <span class="w" style="--i:8">बंद</span> <span class="w" style="--i:9">करें।</span></h1>
         <p class="lead in" style="--i:5">लौटा हुआ पार्सल दो बार खर्च कराता है: पहले भाड़ा, फिर दोबारा भेजने का खर्च, अगर ग्राहक ऑर्डर रद्द न करे। API लेबल छपने से पहले ही पता जाँच लेती है।</p>
         <div class="cta in" style="--i:6">
@@ -496,8 +496,8 @@ h1,h2,h3,.amount strong{letter-spacing:0}h1,h2{line-height:1.32}
       <aside class="promise in" style="--i:6" aria-label="सभी प्लान में">
         <p class="promise-h">सभी प्लान में</p>
         <ul class="facts">
-          <li>कीमतें कर के बिना, कोई बाध्यता नहीं: जब चाहें बंद कर सकते हैं।</li>
-          <li>कोई ऑटोमैटिक कटौती नहीं: आप प्लान चुनने पर ही Stripe से कार्ड द्वारा भुगतान करते हैं।</li>
+          <li>कोई बाध्यता नहीं: जब चाहें बंद कर सकते हैं। दिखाई गई कीमत ही आप चुकाते हैं, VAT लागू नहीं।</li>
+          <li>आपकी सहमति के बिना कोई कटौती नहीं: ट्रायल अपने आप खत्म होता है, कार्ड की ज़रूरत नहीं। चुना गया प्लान Stripe हर महीने काटता है, जब तक आप उसे बंद न करें।</li>
           <li>न नाम, न ईमेल: जाँचे गए पते जल्दी जवाब देने के लिए {{jours_cache}} दिन रखे जाते हैं, फिर मिटा दिए जाते हैं।</li>
           <li>प्लान कोई भी हो, API और उत्तर वही रहते हैं।</li>
         </ul>
@@ -527,7 +527,7 @@ h1,h2,h3,.amount strong{letter-spacing:0}h1,h2{line-height:1.32}
       <li class="tier" style="--i:1">
         <div class="tier-head"><h3>Starter</h3><span class="badge">स्टोर</span></div>
         <p class="pitch">रोज़ कुछ दर्जन पार्सल भेजने वाले स्टोर के लिए।</p>
-        <p class="amount"><strong>{{prix_starter}}</strong><span>प्रति माह, कर के बिना</span></p>
+        <p class="amount"><strong>{{prix_starter}}</strong><span>प्रति माह</span></p>
         <dl class="specs">
           <div class="spec"><dt>वैलिडेशन</dt><dd><b>{{quota_starter}}</b> प्रति माह<span class="gauge" aria-hidden="true"><i style="--v:{{jauge_starter}}%;--i:1"></i></span></dd></div>
           <div class="spec unit"><dt>प्रति वैलिडेशन कीमत</dt><dd><b>{{prix_unitaire_starter}}</b><span class="calc">{{prix_starter}} ÷ {{quota_starter}} वैलिडेशन</span></dd></div>
@@ -543,7 +543,7 @@ h1,h2,h3,.amount strong{letter-spacing:0}h1,h2{line-height:1.32}
       <li class="tier tier-pro" style="--i:2">
         <div class="tier-head"><h3>Pro</h3><span class="badge">ज़्यादा वॉल्यूम के लिए</span></div>
         <p class="pitch">उन वॉल्यूम के लिए जहाँ हर लौटा पार्सल मुनाफ़े में दिखता है।</p>
-        <p class="amount"><strong>{{prix_pro}}</strong><span>प्रति माह, कर के बिना</span></p>
+        <p class="amount"><strong>{{prix_pro}}</strong><span>प्रति माह</span></p>
         <dl class="specs">
           <div class="spec"><dt>वैलिडेशन</dt><dd><b>{{quota_pro}}</b> प्रति माह<span class="gauge" aria-hidden="true"><i style="--v:100%;--i:2"></i></span></dd></div>
           <div class="spec unit"><dt>प्रति वैलिडेशन कीमत</dt><dd><b>{{prix_unitaire_pro}}</b><span class="calc">{{prix_pro}} ÷ {{quota_pro}} वैलिडेशन</span></dd></div>
@@ -693,7 +693,7 @@ h1,h2,h3,.amount strong{letter-spacing:0}h1,h2{line-height:1.32}
         </details>
         <details class="qa">
           <summary>कोटा पूरा हो जाए तो क्या होता है?</summary>
-          <p>कोटा मासिक है और हर माह की 1 तारीख़ (UTC) को फिर शुरू होता है। पूरा होते ही API <code class="inline">402</code> और <code class="inline">quota_atteint</code> के साथ जवाब देती है: अलग से कुछ बिल नहीं होता और कोई ऑटोमैटिक कटौती नहीं होती। आपका उपयोग ग्राहक पोर्टल में दिखता है। ऊपर के प्लान पर जाने के लिए हमें लिखें।</p>
+          <p>कोटा मासिक है और हर माह की 1 तारीख़ (UTC) को फिर शुरू होता है। पूरा होते ही API <code class="inline">402</code> और <code class="inline">quota_atteint</code> के साथ जवाब देती है: अलग से कुछ बिल नहीं होता और कोई अतिरिक्त शुल्क नहीं कटता। आपका उपयोग ग्राहक पोर्टल में दिखता है। ऊपर के प्लान पर जाने के लिए हमें लिखें।</p>
         </details>
         <details class="qa">
           <summary>आपके भेजे पतों का क्या होता है?</summary>
@@ -758,7 +758,7 @@ h1,h2,h3,.amount strong{letter-spacing:0}h1,h2{line-height:1.32}
         </ul>
       </div>
     </div>
-    <p class="legal">कीमतें कर के बिना। सब्सक्रिप्शन के बिना सीधी कॉल: {{prix_x402}} USDC प्रति वैलिडेशन।</p>
+    <p class="legal">VAT लागू नहीं (फ़्रांसीसी कर संहिता, अनुच्छेद 293 B)। सब्सक्रिप्शन के बिना सीधी कॉल: {{prix_x402}} USDC प्रति वैलिडेशन।</p>
   </div>
 </footer>
 </body>

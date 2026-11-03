@@ -75,7 +75,8 @@ https://kder-ai.com/compte, et l'ancienne cesse de fonctionner immédiatement.
 CE QUE COMPREND VOTRE OFFRE
 14 jours et 50 validations offertes, sans carte bancaire. Ensuite : Starter
 29 €/mois (2 000 validations) ou Pro 79 €/mois (6 000), selon votre volume. Aucun
-prélèvement automatique : rien n'est prélevé sans votre accord écrit.
+prélèvement automatique à la fin de l'essai. Une offre choisie se paie par carte
+avec Stripe, chaque mois, jusqu'à ce que vous l'arrêtiez.
 
 COMMENT L'ENVOYER
 La clé va dans l'en-tête X-API-Key de POST https://kder-ai.com/validate :
@@ -207,9 +208,10 @@ address-validator\.venv\Scripts\python.exe address-validator\scripts\suivi_clien
 
 ## 6. Points de vigilance
 
-- **Pas de prélèvement automatique** : il n'existe pas dans le code. Le passage à
-  Starter ou Pro se demande par écrit ; ne jamais laisser entendre le contraire
-  dans une relance.
+- **Prélèvement** : rien n'est prélevé à la fin de l'essai. Une offre choisie
+  (Starter ou Pro) se paie par carte avec Stripe et elle est prélevée chaque mois
+  jusqu'à son arrêt depuis l'espace client (D91, D97) ; le dire tel quel dans une
+  relance.
 - **Le paiement à l'appel (x402, 0,02 USDC) s'adresse aux agents**, pas à Tiitoune
   Art : une boutique s'abonne par `X-API-Key`. Ne pas mélanger les deux voies dans
   une conversation commerciale.

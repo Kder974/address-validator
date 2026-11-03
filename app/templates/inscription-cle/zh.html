@@ -427,7 +427,7 @@ h1,h2,h3{letter-spacing:0}h1{line-height:1.2}
           <p class="trial-dates"><span>{{aujourdhui}}，今天</span><span>{{fin_courte}}，结束</span></p>
         </div><!--@fin:piste-->
         <!--@si:payer--><div class="pay"><p class="pay-h">最后一步：支付 {{offre_nom}}</p><a class="btn btn-accent" href="{{lien_payer}}" target="_blank" rel="noopener noreferrer">支付 {{offre_nom}}，每月 {{offre_prix}} <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a><p class="pay-note">请先复制密钥。付款页面会在新标签页打开；Stripe 确认后，您的账户即升级为 {{offre_nom}}。</p></div><!--@fin:payer-->
-        <p class="offer-note"><span class="nb">之后，可在客户中心通过 Stripe 订阅</span><span class="nb">{{prix_starter}} 每月，不含税（Starter，{{quota_starter}} 次验证）</span><span class="nb">或 {{prix_pro}} 每月，不含税（Pro，{{quota_pro}} 次验证）。</span><span class="nb">不会自动扣款。</span></p>
+        <p class="offer-note"><span class="nb">之后，可在客户中心通过 Stripe 订阅</span><span class="nb">{{prix_starter}} 每月（Starter，{{quota_starter}} 次验证）</span><span class="nb">或 {{prix_pro}} 每月（Pro，{{quota_pro}} 次验证）。</span><span class="nb">在您选择套餐之前，不会扣款。</span></p>
         <p class="offer-note" style="margin-top:8px;font-size:.85rem">{{mention_euros}}</p>
         <a class="link" href="{{url_pricing}}">查看价格 <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
       </aside>
@@ -491,7 +491,7 @@ h1,h2,h3{letter-spacing:0}h1{line-height:1.2}
         </ul>
       </div>
     </div>
-    <p class="legal">价格不含税。无订阅直接调用：每次验证 {{prix_x402}} USDC。</p>
+    <p class="legal">不适用增值税（法国税法典第 293 B 条）。无订阅直接调用：每次验证 {{prix_x402}} USDC。</p>
   </div>
 </footer>
 </body>

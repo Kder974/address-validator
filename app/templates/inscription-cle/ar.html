@@ -422,7 +422,7 @@ h1,h2,h3,.pill b{letter-spacing:0}h1,h2{line-height:1.35}
           <p class="trial-dates"><span><bdi dir="ltr">{{aujourdhui}}</bdi>، اليوم</span><span><bdi dir="ltr">{{fin_courte}}</bdi>، النهاية</span></p>
         </div><!--@fin:piste-->
         <!--@si:payer--><div class="pay"><p class="pay-h">الخطوة الأخيرة: ادفع {{offre_nom}}</p><a class="btn btn-accent" href="{{lien_payer}}" target="_blank" rel="noopener noreferrer">ادفع {{offre_nom}}، <span class="lat" dir="ltr">{{offre_prix}}</span> شهريًا <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a><p class="pay-note">انسخ مفتاحك أولًا. يُفتح الدفع في علامة تبويب جديدة، وينتقل حسابك إلى {{offre_nom}} فور تأكيد Stripe.</p></div><!--@fin:payer-->
-        <p class="offer-note">بعد ذلك <span class="lat" dir="ltr">{{prix_starter}}</span> شهريًا قبل الضريبة (Starter، {{quota_starter}} عملية تحقق) أو <span class="lat" dir="ltr">{{prix_pro}}</span> شهريًا قبل الضريبة (Pro، {{quota_pro}})، تدفعها بالبطاقة عبر Stripe من لوحة حسابك. لا يوجد أي خصم تلقائي.</p>
+        <p class="offer-note">بعد ذلك <span class="lat" dir="ltr">{{prix_starter}}</span> شهريًا (Starter، {{quota_starter}} عملية تحقق) أو <span class="lat" dir="ltr">{{prix_pro}}</span> شهريًا (Pro، {{quota_pro}})، تدفعها بالبطاقة عبر Stripe من لوحة حسابك. لا يُخصم أي مبلغ قبل أن تختار باقة.</p>
         <p class="fx-note">{{mention_euros}}</p>
         <a class="link" href="{{url_pricing}}">اطّلع على الأسعار <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a>
       </aside>
@@ -486,7 +486,7 @@ h1,h2,h3,.pill b{letter-spacing:0}h1,h2{line-height:1.35}
         </ul>
       </div>
     </div>
-    <p class="legal">الأسعار قبل الضريبة. الاستدعاء المباشر دون اشتراك: <span class="lat" dir="ltr">{{prix_x402}}&nbsp;USDC</span> لكل عملية تحقق.</p>
+    <p class="legal">ضريبة القيمة المضافة غير مطبقة (المادة <span class="lat" dir="ltr">293 B</span> من قانون الضرائب الفرنسي). الاستدعاء المباشر دون اشتراك: <span class="lat" dir="ltr">{{prix_x402}}&nbsp;USDC</span> لكل عملية تحقق.</p>
   </div>
 </footer>
 </body>
