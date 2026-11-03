@@ -496,3 +496,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D95: /openapi.json lists only the programmatic API (no free-test form, dashboard, prospection, account, pricing, guide or signup route) while those pages still answer; GET /.well-known/x402 serves the draft-hawkins-x402-dns-discovery-03 manifest (x402Version 2, kind resource-server, HTTPS resources on the service host, including the 402 offer's resource)
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D95
   EXPECT: DECISION OK D95
+- [ ] D96: no page in any of the six languages says HT, hors taxes, excl. VAT, sin IVA or their zh/hi/ar equivalents (franchise en base, VAT not applicable), except the compare page's method sentence about other services' prices; every pricing page shows the art. 293 B VAT-not-applicable mention; the euro billing mention no longer says excl. VAT
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D96
+  EXPECT: DECISION OK D96
