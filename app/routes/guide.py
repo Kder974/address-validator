@@ -53,7 +53,7 @@ CODES: tuple[tuple[str, str, str], ...] = (
     ("200", "Validation servie", "Lisez `result`. Gardez `cache_key` : c'est votre pseudonyme de cette adresse, il sert à demander un effacement."),
     ("401", "Clé API inconnue", "La clé est incomplète, révoquée (régénérée) ou destinée à un autre service. Corrigez la variable d'environnement. **Ne réessayez pas en boucle.**"),
     ("402", "Quota du mois consommé, ou aucun paiement valide", "Lisez le corps de la réponse : il dit lequel des deux cas s'applique. Un 402 de quota n'est pas une panne."),
-    ("403", "Compte expiré", "L'essai gratuit est terminé et le compte est resté sur le plan d'essai. Passez à un plan payant : rien n'est prélevé automatiquement."),
+    ("403", "Compte expiré", "L'essai gratuit est terminé et le compte est resté sur le plan d'essai. Passez à un plan payant : rien n'est prélevé sans votre accord."),
     ("422", "Requête mal formée", "Un champ est absent ou vide. `street`, `city`, `state` et `zip` sont obligatoires ; `country` vaut `US` par défaut."),
     ("429", "Plafond d'essais gratuits atteint", "Concerne `/validate-form`, l'essai sans compte, pas l'API payante. Attendez le délai annoncé dans `Retry-After`, ou créez un compte."),
     ("500", "Paiement encaissé, mais registre injoignable", "Le service **refuse** de servir une validation qu'il ne peut pas inscrire. Réessayez. Si l'appel était payé, citez `transaction_id` : le rapprochement se fait à la main."),

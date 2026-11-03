@@ -277,7 +277,7 @@ charger dans n8n (variables `{{…}}`, expliquées dans une table) et un exempla
 | Chiffres | jours d'essai, quota offert et prix mensuels **lus dans le code** (`accounts.JOURS_ESSAI`, `VALIDATIONS_ESSAI`) et sur `/pricing` — la porte refuse un email qui ne les reprendrait plus |
 | Voie annoncée | l'**abonnement** (`X-API-Key`) : ni `X-PAYMENT`, ni `X-Payment-Proof`, ni `tx_hash` — la porte les interdit dans ce message (le paiement à l'appel est la voie des agents, décrite dans `/guide`) |
 | Secrets | aucune clé, jamais : le texte renvoie à `/signup` et `/compte`. La porte refuse une clé `sk_live_` complète ou une valeur par défaut du dépôt |
-| Limites dites | aucun prélèvement automatique, `degraded` qui « ne dit rien » de l'adresse, empreinte (pas adresse) conservée, effacement par `cache_key` |
+| Limites dites | aucun prélèvement à la fin de l'essai (une offre choisie est prélevée chaque mois par Stripe, D97), `degraded` qui « ne dit rien » de l'adresse, empreinte (pas adresse) conservée, effacement par `cache_key` |
 | Envoi | l'exemplaire ne contient plus aucune variable de fusion (vérifié), et chaque variable du gabarit est expliquée (vérifié) |
 
 ### 4.6 Suivi des clients (D50)

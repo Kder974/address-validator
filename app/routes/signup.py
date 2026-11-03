@@ -129,7 +129,7 @@ TEXTES = {
             "expire": {
                 "code": "403", "titre": "Essai terminé",
                 "msg": "{essai_fini}<br><strong>Essai terminé :</strong> vos validations par clé API sont suspendues jusqu'au passage à un plan payant ({prix_starter}/mois pour {quota_starter} validations, {prix_pro}/mois pour {quota_pro}).",
-                "suite": "Les appels reçoivent 403, compte expiré, tant que le compte reste sur l'essai. Choisissez une offre dans votre espace client et payez par carte avec Stripe ; rien n'est prélevé automatiquement.",
+                "suite": "Les appels reçoivent 403, compte expiré, tant que le compte reste sur l'essai. Choisissez une offre dans votre espace client et payez par carte avec Stripe ; rien n'est prélevé sans votre accord.",
             },
             "quota": {
                 "code": "402", "titre": "Quota du mois atteint",
@@ -194,7 +194,7 @@ TEXTES = {
             "expire": {
                 "code": "403", "titre": "Trial ended",
                 "msg": "{essai_fini}<br><strong>Trial ended:</strong> your API key validations are suspended until you move to a paid plan ({prix_starter}/month for {quota_starter} validations, {prix_pro}/month for {quota_pro}).",
-                "suite": "Calls receive 403, account expired, as long as the account stays on the trial. Choose a plan in your dashboard and pay by card with Stripe; nothing is charged automatically.",
+                "suite": "Calls receive 403, account expired, as long as the account stays on the trial. Choose a plan in your dashboard and pay by card with Stripe; nothing is charged without your consent.",
             },
             "quota": {
                 "code": "402", "titre": "Monthly quota reached",
@@ -254,7 +254,7 @@ TEXTES = {
             "expire": {
                 "code": "403", "titre": "试用已结束",
                 "msg": "{essai_fini}<br><strong>试用已结束：</strong>通过 API 密钥进行的验证已暂停，升级为付费套餐后恢复（每月 {prix_starter} 含 {quota_starter} 次验证，每月 {prix_pro} 含 {quota_pro} 次验证）。",
-                "suite": "只要账户仍停留在试用套餐，调用就会收到 403（账户已过期）。请在客户中心选择套餐，通过 Stripe 用银行卡付款；不会自动扣款。",
+                "suite": "只要账户仍停留在试用套餐，调用就会收到 403（账户已过期）。请在客户中心选择套餐，通过 Stripe 用银行卡付款；未经您同意不会扣款。",
             },
             "quota": {
                 "code": "402", "titre": "已达本月额度",
@@ -319,7 +319,7 @@ TEXTES = {
             "expire": {
                 "code": "403", "titre": "ट्रायल समाप्त",
                 "msg": "{essai_fini}<br><strong>ट्रायल समाप्त:</strong> API कुंजी से वैलिडेशन तब तक रुके हैं जब तक सशुल्क प्लान नहीं लिया जाता ({quota_starter} वैलिडेशन के लिए {prix_starter}/माह, {quota_pro} के लिए {prix_pro}/माह)।",
-                "suite": "जब तक खाता ट्रायल पर रहता है, कॉल को 403, खाता समाप्त, मिलता है। डैशबोर्ड में प्लान चुनें और Stripe से कार्ड द्वारा भुगतान करें; कुछ भी अपने आप नहीं कटता।",
+                "suite": "जब तक खाता ट्रायल पर रहता है, कॉल को 403, खाता समाप्त, मिलता है। डैशबोर्ड में प्लान चुनें और Stripe से कार्ड द्वारा भुगतान करें; आपकी सहमति के बिना कुछ नहीं कटता।",
             },
             "quota": {
                 "code": "402", "titre": "इस माह का कोटा पूरा",
@@ -384,7 +384,7 @@ TEXTES = {
             "expire": {
                 "code": "403", "titre": "Prueba terminada",
                 "msg": "{essai_fini}<br><strong>Prueba terminada:</strong> tus validaciones con clave de API quedan suspendidas hasta que pases a un plan de pago ({prix_starter}/mes por {quota_starter} validaciones, {prix_pro}/mes por {quota_pro}).",
-                "suite": "Las llamadas reciben 403, cuenta caducada, mientras la cuenta siga en la prueba. Elige un plan en tu panel y paga con tarjeta mediante Stripe; no se cobra nada automáticamente.",
+                "suite": "Las llamadas reciben 403, cuenta caducada, mientras la cuenta siga en la prueba. Elige un plan en tu panel y paga con tarjeta mediante Stripe; no se cobra nada sin tu acuerdo.",
             },
             "quota": {
                 "code": "402", "titre": "Cuota del mes alcanzada",
@@ -450,7 +450,7 @@ TEXTES = {
             "expire": {
                 "code": "403", "titre": "انتهت التجربة",
                 "msg": '{essai_fini}<br><strong>انتهت التجربة:</strong> عمليات التحقق بمفتاح API معلّقة حتى الانتقال إلى باقة مدفوعة (<bdi dir="ltr">{prix_starter}</bdi> شهريًا مقابل {quota_starter} عملية تحقق، و<bdi dir="ltr">{prix_pro}</bdi> شهريًا مقابل {quota_pro}).',
-                "suite": "تتلقى الاستدعاءات الرمز 403، أي حساب منتهي الصلاحية، ما دام الحساب على باقة التجربة. اختر باقة من لوحة حسابك وادفع بالبطاقة عبر Stripe؛ لا يُخصم أي مبلغ تلقائيًا.",
+                "suite": "تتلقى الاستدعاءات الرمز 403، أي حساب منتهي الصلاحية، ما دام الحساب على باقة التجربة. اختر باقة من لوحة حسابك وادفع بالبطاقة عبر Stripe؛ لا يُخصم أي مبلغ دون موافقتك.",
             },
             "quota": {
                 "code": "402", "titre": "بلغت حصة الشهر",
