@@ -512,3 +512,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D100: no page, account message, guide error table or API 403 message says there is no automatic charge (Stripe charges a chosen plan monthly); every pricing page says a chosen plan is charged monthly by Stripe until stopped; the welcome email says nothing is charged at the end of the trial and no longer promises a written-consent or on-request upgrade
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D100
   EXPECT: DECISION OK D100
+- [ ] D101: the French homepage shows a French example (5 rue des ecoles, 75005 paris -> 5 Rue des Ecoles, 75005 Paris), routed to the BAN by the free test and standardized as shown; no US example, no English line left (agent box, code comments), JSON field names unchanged
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D101
+  EXPECT: DECISION OK D101

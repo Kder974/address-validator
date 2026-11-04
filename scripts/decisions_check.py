@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D100, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D101, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 100
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 101
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7634,7 +7634,36 @@ def d100() -> None:
     guard(re.search(r"^\| D100 \|", read("DECISIONS.md"), re.M) is not None, "la decision D100 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 101)}
+def d101() -> None:
+    """La page d'accueil francaise montre une adresse francaise, verifiee par la BAN, et plus une ligne d'anglais."""
+    from fastapi.testclient import TestClient
+
+    import app.validation as validation
+    from app.main import app
+    from app.routes.validate_form import decouper
+    from app.validation import ban
+
+    page = hors_bloc(TestClient(app).get("/", headers={"Accept": "text/html"}).text)
+    for anglais in ("stewart", "seatle", "Seattle", "98101", "47.6105", "Payment Required", "agent pays", "deliverable",
+                    "# request", "# answer", "On le vérifie", "C'est une entreprise"):
+        guard(anglais not in page, f"l'accueil francais dit encore {anglais!r}")
+    for francais in ("5 rue des ecoles, 75005 paris", "5 <span class=\"fix\">Rue des Écoles</span><br>75005", "5 Rue des Écoles, 75005 Paris",
+                     "48.8475, 2.3521", "402 paiement demandé", "✓ livrable", '"country"</span>: <span class="v">"FR"</span>'):
+        guard(francais in page, f"l'accueil francais ne montre plus {francais!r}")
+    champs = decouper("5 rue des ecoles, 75005 paris")
+    guard((champs["country"], champs["zip"], champs["city"]) == ("FR", "75005", "paris"),
+          f"l'essai gratuit n'envoie pas l'exemple a la BAN : {champs}")
+    feature = {"geometry": {"coordinates": [2.3521, 48.8475]}, "properties": {
+        "name": "5 Rue des Écoles", "score": 0.973, "postcode": "75005", "city": "Paris", "type": "housenumber"}}
+    with mock.patch.object(ban, "_call_ban", lambda q, cp: [feature]), \
+         mock.patch.object(validation, "geocode", lambda s: {"lat": 48.8475, "lng": 2.3521}):
+        resultat = validation.validate_full(champs)
+    guard(resultat["validated"] is True and resultat["standardized"]["line1"] == "5 Rue des Écoles"
+          and resultat["standardized"]["city"] == "Paris", f"l'API ne rend pas l'adresse montree : {resultat['standardized']}")
+    guard(re.search(r"^\| D101 \|", read("DECISIONS.md"), re.M) is not None, "la decision D101 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 102)}
 
 
 def catalog() -> list[tuple[str, str]]:
