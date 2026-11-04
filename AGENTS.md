@@ -27,6 +27,55 @@ presentant le paiement. Un appel sans paiement rend un **resultat d'outil**
 renvoie alors le `PaymentPayload` v2 dans `params._meta["x402/payment"]` et
 recoit le reglement dans `result._meta["x402/payment-response"]`.
 
+## Payer et appeler validate_address (MCP) - copier-coller
+
+Trois etapes, copier-coller : lire l'offre (gratuit), signer EIP-3009, renvoyer le meme `tools/call` avec `params._meta["x402/payment"]`. Le code lit le prix et l'offre a l'execution : rien n'est code en dur.
+
+```python
+# pip install requests eth-account
+import os, time, requests
+from eth_account import Account
+
+BASE = "https://kder-ai.com"
+ARGS = {"address": {"street": "1600 Amphitheatre Parkway", "city": "Mountain View",
+                    "state": "CA", "zip": "94043", "country": "US"}}
+
+def mcp(method, params):
+    body = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    return requests.post(f"{BASE}/mcp", json=body, timeout=30).json()
+
+# 1) FREE: read the offer. An unpaid tools/call returns result.isError + structuredContent.
+offer = mcp("tools/call", {"name": "validate_address", "arguments": ARGS})["result"]["structuredContent"]
+accept = offer["accepts"][0]
+
+# 2) SIGN: EIP-3009 TransferWithAuthorization on Base (USDC). Domain comes from the offer.
+key = os.environ["EVM_PRIVATE_KEY"]
+auth = {"from": Account.from_key(key).address, "to": accept["payTo"],
+        "value": accept["amount"], "validAfter": int(time.time()) - 60,
+        "validBefore": int(time.time()) + 240, "nonce": "0x" + os.urandom(32).hex()}
+typed = {
+    "primaryType": "TransferWithAuthorization",
+    "domain": {"name": accept["extra"]["name"], "version": accept["extra"]["version"],
+               "chainId": 8453, "verifyingContract": accept["asset"]},
+    "types": {"EIP712Domain": [{"name": "name", "type": "string"}, {"name": "version", "type": "string"},
+                               {"name": "chainId", "type": "uint256"}, {"name": "verifyingContract", "type": "address"}],
+              "TransferWithAuthorization": [{"name": "from", "type": "address"}, {"name": "to", "type": "address"},
+                                            {"name": "value", "type": "uint256"}, {"name": "validAfter", "type": "uint256"},
+                                            {"name": "validBefore", "type": "uint256"}, {"name": "nonce", "type": "bytes32"}]},
+    "message": {"from": auth["from"], "to": auth["to"], "value": int(auth["value"]),
+                "validAfter": auth["validAfter"], "validBefore": auth["validBefore"], "nonce": auth["nonce"]},
+}
+signature = Account.sign_typed_data(key, full_message=typed).signature
+payment = {"x402Version": 2, "resource": offer["resource"], "accepted": accept,
+           "payload": {"signature": "0x" + signature.hex().removeprefix("0x"),
+                       "authorization": auth}}
+
+# 3) PAY + CALL: the same tools/call, with the payment in params._meta.
+paid = mcp("tools/call", {"name": "validate_address", "arguments": ARGS,
+                          "_meta": {"x402/payment": payment}})["result"]
+print(paid["structuredContent"])   # validated address; receipt in paid["_meta"]
+```
+
 ## Payer sans se tromper
 
 - En-tete attendu : `X-PAYMENT`, base64 d'un `PaymentPayload` x402 v1 dont le
