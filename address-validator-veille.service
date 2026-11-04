@@ -1,0 +1,21 @@
+[Unit]
+Description=Veille agentique quotidienne (paiements x402, agents, ecosysteme)
+Documentation=file:/opt/address-validator/docs/VEILLE-AGENTIQUE.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/address-validator
+# `-` : un .env absent ne doit pas empecher la veille de tourner ; le script
+# dira alors quelles sources sont indisponibles.
+EnvironmentFile=-/opt/address-validator/.env
+Environment=VEILLE_SORTIE=/var/log/address-validator/veille.md
+Environment=VEILLE_ETAT=/var/lib/address-validator/veille_agentique.json
+ExecStart=/opt/address-validator/venv/bin/python /opt/address-validator/scripts/veille_agentique.py --email
+# La veille ecrit uniquement son rapport et son etat ; elle ne touche pas au code.
+ReadWritePaths=/var/lib/address-validator /var/log/address-validator
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true

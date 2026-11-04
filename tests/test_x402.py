@@ -383,6 +383,9 @@ def test_402_publishes_the_same_offer_in_v2():
     assert (v2["payTo"], v2["asset"], v2["extra"]) == (v1["payTo"], v1["asset"], v1["extra"])
     assert offre["resource"]["url"] == "https://kder-ai.com/validate"
     assert offre["resource"]["description"].isascii() and "0.02 USDC" in offre["resource"]["description"]
+    # Bazaar exige une description <= 500 caracteres et une phrase « quand l'utiliser ».
+    assert len(offre["resource"]["description"]) <= 500
+    assert "Use when" in offre["resource"]["description"]
     # Regles du catalogue (bazaar.md) : nom ASCII <= 32, au plus 5 etiquettes ASCII <= 32.
     assert offre["resource"]["serviceName"].isascii() and len(offre["resource"]["serviceName"]) <= 32
     assert len(offre["resource"]["tags"]) <= 5 and all(t.isascii() and len(t) <= 32 for t in offre["resource"]["tags"])

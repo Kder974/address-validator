@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D98, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D97, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 98
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 97
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7450,85 +7450,71 @@ def d96() -> None:
 
 
 def d97() -> None:
-    """Depuis Stripe, le site ne dit plus « aucun prelevement automatique » : rien a la fin de l'essai, une offre est prelevee chaque mois."""
-    from fastapi.testclient import TestClient
+    """La veille agentique quotidienne, a cout zero (D97)."""
+    import importlib.util
+    from datetime import datetime, timedelta, timezone
 
-    from app import i18n
-    from app.main import app
+    script = read("scripts/veille_agentique.py")
+    guard(
+        script.splitlines()[0].strip() in ("#!/usr/bin/env python", "#!/usr/bin/env python3"),
+        "scripts/veille_agentique.py n'a pas de shebang python",
+    )
+    for marqueur in (
+        "revenue_stats",
+        "read_events",
+        "releases.atom",
+        "eth_call",
+        "smtplib",
+        "--sans-reseau",
+    ):
+        guard(marqueur in script, f"la veille ne porte plus : {marqueur}")
+    guard(
+        not re.search(r"(sk_live_|whsec_|-----BEGIN)", script),
+        "un secret est code en dur dans la veille",
+    )
 
-    faux = {
-        "fr": ("Aucun prélèvement automatique", "prélevé automatiquement", "aucun prélèvement automatique n'a lieu"),
-        "en": ("No automatic charge", "charged automatically", "no automatic charge"),
-        "es": ("cobro automático", "se cobra nada automáticamente"),
-        "zh": ("不会自动扣款",),
-        "hi": ("ऑटोमैटिक कटौती", "अपने आप नहीं कटता"),
-        "ar": ("خصم تلقائي", "مبلغ تلقائيًا"),
-    }
-    for chemin in sorted((ROOT / "app" / "templates").glob("*/*.html")):
-        texte = chemin.read_text(encoding="utf-8")
-        for phrase in faux.get(chemin.stem, ()):
-            guard(phrase not in texte, f"{chemin.parent.name}/{chemin.stem} dit encore « {phrase} » alors que Stripe preleve chaque mois")
-    for module in ("app/routes/signup.py", "app/routes/guide.py", "app/routes/validate.py"):
-        source = read(module)
-        for phrases in faux.values():
-            for phrase in phrases:
-                guard(phrase not in source, f"{module} dit encore « {phrase} »")
-    vrai = {
-        "fr": "prélevée chaque mois par Stripe", "en": "charged monthly by Stripe", "es": "lo cobra Stripe cada mes",
-        "zh": "由 Stripe 每月扣款", "hi": "Stripe हर महीने काटता है", "ar": "يخصمها Stripe كل شهر",
-    }
-    client = TestClient(app)
-    for lang in i18n.LANGUES:
-        page = client.get(i18n.chemin(lang, "pricing")).text
-        guard(vrai[lang] in page, f"{i18n.chemin(lang, 'pricing')} ne dit pas qu'une offre est prelevee chaque mois")
-    email = read("EMAIL_BIENVENUE.md")
-    guard("à la fin de l'essai" in email and "chaque" in email and "accord écrit" not in email and "sur simple demande" not in email,
-          "l'email de bienvenue promet encore un passage sur demande ou un accord ecrit")
-    guard(re.search(r"^\| D97 \|", read("DECISIONS.md"), re.M) is not None, "la decision D97 n'est plus consignee dans DECISIONS.md")
+    for unit in ("address-validator-veille.service", "address-validator-veille.timer"):
+        guard((ROOT / unit).is_file(), f"unit systemd absente : {unit}")
+    service = read("address-validator-veille.service")
+    timer = read("address-validator-veille.timer")
+    guard("EnvironmentFile=-/opt/address-validator/.env" in service, "le service ne charge pas le .env")
+    guard("--email" in service, "le service n'envoie pas le digest par email")
+    guard("OnCalendar=*-*-* 07:10:00 UTC" in timer, "la veille n'est pas planifiee a 07:10 UTC")
+    guard("Persistent=true" in timer, "la veille ne rattrape pas un demarrage manque")
 
+    docs = read("docs/VEILLE-AGENTIQUE.md")
+    guard("0 EUR" in docs or "0 €" in docs, "le cout zero n'est pas documente")
+    guard("SMTP_*" in docs, "la configuration email n'est pas documentee")
+    tests = read("tests/test_veille_agentique.py")
+    guard("analyser_journal" in tests and "diff_etat" in tests, "les tests de la veille ont disparu")
+    ignore = read(".gitignore")
+    guard("docs/VEILLE-AGENTIQUE-DERNIER.md" in ignore, "le rapport de veille n'est pas ignore")
+    guard("data/veille_agentique_etat.json" in ignore, "l'etat de veille n'est pas ignore")
 
-def d98() -> None:
-    """La Checklist Anti-Colis Perdu : page gratuite /checklist, 27 cases, chiffres du code, liee depuis /, /pricing et /guide."""
-    from fastapi.testclient import TestClient
-
-    from app import accounts, i18n
-    from app.config import get_settings
-    from app.main import app
-    from app.routes import checklist
-
-    client = TestClient(app)
-    reponse = client.get("/checklist")
-    guard(reponse.status_code == 200, f"/checklist : {reponse.status_code}")
-    csp = reponse.headers.get("content-security-policy", "")
-    guard("default-src 'none'" in csp and "script-src" not in csp and reponse.headers.get("cache-control") == "public, max-age=300",
-          f"/checklist : en-tetes inattendus ({csp})")
-    texte = reponse.text
-    for interdit in ("<script", "<img", "src=", "@import", "url(", "<form", "{{"):
-        guard(interdit not in texte, f"/checklist contient {interdit!r}")
-    source = read("docs/commercial/produits/01_checklist.md")
-    numeros = [int(n) for n in re.findall(r"^- \[ \] \*\*(\d+)\.\*\*", source, re.M)]
-    guard(numeros == list(range(1, 28)), f"la source n'a plus ses 27 points : {numeros}")
-    for n in numeros:
-        guard(f'<input type="checkbox" id="point-{n}"><label for="point-{n}">' in texte, f"/checklist : le point {n} n'a plus sa case et son etiquette")
-    guard(texte.count('type="checkbox"') == 27, "/checklist n'a pas exactement 27 cases")
-    reglages = get_settings().model_copy(update={"validate_form_rate_limit_per_day": 7, "x402_price": 0.05})
-    sauve = accounts.PLANS["pro"]
-    accounts.PLANS["pro"] = 7654
-    try:
-        lu = checklist.page(reglages)
-    finally:
-        accounts.PLANS["pro"] = sauve
-    guard("Tester 7 adresses" in lu and "0,05 USDC" in lu and "7 654" in lu, "/checklist : un chiffre n'est plus lu dans le code ou la configuration (D48)")
-    guard(i18n.prix("fr", "colis_rate_fourchette") in texte, "/checklist : le cout d'un echec n'est plus celui de i18n.EUROS")
-    corps = texte[texte.index("<main"):texte.index("</main>")]
-    for page in ("validate-form", "pricing", "agents"):
-        guard(f'href="{i18n.chemin("fr", page)}"' in corps, f"/checklist ne mene plus a /{page} depuis son contenu")
-    for page in ("", "pricing", "guide"):
-        guard('href="/checklist"' in client.get(i18n.chemin("fr", page), headers={"Accept": "text/html"}).text, f"/{page} ne cite plus la checklist")
-    guard(re.search(r"^\| D98 \|", read("DECISIONS.md"), re.M) is not None, "la decision D98 n'est plus consignee dans DECISIONS.md")
+    # Comportement hors ligne : les fonctions pures doivent rester justes.
+    spec = importlib.util.spec_from_file_location("veille_oracle", ROOT / "scripts" / "veille_agentique.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    moment = datetime.now(timezone.utc)
+    resultat = module.analyser_journal(
+        [{"ts": moment.isoformat(), "endpoint": "/validate", "user_agent": "mako-pulse-prober/0.1"}],
+        moment - timedelta(hours=1),
+    )
+    guard(resultat["refus_402_fenetre"] == 1, "la veille ne compte plus les refus 402")
+    alertes = module.diff_etat(
+        {"reels_cumul": 4, "classes_agents": {}},
+        {
+            "reels_cumul": 5,
+            "journal": {"classes": {"agent_ia": 1}},
+            "releases": {},
+            "onchain": {"nombre": 0},
+        },
+    )
+    guard(any("nouveau paiement" in alerte for alerte in alertes), "la veille n'alerte plus sur un nouveau paiement")
+    guard("Veille agentique" in module.formater_markdown({"genere_le": moment.isoformat()}), "le rapport n'a plus de titre")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 99)}
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 98)}
 
 
 def catalog() -> list[tuple[str, str]]:

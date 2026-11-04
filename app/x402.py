@@ -141,7 +141,8 @@ def description(price: float) -> str:
     return (
         "Validate and standardize a delivery address: parsing, provider verification "
         f"(US-optimized), geocoding and a deliverability score, as JSON. {price:g} USDC "
-        "per call on Base. Useful before shipping to or storing an address."
+        "per call on Base. Use when an agent must verify a US or French shipping "
+        "address before checkout, label creation, or customer storage."
     )
 
 
