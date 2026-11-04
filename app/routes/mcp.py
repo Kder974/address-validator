@@ -58,6 +58,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 
 from app import audience
+from app.cache import CACHE_TTL_DEGRADED
 from app.config import get_settings
 from app.observability import log_unpaid_attempt
 from app.payment import (
@@ -66,13 +67,14 @@ from app.payment import (
     record_transaction,
 )
 from app.routes.metrics import metrics
-from app.routes.validate import build_response, perform_validation
+from app.routes.validate import build_response, perform_validation, preparer_reponse
 from app.schemas import ValidationRequest, ValidationResponse
 from app.x402 import (
     MCP_PAYMENT_META_KEY,
     MCP_PAYMENT_RESPONSE_META_KEY,
     InvalidPayment,
     PaymentDecision,
+    ServiceIndisponible,
     parse_payment_payload,
     payment_required_mcp,
     settle_payment,
@@ -188,7 +190,7 @@ def _initialize(params: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _paiement_meta(valeur: Any) -> PaymentDecision:
+def _paiement_meta(valeur: Any, avant_reglement=None) -> PaymentDecision:
     """Règle un paiement reçu dans `params._meta["x402/payment"]` (D78).
 
     Le transport MCP est **v2** : le payload doit déclarer `x402Version: 2` (le
@@ -211,7 +213,7 @@ def _paiement_meta(valeur: Any) -> PaymentDecision:
         payload = parse_payment_payload(valeur)
     except InvalidPayment as exc:
         return PaymentDecision(paid=False, reason=str(exc), protocol="x402")
-    return settle_payment(payload, settings.x402_price)
+    return settle_payment(payload, settings.x402_price, avant_reglement=avant_reglement)
 
 
 def _refus_paiement(request_id: Any, request: Request, decision) -> JSONResponse:
@@ -284,14 +286,27 @@ async def _call_tool(request: Request, request_id: Any, params: dict[str, Any]) 
     paiement = meta.get(MCP_PAYMENT_META_KEY) if isinstance(meta, dict) else None
     # D102 : reglement, validation et registre attendent le reseau ou la base ; ils
     # tournent dans un fil a part pour ne jamais figer la boucle du serveur.
-    if paiement is not None:
-        decision = await asyncio.to_thread(_paiement_meta, paiement)
-    else:
-        decision = await asyncio.to_thread(payment_result, request)
+    # D103 : la validation est faite avant le reglement ; une reponse pas prete n'est pas encaissee.
+    pret, avant_reglement = preparer_reponse(body.address.model_dump())
+    try:
+        if paiement is not None:
+            decision = await asyncio.to_thread(_paiement_meta, paiement, avant_reglement)
+        else:
+            decision = await asyncio.to_thread(payment_result, request, avant_reglement)
+    except ServiceIndisponible as exc:
+        metrics.incr("x402_not_charged_unavailable")
+        logger.warning("paiement x402 non regle, service indisponible : %s", exc)
+        return _error(
+            request_id,
+            INTERNAL_ERROR,
+            "service momentanement indisponible : rien n'a ete encaisse",
+            {"detail": str(exc), "retry_after": CACHE_TTL_DEGRADED},
+            status=503,
+        )
     if not decision.paid:
         return _refus_paiement(request_id, request, decision)
 
-    result, key = await asyncio.to_thread(perform_validation, body.address.model_dump())
+    result, key = pret.get("validation") or await asyncio.to_thread(perform_validation, body.address.model_dump())
     if decision.transaction and not await asyncio.to_thread(
         record_transaction, decision.transaction, settings.x402_price, key
     ):

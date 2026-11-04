@@ -240,3 +240,26 @@ def test_la_nature_du_lieu_vient_du_rdi(dpv, rdi, attendu):
     verification = {"valid": dpv != "N", "deliverability": dpv, "metadata": {"rdi": rdi}}
     score = score_deliverability(verification, _SANS_GPS)
     assert (score["deliverability"], score["confidence"]) == attendu
+
+
+def test_seule_une_panne_du_fournisseur_est_injoignable(monkeypatch):
+    """D103 : une panne bloque l'encaissement x402 ; une adresse que le fournisseur ne sait pas juger, non."""
+    import app.validation as validation
+    from app.validation import ban, verifier
+
+    def panne(*args, **kwargs):
+        raise RuntimeError("connexion coupee")
+
+    monkeypatch.setattr(validation, "geocode", lambda standardized: {"lat": None, "lng": None})
+    us = {"street": "1 Main St", "city": "Austin", "state": "TX", "zip": "78701", "country": "US"}
+    try:
+        monkeypatch.setattr(verifier, "_call_smarty", panne)
+        assert validation.validate_full(us)["injoignable"] is True
+        monkeypatch.setattr(verifier, "_call_smarty", lambda *args: [{"analysis": {}, "metadata": {}}])
+        hors_couverture = validation.validate_full({**us, "country": "DE"})
+        assert hors_couverture["degraded"] is True and hors_couverture["injoignable"] is False
+    finally:
+        verifier.breaker.reset()
+    monkeypatch.setattr(ban, "_call_ban", panne)
+    francaise = validation.validate_full({"street": "5 rue des ecoles", "city": "paris", "zip": "75005", "country": "FR"})
+    assert francaise["degraded"] is True and francaise["injoignable"] is True

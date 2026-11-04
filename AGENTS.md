@@ -15,9 +15,13 @@ https://kder-ai.com/validate, 0,02 USDC par appel.
 2. Lire https://kder-ai.com/health avant une campagne d'appels.
 3. Envoyer l'adresse sur https://kder-ai.com/validate avec l'en-tete
    `X-PAYMENT` (voir « Payer » ci-dessous).
-4. Toujours lire `degraded` dans la reponse : si `degraded` vaut `true`, le
-   geocodage a echoue et `confidence` est basse ; la validation doit etre rejouee
-   plus tard, pas presentee comme un resultat.
+4. Un appel paye en x402 n'est regle que si la reponse est prete : si le
+   fournisseur d'adresses ou le registre ne repond pas, la reponse est un `503`
+   avec `Retry-After`, rien n'est encaisse et l'autorisation reste utilisable.
+   Toujours lire `degraded` : `true` veut dire que le fournisseur n'a pas su
+   verifier l'adresse (hors couverture, ou panne pour un appel par cle d'API) ;
+   `confidence` est alors basse, et la validation ne doit pas etre presentee
+   comme un resultat.
 
 Si l'agent parle MCP plutot que HTTP : lire la carte
 https://kder-ai.com/.well-known/mcp-server, appeler `initialize` puis

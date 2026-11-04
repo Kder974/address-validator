@@ -56,9 +56,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from app import accounts, audience
-from app.cache import get_cached_result, store_in_cache
+from app.cache import CACHE_TTL_DEGRADED, get_cached_result, store_in_cache
 from app.config import get_settings
-from app.database import SessionLocal
+from app.database import SessionLocal, check_db
 from app.observability import log_unpaid_attempt
 from app.payment import (
     PROOF_HEADER,
@@ -71,7 +71,7 @@ from app.payment import (
 from app.routes.metrics import metrics
 from app.schemas import AddressOutput, ValidationRequest, ValidationResponse
 from app.validation import validate_full
-from app.x402 import PAYMENT_REQUIRED_HEADER, payment_required_header
+from app.x402 import PAYMENT_REQUIRED_HEADER, ServiceIndisponible, payment_required_header
 
 router = APIRouter()
 settings = get_settings()
@@ -283,6 +283,51 @@ def serve_with_api_key(raw: dict, response: Response, cle: str):
     return build_response(result, key, price_paid=0.0)
 
 
+def preparer_reponse(raw: dict):
+    """D103 : la validation est calculee *avant* le reglement x402, et le registre verifie.
+
+    Un agent ne paie que pour une reponse prete. Si le fournisseur n'a pas pu
+    repondre (`injoignable`) ou si le registre ne repond pas, la fonction
+    rendue leve `ServiceIndisponible` : rien n'est regle, et l'agent garde son
+    autorisation. Renvoie `(pret, avant_reglement)` ; `pret["validation"]` porte le
+    resultat une fois calcule.
+    """
+    pret: dict = {}
+
+    def avant_reglement() -> None:
+        pret["validation"] = perform_validation(raw)
+        if pret["validation"][0].get("injoignable"):
+            raise ServiceIndisponible("le fournisseur d'adresses ne repond pas")
+        if check_db() != "ok":
+            raise ServiceIndisponible("le registre des paiements ne repond pas")
+
+    return pret, avant_reglement
+
+
+def service_indisponible(motif: str) -> JSONResponse:
+    """D103 : `503` sans encaissement.
+
+    `Retry-After` vaut la duree de garde d'un resultat degrade (D47) : avant, la meme
+    adresse retomberait sur le meme resultat ; apres, elle est reverifiee.
+    """
+    metrics.incr("x402_not_charged_unavailable")
+    logger.warning("paiement x402 non regle, service indisponible : %s", motif)
+    return JSONResponse(
+        status_code=503,
+        headers={"Retry-After": str(CACHE_TTL_DEGRADED)},
+        content={
+            "error": "service momentanement indisponible : rien n'a ete encaisse",
+            "detail": (
+                f"{motif}. Le paiement n'a pas ete regle et l'autorisation n'est pas "
+                f"consommee : reessayez dans {CACHE_TTL_DEGRADED} s."
+            ),
+            "protocol": "x402",
+            "price": settings.x402_price,
+            "currency": "USDC",
+        },
+    )
+
+
 def paiement_requis(request: Request, decision) -> JSONResponse:
     """Le `402` de `/validate` : corps x402 v1, offre v2 dans `PAYMENT-REQUIRED` (D77)."""
     metrics.incr("unpaid_requests")
@@ -326,15 +371,18 @@ def validate_address(request: Request, body: ValidationRequest, response: Respon
     # D34 : deux voies sont acceptées — x402 standard (`X-PAYMENT`, signature
     # EIP-3009 + règlement) et la preuve HMAC historique (`X-Payment-Proof`,
     # D15/D27). `payment_result` choisit, `/validate` ne décide pas du protocole.
-    decision = payment_result(request)
+    raw = body.address.model_dump()
+    pret, avant_reglement = preparer_reponse(raw)
+    try:
+        decision = payment_result(request, avant_reglement=avant_reglement)
+    except ServiceIndisponible as exc:
+        return service_indisponible(str(exc))
     if not decision.paid:
         return paiement_requis(request, decision)
 
     metrics.incr("paid_requests")
     if decision.protocol == "x402":
         metrics.incr("x402_payments")
-
-    raw = body.address.model_dump()
 
     # D29 : c'est la preuve de paiement qui identifie ce qui a été payé. En x402,
     # c'est le hash du **règlement** (donc ce qui a réellement été encaissé) ;
@@ -348,7 +396,8 @@ def validate_address(request: Request, body: ValidationRequest, response: Respon
         or transaction_id
     )
 
-    result, key = perform_validation(raw)
+    # D103 : en x402, la validation est deja faite (avant le reglement).
+    result, key = pret.get("validation") or perform_validation(raw)
     if ledger_key and not record_transaction(ledger_key, settings.x402_price, key):
         # D41 : le registre est ce qui prouve l'encaissement (D29) et ce qui
         # alimente le revenu publie (D40). Servir une validation sans ligne

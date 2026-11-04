@@ -259,18 +259,21 @@ def legacy_proof_result(request: Request) -> PaymentDecision:
     )
 
 
-def payment_result(request: Request) -> PaymentDecision:
+def payment_result(request: Request, avant_reglement=None) -> PaymentDecision:
     """Verdict de paiement : x402 standard d'abord, preuve HMAC ensuite.
 
     L'ordre est explicite et vaut contrat : un agent autonome présente
     `X-PAYMENT` ; l'en-tête hérité `X-Payment-Proof` n'est examiné qu'en son
     absence, ce qui interdit de faire passer une preuve HMAC pour un paiement
     x402 — et inversement.
+
+    `avant_reglement` (D103) ne sert qu'a x402 : il passe juste avant le reglement.
+    Une preuve HMAC designe un virement deja fait, il n'y a plus rien a retenir.
     """
     header = request.headers.get(PAYMENT_HEADER) or request.headers.get(PAYMENT_SIGNATURE_HEADER)
     if header:
         path = getattr(getattr(request, "url", None), "path", "") or "/validate"
-        return authorize_and_settle(header, settings.x402_price, resource_url(path))
+        return authorize_and_settle(header, settings.x402_price, resource_url(path), avant_reglement)
     return legacy_proof_result(request)
 
 

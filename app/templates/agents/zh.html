@@ -451,7 +451,7 @@ console.log(response.status, await response.json());</pre>
   </section>
   <section aria-labelledby="faq">
     <h2 id="faq">常见问题</h2>
-    <div class="qa-l"><details><summary>我的代理需要创建账户吗？</summary><p>不需要。x402 支付就够了：无需注册，无需 API 密钥。</p></details><details><summary>需要什么钱包？</summary><p>一个在 Base 网络上持有 USDC、能签署 EIP-3009 授权的钱包，例如 x402 库提供的钱包。</p></details><details><summary>发现服务要花钱吗？</summary><p>不要钱。<code>initialize</code>、<code>tools/list</code> 和发现卡片都是免费的；只有 <code>tools/call</code> 收费，{{prix_x402}} USDC。</p></details><details><summary>如果数据提供方没有响应怎么办？</summary><p>结果会带有 <code>degraded: true</code> 和较低的置信度。不要拦截订单：稍后再调用一次。</p></details></div>
+    <div class="qa-l"><details><summary>我的代理需要创建账户吗？</summary><p>不需要。x402 支付就够了：无需注册，无需 API 密钥。</p></details><details><summary>需要什么钱包？</summary><p>一个在 Base 网络上持有 USDC、能签署 EIP-3009 授权的钱包，例如 x402 库提供的钱包。</p></details><details><summary>发现服务要花钱吗？</summary><p>不要钱。<code>initialize</code>、<code>tools/list</code> 和发现卡片都是免费的；只有 <code>tools/call</code> 收费，{{prix_x402}} USDC。</p></details><details><summary>如果数据提供方没有响应怎么办？</summary><p>不会扣款：响应为 <code>503</code>，并带有 <code>Retry-After</code>，你的授权仍然有效。不要拦截订单：稍后再调用一次。</p></details></div>
     <p class="liens"><a class="link" href="{{url_guide}}">集成指南 <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a><a class="link" href="{{url_pricing}}">价格 <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a><a class="link" href="{{url_compare}}">价格对比 <svg class="arr" viewBox="0 0 10 10" aria-hidden="true"><path class="l" d="M1 5h7"/><path class="h" d="M3.5 1.5 7 5 3.5 8.5"/></svg></a></p>
   </section>
 </div>

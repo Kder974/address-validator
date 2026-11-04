@@ -180,8 +180,11 @@ print(paid["structuredContent"])   # validated address; receipt in paid["_meta"]
 - Contrat du 402 : le corps x402 v1 porte `network` a la racine, `x402Version`,
   `accepts[0].outputSchema` (schema de sortie derive de `ValidationResponse`) et
   les cles historiques `price`, `currency`, `wallet`, `protocol` (D80).
-- Mode degrade honnete : si le fournisseur est injoignable, la reponse reste un
-  HTTP 200 avec `degraded: true` et une confiance basse. Lire `degraded`.
+- Mode degrade honnete : si le fournisseur est injoignable, un appel paye en x402
+  recoit un `503` avec `Retry-After` et n'est pas regle (D103) ; par cle d'API, la
+  reponse reste un HTTP 200 avec `degraded: true` et une confiance basse. Une
+  adresse que le fournisseur ne sait pas verifier rend aussi `degraded: true`.
+  Lire `degraded`.
 - Serveur MCP : un seul outil, sans etat, sans flux SSE (`GET /mcp` repond 405)
   et sans ressources ni prompts (`resources/list` et `prompts/list` rendent des
   listes vides). L'appel de l'outil est paye : un appel sans paiement rend un

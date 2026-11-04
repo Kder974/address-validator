@@ -6,6 +6,8 @@ definition de la signature EIP-712, donc un seul comportement a maintenir.
 
 import json
 
+import pytest
+
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
@@ -13,6 +15,9 @@ from app.main import app
 from app.routes.mcp import CARD_LAST_UPDATED, MCP_PROTOCOL_VERSION, tool_definition
 from app.schemas import ValidationRequest, ValidationResponse
 from tests.test_x402 import PAYLOAD, TX, _authorization, _header, _sign
+
+#: D103 : un paiement x402 n'est regle que pour une adresse verifiee.
+pytestmark = pytest.mark.usefixtures("adresse_verifiee")
 
 client = TestClient(app)
 settings = get_settings()

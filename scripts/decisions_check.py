@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D102, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D103, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 102
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 103
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -1824,6 +1824,8 @@ def offline_route():
         ("app.routes.validate.get_cached_result", lambda key: None),
         ("app.routes.validate.store_in_cache", lambda key, value: None),
         ("app.routes.validate.record_transaction", lambda tx, amount, key: True),
+        # D103 : le registre est verifie avant le reglement x402.
+        ("app.routes.validate.check_db", lambda: "ok"),
     ):
         stack.enter_context(mock.patch(cible, valeur))
     return stack
@@ -1926,6 +1928,7 @@ def d34() -> None:
         mock.patch("app.routes.validate.get_cached_result", lambda key: None),
         mock.patch("app.routes.validate.store_in_cache", lambda key, value: None),
         mock.patch("app.routes.validate.record_transaction", _enregistre),
+        mock.patch("app.routes.validate.check_db", lambda: "ok"),  # D103 : registre verifie avant le reglement
     ):
         paye = client.post("/validate", json=corps, headers={PAYMENT_HEADER: x402_payload()})
     reset_nonce_cache()
@@ -2363,6 +2366,8 @@ def d37() -> None:
         mock.patch("app.x402._post_facilitator", fake_facilitator()),
         mock.patch("app.routes.mcp.perform_validation", lambda raw: (dict(ORACLE_RESULT), "cle-oracle")),
         mock.patch("app.routes.mcp.record_transaction", _enregistre),
+        mock.patch("app.routes.validate.check_db", lambda: "ok"),  # D103 : registre verifie avant le reglement
+        mock.patch("app.routes.validate.perform_validation", lambda raw: (dict(ORACLE_RESULT), "cle-oracle")),  # D103 : validation avant le reglement
     ):
         paye = rpc(
             "tools/call",
@@ -2859,6 +2864,8 @@ def d41() -> None:
             lambda raw: (dict(ORACLE_RESULT), "cle-oracle"),
         ),
         mock.patch("app.routes.mcp.record_transaction", lambda tx, amount, key: False),
+        mock.patch("app.routes.validate.check_db", lambda: "ok"),  # D103 : registre verifie avant le reglement
+        mock.patch("app.routes.validate.perform_validation", lambda raw: (dict(ORACLE_RESULT), "cle-oracle")),  # D103 : validation avant le reglement
     ):
         avant = metrics.snapshot()["ledger_write_failures_total"]
         outil = client.post(
@@ -6499,6 +6506,8 @@ def d78() -> None:
             lambda raw: (dict(ORACLE_RESULT), "cle-oracle"),
         ),
         mock.patch("app.routes.mcp.record_transaction", lambda tx, amount, key: True),
+        mock.patch("app.routes.validate.check_db", lambda: "ok"),  # D103 : registre verifie avant le reglement
+        mock.patch("app.routes.validate.perform_validation", lambda raw: (dict(ORACLE_RESULT), "cle-oracle")),  # D103 : validation avant le reglement
     ):
         paye = rpc_tool(paiement)
     reset_nonce_cache()
@@ -6572,6 +6581,8 @@ def d78() -> None:
             lambda raw: (dict(ORACLE_RESULT), "cle-oracle"),
         ),
         mock.patch("app.routes.mcp.record_transaction", lambda tx, amount, key: True),
+        mock.patch("app.routes.validate.check_db", lambda: "ok"),  # D103 : registre verifie avant le reglement
+        mock.patch("app.routes.validate.perform_validation", lambda raw: (dict(ORACLE_RESULT), "cle-oracle")),  # D103
     ):
         entete = rpc_tool(headers={PAYMENT_HEADER: x402_payload()})
     reset_nonce_cache()
@@ -7710,7 +7721,82 @@ def d102() -> None:
     guard(re.search(r"^\| D102 \|", read("DECISIONS.md"), re.M) is not None, "la decision D102 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 103)}
+def d103() -> None:
+    """Un agent ne paie que pour une reponse prete : fournisseur en panne ou registre muet = 503, rien de regle."""
+    from contextlib import ExitStack
+
+    from fastapi.testclient import TestClient
+
+    from app import x402
+    from app.cache import CACHE_TTL_DEGRADED
+    from app.main import app
+    from app.validation import ban, verifier
+
+    install_keccak()
+    client = TestClient(app)
+    corps = {"address": {"street": "1 A St", "city": "X", "state": "CA", "zip": "90001"}}
+    panne = lambda raw: dict(ORACLE_RESULT, degraded=True, injoignable=True)  # noqa: E731
+    hors_couverture = lambda raw: dict(ORACLE_RESULT, degraded=True, injoignable=False)  # noqa: E731
+
+    def appel(entete: str, cibles: dict, mcp: bool = False):
+        facilitateur = fake_facilitator()
+        with ExitStack() as pile:
+            pile.enter_context(mock.patch("app.x402._post_facilitator", facilitateur))
+            pile.enter_context(offline_route())
+            for cible, valeur in cibles.items():
+                pile.enter_context(mock.patch(cible, valeur))
+            if mcp:
+                reponse = client.post("/mcp", headers={x402.PAYMENT_HEADER: entete}, json={
+                    "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                    "params": {"name": "validate_address", "arguments": corps}})
+            else:
+                reponse = client.post("/validate", json=corps, headers={x402.PAYMENT_HEADER: entete})
+        return reponse, facilitateur.appels
+
+    x402.reset_nonce_cache()
+    entete = x402_payload()
+    reponse, appels = appel(entete, {"app.routes.validate.validate_full": panne})
+    guard(reponse.status_code == 503, f"fournisseur en panne : HTTP {reponse.status_code} au lieu de 503")
+    guard("/settle" not in appels, "le paiement est regle alors que le fournisseur est en panne")
+    guard(reponse.headers.get("Retry-After") == str(CACHE_TTL_DEGRADED), "le 503 ne dit pas quand reessayer")
+    reponse, appels = appel(entete, {})
+    guard(reponse.status_code == 200 and appels.count("/settle") == 1,
+          f"la meme autorisation n'est plus utilisable quand le fournisseur revient : HTTP {reponse.status_code}")
+
+    x402.reset_nonce_cache()
+    reponse, appels = appel(x402_payload(), {"app.routes.validate.check_db": lambda: "error: connexion refusee"})
+    guard(reponse.status_code == 503 and "/settle" not in appels, "un paiement est regle alors que le registre ne repond pas")
+    reponse, appels = appel(x402_payload(), {"app.routes.validate.validate_full": panne}, mcp=True)
+    guard(reponse.status_code == 503 and "/settle" not in appels, "l'outil MCP regle un paiement alors que le fournisseur est en panne")
+    reponse, appels = appel(x402_payload(), {"app.routes.validate.validate_full": hors_couverture})
+    guard(reponse.status_code == 200 and appels.count("/settle") == 1,
+          "une adresse hors couverture n'est plus vendue : un agent reessaierait sans fin")
+    x402.reset_nonce_cache()
+
+    def coupe(*args, **kwargs):
+        raise RuntimeError("connexion coupee")
+
+    verifier.breaker.reset()  # un disjoncteur ouvert par un controle precedent ferait tout passer pour une panne
+    try:
+        with mock.patch.object(verifier, "_call_smarty", coupe):
+            guard(verifier.verify_address(ORACLE_RESULT["standardized"]).get("injoignable") is True,
+                  "une panne SmartyStreets n'est pas marquee injoignable")
+        verifier.breaker.reset()
+        with mock.patch.object(verifier, "_call_smarty", lambda *args: [{"analysis": {}, "metadata": {}}]):
+            guard(not verifier.verify_address(ORACLE_RESULT["standardized"]).get("injoignable"),
+                  "une adresse que SmartyStreets ne sait pas juger est prise pour une panne")
+    finally:
+        verifier.breaker.reset()
+    with mock.patch.object(ban, "_call_ban", coupe):
+        guard(ban.verify_ban({"line1": "5 rue des ecoles", "zip": "75005", "city": "paris"}).get("injoignable") is True,
+              "une panne de la BAN n'est pas marquee injoignable")
+    guard("avec `Retry-After`, rien n'est encaisse et l'autorisation reste utilisable" in read("AGENTS.md") and "n'est pas regle (D103)" in read("llms.txt"),
+          "AGENTS.md ou llms.txt ne disent plus qu'un fournisseur en panne n'est pas facture")
+    guard("Rien n'est encaissé" in read("app/templates/agents/fr.html"), "la page Agents ne dit plus qu'une panne n'est pas facturee")
+    guard(re.search(r"^\| D103 \|", read("DECISIONS.md"), re.M) is not None, "la decision D103 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 104)}
 
 
 def catalog() -> list[tuple[str, str]]:

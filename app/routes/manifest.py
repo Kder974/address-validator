@@ -289,7 +289,7 @@ async def manifest():
         ],
         "limitations": [
             "Couverture : les adresses des Etats-Unis sont verifiees par SmartyStreets (USPS DPV, code Y/S/D requis) ; celles de France et d'outre-mer par la Base Adresse Nationale (BAN : score >= 0.8, code postal et ville confrontes) ; les adresses internationales des autres pays sont acceptees mais leur verification reste partielle.",
-            "Mode degrade : si le fournisseur est injoignable, la reponse reste un 200 avec degraded=true et confidence basse. Lire degraded avant de conclure.",
+            "Mode degrade : si le fournisseur est injoignable, un appel paye en x402 recoit un 503 avec Retry-After et n'est pas regle (D103) ; par cle d'API, la reponse reste un 200 avec degraded=true et confidence basse. Lire degraded avant de conclure.",
             "Paiement : protocole x402 v1 (en-tete X-PAYMENT, base64 d'un PaymentPayload signe EIP-712) regle par le facilitateur avant tout service : 0,02 USDC sur Base. La voie heritage a secret partage (X-Payment-Proof) reste ouverte pour l'outillage de l'exploitant, mais elle n'est pas publiable : un agent tiers paie en x402.",
             "La voie x402 ne traite aucun identifiant de personne : pas de compte, pas de nom, pas d'e-mail. L'abonnement par cle d'API (X-API-Key, D44) cree un compte client : e-mail, nom de boutique, plateforme, empreinte bcrypt du mot de passe et empreinte SHA-256 de la cle (voir PRIVACY.md). Le revenu est publie sous forme d'agregats (/metrics/revenue), sans adresse IP.",
             "Pas de limitation de debit dans l'application : elle est tenue en amont par Nginx (10 req/s par IP, rafale 20, 429 au-dela).",

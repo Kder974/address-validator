@@ -28,6 +28,9 @@ from app.models import ApiCall, PageVisit
 from app.routes.metrics import metrics
 from tests.test_x402 import PAYLOAD, _header
 
+#: D103 : un paiement x402 n'est regle que pour une adresse verifiee.
+pytestmark = pytest.mark.usefixtures("adresse_verifiee")
+
 client = TestClient(app)
 
 
