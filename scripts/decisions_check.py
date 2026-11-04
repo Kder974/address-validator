@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D107, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D108, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 107
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 108
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7998,7 +7998,21 @@ def d107() -> None:
     guard(re.search(r"^\| D107 \|", read("DECISIONS.md"), re.M) is not None, "la decision D107 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 108)}
+def d108() -> None:
+    """Les tests et le registre tournent sur chaque PR ; mcp-publisher est epingle et verifie par son empreinte."""
+    tests = read(".github/workflows/tests.yml")
+    guard("pull_request" in tests and "pytest" in tests and "decisions_check.py --all" in tests,
+          "les tests et le registre ne tournent plus sur chaque PR (.github/workflows/tests.yml)")
+    guard("secrets." not in tests, "le workflow de tests demande un secret : il doit tourner hors ligne")
+    publication = read(".github/workflows/publish-mcp.yml")
+    guard("releases/latest" not in publication and re.search(r"VERSION: v\d+\.\d+\.\d+", publication) is not None,
+          "mcp-publisher n'est plus epingle sur une version")
+    guard(re.search(r"SHA256: [0-9a-f]{64}", publication) is not None and "sha256sum -c" in publication,
+          "l'empreinte de mcp-publisher n'est plus verifiee")
+    guard(re.search(r"^\| D108 \|", read("DECISIONS.md"), re.M) is not None, "la decision D108 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 109)}
 
 
 def catalog() -> list[tuple[str, str]]:

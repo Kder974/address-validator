@@ -533,3 +533,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D107: the API unit waits between restarts and is sandboxed; --maj publishes llms.txt, AGENTS.md and security.txt; production refuses API_SECRET_KEY=change_me; init_db logs its cause; .env.example covers every setting
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D107
   EXPECT: DECISION OK D107
+- [ ] D108: tests and the decision ledger run on every PR, offline and without secrets; mcp-publisher is pinned to a version and checked against its SHA-256
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D108
+  EXPECT: DECISION OK D108
