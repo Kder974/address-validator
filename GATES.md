@@ -539,3 +539,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D109: a Nominatim refusal (429/403) is counted as geocode_blocked on /metrics, and the morning watch email reports new refusals since the previous report (a lower counter means a restart)
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D109
   EXPECT: DECISION OK D109
+- [ ] D110: the dashboard has a « Voir le site » button (same-site link, new tab, no external URL), turns the D41/D103/D104/D109 counters into plain alerts, and shows the agent funnel from free discovery to payment
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D110
+  EXPECT: DECISION OK D110
