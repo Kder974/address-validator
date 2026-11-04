@@ -308,7 +308,10 @@ def paiement_requis(request: Request, decision) -> JSONResponse:
 
 
 @router.post("/validate", response_model=ValidationResponse)
-async def validate_address(request: Request, body: ValidationRequest, response: Response):
+# D102 : `def`, pas `async def`. FastAPI execute alors la route dans un fil a part :
+# un fournisseur lent (SmartyStreets, BAN, Nominatim, facilitateur) n'attend plus
+# dans la boucle unique du serveur, donc ne fige plus les autres pages.
+def validate_address(request: Request, body: ValidationRequest, response: Response):
     metrics.incr("requests_total")
 
     # --- Mode clé API (D45) : prioritaire dès qu'une clé est présentée --------

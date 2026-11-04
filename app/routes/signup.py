@@ -38,6 +38,7 @@ local compté) et vaut pour toutes les langues ensemble.
 
 from __future__ import annotations
 
+import asyncio
 import html
 import re
 from datetime import datetime
@@ -749,7 +750,9 @@ async def _inscrire(request: Request, lang: str) -> Response:
     maintenant = accounts.now_utc()
     try:
         with _session() as session:
-            client, cle = accounts.create_customer(
+            # D102 : l'empreinte bcrypt (~0,25 s) se calcule dans un fil a part.
+            client, cle = await asyncio.to_thread(
+                accounts.create_customer,
                 session,
                 email=email,
                 password=mot_de_passe,
@@ -824,7 +827,8 @@ async def _espace_client(request: Request, lang: str, *, regeneration: bool) -> 
     cookie volé ne suffit pas à obtenir une nouvelle clé.
     """
     if request.headers.get("authorization", "").lower().startswith("basic "):
-        return _espace_basic(request, lang, regeneration=regeneration)
+        # D102 : bcrypt et la base dans un fil a part, pour ne pas figer le serveur.
+        return await asyncio.to_thread(_espace_basic, request, lang, regeneration=regeneration)
     if regeneration and connexion.origine_etrangere(request):
         return connexion.page(lang, erreur=connexion.TEXTES[lang]["origine"], statut=403)
     mot_de_passe = str((await request.form()).get("password", "") or "") if regeneration else ""
@@ -841,7 +845,7 @@ async def _espace_client(request: Request, lang: str, *, regeneration: bool) -> 
                 attente = connexion.attente_blocage(cles)
                 if attente is not None:
                     erreur_cle = connexion.TEXTES[lang]["bloque"].format(attente=max(1, (attente + 59) // 60))
-                elif accounts.verify_password(mot_de_passe, client.password_hash):
+                elif await asyncio.to_thread(accounts.verify_password, mot_de_passe, client.password_hash):  # D102
                     cle = accounts.regenerate_api_key(session, client)
                 else:
                     connexion.compter_echec(cles)

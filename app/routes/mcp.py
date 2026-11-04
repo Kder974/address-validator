@@ -49,6 +49,7 @@ client a payé, le revenu publié ne le verra jamais (D40).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -281,13 +282,18 @@ async def _call_tool(request: Request, request_id: Any, params: dict[str, Any]) 
     # (X-PAYMENT / PAYMENT-SIGNATURE / X-Payment-Proof) reste accepté (D34/D37).
     meta = params.get("_meta")
     paiement = meta.get(MCP_PAYMENT_META_KEY) if isinstance(meta, dict) else None
-    decision = _paiement_meta(paiement) if paiement is not None else payment_result(request)
+    # D102 : reglement, validation et registre attendent le reseau ou la base ; ils
+    # tournent dans un fil a part pour ne jamais figer la boucle du serveur.
+    if paiement is not None:
+        decision = await asyncio.to_thread(_paiement_meta, paiement)
+    else:
+        decision = await asyncio.to_thread(payment_result, request)
     if not decision.paid:
         return _refus_paiement(request_id, request, decision)
 
-    result, key = perform_validation(body.address.model_dump())
-    if decision.transaction and not record_transaction(
-        decision.transaction, settings.x402_price, key
+    result, key = await asyncio.to_thread(perform_validation, body.address.model_dump())
+    if decision.transaction and not await asyncio.to_thread(
+        record_transaction, decision.transaction, settings.x402_price, key
     ):
         # D41 : meme regle qu'en HTTP. L'outil n'est pas servi, l'incident est
         # compte, et l'appelant recoit le hash du reglement qu'il a paye pour

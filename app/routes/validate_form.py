@@ -58,6 +58,7 @@ forme, champ par champ.
 
 from __future__ import annotations
 
+import asyncio
 import html
 import math
 import re
@@ -977,7 +978,9 @@ async def _essai(request: Request, lang: str) -> HTMLResponse:
     # voit le visiteur ici et ce que rend l'API vendue. L'essai ne touche ni le
     # registre des paiements (D29) ni la base des comptes : il n'y a rien à
     # débiter, et rien à inscrire (D40).
-    resultat, _cle_cache = perform_validation(adresse)
+    # D102 : la validation attend les fournisseurs ; dans un fil a part, elle ne fige
+    # pas le serveur pendant ce temps.
+    resultat, _cle_cache = await asyncio.to_thread(perform_validation, adresse)
     metrics.incr("validate_form_validations")
     return _page(
         lang,
