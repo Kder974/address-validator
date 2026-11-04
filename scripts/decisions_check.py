@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D109, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D110, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 109
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 110
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -8066,7 +8066,51 @@ def d109() -> None:
     guard(re.search(r"^\| D109 \|", read("DECISIONS.md"), re.M) is not None, "la decision D109 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 110)}
+def d110() -> None:
+    """Le pilotage : un bouton vers le site, les alertes des compteurs, et l'entonnoir des agents."""
+    import tempfile
+    from datetime import datetime as datetime_
+    from datetime import timedelta as timedelta_
+    from pathlib import Path
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import exploitation
+    from app.config import get_settings
+    from app.models import ApiCall, Customer, CustomerValidation, PageVisit, PaymentTransaction
+    from app.routes.dashboard import _page
+    from app.routes.metrics import metrics
+
+    moment = datetime_(2026, 11, 4, 18, 30)
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp()) / 'pilotage.sqlite'}")
+    for modele in (Customer, CustomerValidation, PaymentTransaction, ApiCall, PageVisit):
+        modele.__table__.create(moteur)
+    with sessionmaker(bind=moteur)() as session:
+        il_y_a = moment - timedelta_(hours=2)
+        session.add_all([ApiCall(endpoint="mcp", method="tools/list", status=200, duration_ms=5, created_at=il_y_a) for _ in range(6)]
+                        + [ApiCall(endpoint="validate", status=402, refus="absent", duration_ms=9, created_at=il_y_a) for _ in range(3)]
+                        + [ApiCall(endpoint="validate", mode="x402", status=200, duration_ms=90, amount_usdc=0.02, created_at=il_y_a)])
+        session.commit()
+        with mock.patch.object(metrics, "snapshot", lambda: {"x402_not_charged_unavailable": 2, "stripe_payments_unmatched": 1,
+                                                             "geocode_blocked": 4, "ledger_write_failures_total": 0}):
+            d = exploitation.collecter(session, moment, "mois", get_settings())
+    guard(d["agents"] == [("Découvertes gratuites (MCP)", 6), ("Ont vu le prix", 4), ("Ont présenté un paiement", 1), ("Ont payé", 1)],
+          f"l'entonnoir des agents est faux : {d['agents']}")
+    for morceau in ("2 achats d'agent refusés sans débit", "1 paiement Stripe sans abonnement activé", "La carte (Nominatim) a refusé 4 demandes"):
+        guard(any(alerte.startswith(morceau) for alerte in d["alertes"]), f"le pilotage ne previent plus : {morceau}")
+    guard(not any("registre" in alerte for alerte in d["alertes"]), "un compteur a zero donne une alerte")
+    page = _page({"ledger": {"available": True}, "windows": {}, "recent": []}, d, {"Base de données": True}, "ensemble")
+    guard('<a class="vers-site" href="/" target="_blank" rel="noopener">' in page, "le bouton vers le site a disparu du pilotage")
+    guard("https://" not in page and "http://" not in page, "le pilotage cite une adresse exterieure")
+    guard('id="agents"' in page and "1 sur 4 ont payé · 25 %" in page, "la vue d'ensemble ne montre plus combien d'agents paient")
+    from app.pilotage_page import _part
+
+    guard(_part(1, 1962) == "0,05 %", f"un petit taux s'affiche {_part(1, 1962)!r} : 1 agent sur 1 962 passerait pour 0 %")
+    guard(re.search(r"^\| D110 \|", read("DECISIONS.md"), re.M) is not None, "la decision D110 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 111)}
 
 
 def catalog() -> list[tuple[str, str]]:

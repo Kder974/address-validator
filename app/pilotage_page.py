@@ -18,6 +18,7 @@ import html
 import math
 
 from app import accounts, i18n
+from app.config import get_settings
 from app.carte_monde import HAUTEUR, LARGEUR, POINTS, PRECIS
 from app.exploitation import LIBELLES_REFUS, PERIODES
 
@@ -45,6 +46,11 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;background:radial-grad
 .etat i{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(52,211,153,.6);animation:pouls 2s infinite}
 @keyframes pouls{0%{box-shadow:0 0 0 0 rgba(52,211,153,.55)}70%,100%{box-shadow:0 0 0 10px rgba(52,211,153,0)}}
 .etat small{display:block;color:var(--mu);font-size:12px}
+.vers-site{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;text-decoration:none;color:var(--tx);font-size:14px;font-weight:600;border:1px solid transparent;background:linear-gradient(var(--s1),var(--s1)) padding-box,linear-gradient(120deg,var(--c2),var(--c3)) border-box;transition:box-shadow .2s,transform .2s}
+.vers-site:hover{box-shadow:0 0 0 4px rgba(91,124,255,.14),0 8px 24px rgba(47,212,196,.12);transform:translateY(-1px)}
+.vers-site:focus-visible{outline:2px solid var(--c3);outline-offset:3px}
+.vers-site svg{color:var(--c3);flex:none}
+.vers-site small{display:block;font-weight:400;color:var(--mu);font-size:12px}
 /* contenu */
 main{padding:34px clamp(18px,3.4vw,48px) 60px;max-width:1480px;width:100%}
 .top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:18px 24px;margin-bottom:26px}
@@ -253,6 +259,7 @@ I = {
     "clients": '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
     "site": '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
     "registre": '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+    "externe": '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
     "sortie": '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
     "alerte": '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"/>',
     "ok": '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4 12 14.01l-3-3"/>',
@@ -509,12 +516,17 @@ def page(d: dict, sante: dict, stats: dict, vue: str = "ensemble", nom: str | No
                   for cle, chemin, i, t, _titre in VUES)
     periodes = "".join(f'<a href="?p={cle}"{" aria-current=page" if cle == periode else ""}>{e(lib)}</a>' for cle, (lib, _) in PERIODES.items())
     alertes = d.get("alertes", [])
+    # Le pilotage est servi par le site lui-meme : `/` est sa page d'accueil, sans adresse
+    # absolue (la page ne cite aucune URL exterieure). Le nom affiche vient de la configuration.
+    hote = get_settings().public_base_url.split("://", 1)[-1].strip("/")
     en_panne = [nom for nom, ok in sante.items() if not ok]
     etat = (("ko", "Problème détecté", ", ".join(en_panne) + " en panne") if en_panne else
             ("wa", "À surveiller", f"{len(alertes)} alerte{'s' if len(alertes) > 1 else ''}") if alertes else
             ("", "Tout fonctionne", "Base, cache, paiements"))
     cote = (f'<aside class="side"><div class="logo"><span class="orbe"></span><div><b>Address Validator</b><small>Pilotage</small></div></div>'
             f'<nav class="nav" aria-label="Sections">{nav}</nav><div class="bas">'
+            # D110 : un clic vers le site officiel, dans un nouvel onglet ; le pilotage reste ouvert.
+            f'<a class="vers-site" href="/" target="_blank" rel="noopener">{ico("externe")}<div>Voir le site<small>{e(hote)}</small></div></a>'
             f'<div class="etat {etat[0]}"><i></i><div>{e(etat[1])}<small>{e(etat[2])}</small></div></div>'
             f'<form class="nav" method="post" action="/dashboard/deconnexion"><button type="submit">{ico("sortie")}Se déconnecter</button></form></div></aside>')
     titre_page = next(titre for cle, _c, _i, _t, titre in VUES if cle == vue)
@@ -601,13 +613,7 @@ def page(d: dict, sante: dict, stats: dict, vue: str = "ensemble", nom: str | No
                 f'<div class="duo" style="margin-top:20px"><article class="carte"><h3>Pays d\'où viennent les appels</h3><p class="aide">Pays de connexion (un agent tourne souvent dans un centre de données).</p>{liste_pays(api["pays_appels"], "", "Aucun appel sur la période.")}</article>'
                 f'<article class="carte"><h3>Pays des adresses vérifiées</h3><p class="aide">Le pays écrit dans l\'adresse.</p>{liste_pays([(c, n) for c, n in api["pays_adresses"] if c != "??"], "", "Aucune adresse vérifiée sur la période.")}</article></div></section>')
 
-    etapes = d["parcours"]
-    plus_grand = max([n for _, n in etapes] + [1])
-    entonnoir = "".join(
-        f'<div class="etape"><div class="n">{e(fr(n))}</div><div class="t">{e(nom)}</div>'
-        f'<span class="taux">{e("point de départ" if k == 0 else ("—" if not etapes[k - 1][1] else fr(100 * n / etapes[k - 1][1]) + " % de l’étape d’avant"))}</span>'
-        f'<div class="bar" style="height:{max(6, round(96 * n / plus_grand))}px;animation-delay:{k / 10}s"></div></div>'
-        for k, (nom, n) in enumerate(etapes))
+    entonnoir = _entonnoir(d["parcours"])
     fin_essai = [(e(nom), f'<span class="badge {"chaud" if (fin - moment).days < 2 else "tiede"}">{e(_dans(moment, fin))}</span>') for nom, fin in cl["essais_finissant"]]
     quota = [(f'{e(nom)}<div class="mini"><span style="width:{min(100, round(100 * c / q))}%"></span></div>', e(f"{fr(c)} / {fr(q)}")) for nom, _p, c, q in cl["proches_quota"]]
     relance = [(e(nom), f'<span class="badge froid">{e(_depuis(moment, cree))}</span>') for nom, cree in cl["jamais_appele"][:6]]
@@ -641,12 +647,38 @@ def page(d: dict, sante: dict, stats: dict, vue: str = "ensemble", nom: str | No
                    f'et toutes les plus longues montrent les mêmes visites et appels. Elles se sépareront d\'elles-mêmes avec le temps.</span></div>')
     bande = bande_defilante(d["direct"], moment)
     contenu = {
-        "ensemble": f'{bloc_direct(d["direct"], moment)}{bande}<section class="alertes">{bloc_alertes}</section>{bento}',
+        "ensemble": f'{bloc_direct(d["direct"], moment)}{bande}<section class="alertes">{bloc_alertes}</section>{bento}{bloc_agents(d["agents"])}',
         "argent": bande + argent, "api": bande + api_html, "clients": bande + clients_html,
         "site": bande + site_html, "registre": bande + registre(stats),
     }[vue]
     corps = f'{portee}{contenu}'
     return _document(cote + f"<main>{haut}{corps}{_pied()}</main>")
+
+
+def _entonnoir(etapes: list[tuple[str, int]]) -> str:
+    """Etapes d'un parcours, chacune en part de l'etape d'avant (clients, D110 agents)."""
+    plus_grand = max([n for _, n in etapes] + [1])
+    return "".join(
+        f'<div class="etape"><div class="n">{e(fr(n))}</div><div class="t">{e(nom)}</div>'
+        f'<span class="taux">{e("point de départ" if k == 0 else ("—" if not etapes[k - 1][1] else _part(n, etapes[k - 1][1]) + " de l’étape d’avant"))}</span>'
+        f'<div class="bar" style="height:{max(6, round(96 * n / plus_grand))}px;animation-delay:{k / 10}s"></div></div>'
+        for k, (nom, n) in enumerate(etapes))
+
+
+def _part(n: int, sur: int) -> str:
+    """Pourcentage lisible : « 0,05 % » plutot que « 0 % » pour un petit taux (D110)."""
+    taux = 100 * n / sur
+    return f"{fr(taux, 2 if 0 < taux < 1 else 0)} %"
+
+
+def bloc_agents(etapes: list[tuple[str, int]]) -> str:
+    """D110 : l'objectif du site (des agents qui achetent), sur la vue d'ensemble."""
+    vus, payes = etapes[1][1], etapes[-1][1]
+    resume = (f"{fr(payes)} sur {fr(vus)} ont payé · {_part(payes, vus)}" if vus else "Aucun agent n'a encore vu le prix sur la période.")
+    return (f'<section class="sec" id="agents"><div class="sec-h"><span class="pastille">{ico("robot")}</span><h2>Agents IA</h2>'
+            f'<p>De la découverte gratuite au paiement : où les agents s\'arrêtent</p></div>'
+            f'<article class="carte"><h3>Combien voient l\'offre, combien paient</h3><p class="aide">{e(resume)}</p>'
+            f'<div class="funnel">{_entonnoir(etapes)}</div></article></section>')
 
 
 def _pied() -> str:
