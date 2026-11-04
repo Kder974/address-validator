@@ -498,7 +498,7 @@ h1,h2,h3,.amount strong{letter-spacing:0}h1{line-height:1.2}
         <p class="promise-h">所有套餐均包含</p>
         <ul class="facts">
           <li>无合约期限：您可以随时停用。显示的价格就是您支付的价格，不适用增值税。</li>
-          <li>不会自动扣款：只有在您选择套餐时，才通过 Stripe 用银行卡付款。</li>
+          <li>未经您同意不会扣款：试用期自动结束，无需银行卡。您选择的套餐由 Stripe 每月扣款，直到您停止。</li>
           <li>不收集姓名或邮箱：已核对的地址保存 {{jours_cache}} 天以便更快响应，之后删除。</li>
           <li>无论哪个套餐，API 和响应都完全相同。</li>
         </ul>
@@ -694,7 +694,7 @@ h1,h2,h3,.amount strong{letter-spacing:0}h1{line-height:1.2}
         </details>
         <details class="qa">
           <summary>超出额度会怎样？</summary>
-          <p>额度按月计算，每月 1 日（UTC）重置。用完后，API 会返回 <code class="inline">402</code> 和 <code class="inline">quota_atteint</code>：不会额外收费，也不会自动扣款。您可以在客户中心查看用量。如需升级到更高的套餐，请写信联系我们。</p>
+          <p>额度按月计算，每月 1 日（UTC）重置。用完后，API 会返回 <code class="inline">402</code> 和 <code class="inline">quota_atteint</code>：不会额外收费，也不会收取超额费用。您可以在客户中心查看用量。如需升级到更高的套餐，请写信联系我们。</p>
         </details>
         <details class="qa">
           <summary>我发送的地址会怎样处理？</summary>
