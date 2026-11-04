@@ -76,7 +76,9 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    # D105 : n'importe quel site peut lire l'API (un agent x402 dans un navigateur), mais
+    # jamais avec les cookies d'un client : l'API s'authentifie par en-tetes, pas par cookie.
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
     # D77 : un client x402 dans un navigateur doit pouvoir lire l'offre et le reçu.
