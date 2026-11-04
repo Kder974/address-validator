@@ -515,3 +515,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D101: the French homepage shows a French example (5 rue des ecoles, 75005 paris -> 5 Rue des Ecoles, 75005 Paris), routed to the BAN by the free test and standardized as shown; no US example, no English line left (agent box, code comments), JSON field names unchanged
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D101
   EXPECT: DECISION OK D101
+- [ ] D102: a slow validation no longer freezes the site: no network, database or bcrypt wait runs inside an async route (paid route is `def`, MCP, free test, 402 handler and logins go through asyncio.to_thread); a page answers at once behind a slow validation
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D102
+  EXPECT: DECISION OK D102

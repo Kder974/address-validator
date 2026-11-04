@@ -21,6 +21,7 @@ d'en choisir un nouveau lui-même :
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import html
 import logging
@@ -302,7 +303,8 @@ async def _enregistrer(request: Request, lang: str) -> Response:
                 erreur = TEXTES[lang]["differents"]
             if erreur:
                 return _nouveau_page(lang, jeton=jeton, email=client.email, erreur=erreur, statut=400)
-            accounts.finish_password_reset(session, ligne, client, mot_de_passe, maintenant)
+            # D102 : l'empreinte bcrypt (~0,25 s) se calcule dans un fil a part.
+            await asyncio.to_thread(accounts.finish_password_reset, session, ligne, client, mot_de_passe, maintenant)
             valeur = accounts.open_session(session, client, maintenant, get_settings().session_hours)
     except SQLAlchemyError:
         return _nouveau_page(lang)

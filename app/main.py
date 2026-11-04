@@ -5,6 +5,7 @@ Conforme à la spec (Phase 3). Ajout (D16) : un `lifespan` qui tente
 non bloquant : l'API démarre et `/health` remonte l'état réel de la base.
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -93,7 +94,8 @@ async def corps_invalide(request: Request, exc: RequestValidationError):
     moyens = (validate.API_KEY_HEADER, "X-PAYMENT", "PAYMENT-SIGNATURE", "X-Payment-Proof")
     if request.url.path == "/validate" and not any((request.headers.get(h) or "").strip() for h in moyens):
         validate.metrics.incr("requests_total")
-        return validate.paiement_requis(request, validate.payment_result(request))
+        # D102 : comme partout, le verdict de paiement est calcule hors de la boucle du serveur.
+        return validate.paiement_requis(request, await asyncio.to_thread(validate.payment_result, request))
     return await request_validation_exception_handler(request, exc)
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D101, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D102, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 101
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 102
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -2803,7 +2803,7 @@ def d41() -> None:
     for chemin in ("app/routes/validate.py", "app/routes/mcp.py"):
         source = read(chemin)
         guard(
-            re.search(r"not\s+record_transaction", source) is not None,
+            re.search(r"not\s+(await\s+asyncio\.to_thread\(\s*)?record_transaction", source) is not None,  # D102 : appel dans un fil
             f"{chemin} ignore le resultat de l'ecriture : le service serait rendu sans ligne au registre, donc encaisse sans trace",
         )
         guard(
@@ -7663,7 +7663,54 @@ def d101() -> None:
     guard(re.search(r"^\| D101 \|", read("DECISIONS.md"), re.M) is not None, "la decision D101 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 102)}
+def d102() -> None:
+    """Une validation lente ne fige plus le site : ni reseau, ni base, ni bcrypt dans la boucle du serveur."""
+    import ast
+    import asyncio
+    import inspect
+    import time
+
+    import httpx
+
+    from app.main import app
+    from app.routes import validate as route
+
+    # Le serveur tourne en un seul processus : une attente dans une route `async` bloque toutes les autres.
+    bloquants = {"perform_validation", "validate_full", "payment_result", "settle_payment", "authorize_and_settle",
+                 "record_transaction", "authenticate", "verify_password", "hash_password", "create_customer",
+                 "finish_password_reset", "_espace_basic", "_paiement_meta"}
+    for chemin in sorted((ROOT / "app").rglob("*.py")):
+        for fonction in ast.walk(ast.parse(chemin.read_text(encoding="utf-8"))):
+            if not isinstance(fonction, ast.AsyncFunctionDef):
+                continue
+            for appel in ast.walk(fonction):
+                nom = getattr(getattr(appel, "func", None), "id", None) or getattr(getattr(appel, "func", None), "attr", None)
+                guard(not isinstance(appel, ast.Call) or nom not in bloquants,
+                      f"{chemin.relative_to(ROOT)}:{getattr(appel, 'lineno', '?')} : {fonction.name} appelle {nom} "
+                      "dans la boucle du serveur (passer par asyncio.to_thread)")
+    guard(not inspect.iscoroutinefunction(route.validate_address), "/validate est redevenue async : un fournisseur lent figerait le site")
+
+    def lent(raw):
+        time.sleep(0.6)
+        return {"validated": True, "standardized": dict(raw), "latitude": None, "longitude": None,
+                "deliverability": "residential", "confidence": 1.0, "degraded": False}
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            debut = time.monotonic()
+            lente = asyncio.create_task(client.post("/validate-form", data={"address": "1 main st, springfield il 62701"}))
+            await asyncio.sleep(0.1)
+            page = await client.get("/robots.txt")
+            return page.status_code, time.monotonic() - debut, (await lente).status_code
+
+    with mock.patch.object(route, "validate_full", lent), mock.patch.object(route, "get_cached_result", lambda key: None), \
+         mock.patch.object(route, "store_in_cache", lambda key, value: None):
+        page, attente, essai = asyncio.run(scenario())
+    guard(page == 200 and essai == 200 and attente < 0.4, f"/robots.txt a attendu {attente:.2f} s derriere un essai lent")
+    guard(re.search(r"^\| D102 \|", read("DECISIONS.md"), re.M) is not None, "la decision D102 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 103)}
 
 
 def catalog() -> list[tuple[str, str]]:

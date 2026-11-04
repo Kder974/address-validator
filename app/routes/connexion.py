@@ -27,6 +27,7 @@ connexion, injectées depuis la configuration (D48).
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import html
 from pathlib import Path
@@ -229,7 +230,8 @@ async def _connecter(request: Request, lang: str) -> Response:
         )
     try:
         with _session() as session:
-            client = accounts.authenticate(session, email, mot_de_passe)
+            # D102 : bcrypt coute ~0,25 s ; dans un fil a part, il ne fige pas le serveur.
+            client = await asyncio.to_thread(accounts.authenticate, session, email, mot_de_passe)
             if client is None:
                 compter_echec(cles)
                 return page(lang, email=email, erreur=textes["identifiants"], statut=400)
