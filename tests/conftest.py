@@ -80,6 +80,16 @@ class FakeRedis:
     def ping(self):
         return True
 
+    def set(self, key, value, nx=False, ex=None):
+        if nx and key in self.store:
+            return None
+        self.store[key] = value
+        self.ttls[key] = ex
+        return True
+
+    def delete(self, key):
+        return 1 if self.store.pop(key, None) is not None else 0
+
 
 @pytest.fixture(autouse=True)
 def _offline_provider(monkeypatch):
@@ -142,6 +152,11 @@ def _offline_ledger(monkeypatch):
         return True
 
     monkeypatch.setattr(http_route, "record_transaction", _accepte)
+    # D106 : une preuve HMAC deja inscrite est refusee ; le double lit les memes lignes.
+    import app.payment as payment
+
+    monkeypatch.setattr(payment, "preuve_deja_utilisee",
+                        lambda tx_hash: "preuve deja utilisee" if any(e[0] == tx_hash for e in ecritures) else None)
     # D103 : le registre est verifie avant le reglement ; la base de test est fermee.
     monkeypatch.setattr(http_route, "check_db", lambda: "ok")
     monkeypatch.setattr(mcp_route, "record_transaction", _accepte)

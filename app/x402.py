@@ -64,6 +64,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from app import cache
 from app.config import get_settings
 from app.onchain import ADDRESS_RE, USDC_DECIMALS, usdc_units
 
@@ -630,6 +631,7 @@ def verify_authorization(
         "payer": expected,
         "value": value,
         "nonce": str(authorization["nonce"]),
+        "valid_before": valid_before,
         "amount_usdc": _usdc(value),
     }
 
@@ -839,27 +841,38 @@ def settle_payment(
         if nonce in _SETTLED:
             return _refus_paiement(f"autorisation deja reglee (nonce {nonce[:18]}...)", version=version)
 
-    if settings.x402_facilitator_verify:
-        ok, reason = facilitator_verify(payload, requirements)
-        if not ok:
-            logger.warning("paiement x402 refuse (facilitateur) : %s", reason)
-            return _refus_paiement(reason, version=version)
+    # D106 : la memoire du processus ne survit pas a un redemarrage, Redis si. Le nonce y
+    # est reserve avant le reglement, et rendu si le reglement n'a pas lieu.
+    reserve = cache.reserve_nonce(nonce, details["valid_before"] - int(time.time()))
+    if reserve is False:
+        return _refus_paiement(f"autorisation deja reglee (nonce {nonce[:18]}...)", version=version)
+    regle = False
+    try:
+        if settings.x402_facilitator_verify:
+            ok, reason = facilitator_verify(payload, requirements)
+            if not ok:
+                logger.warning("paiement x402 refuse (facilitateur) : %s", reason)
+                return _refus_paiement(reason, version=version)
 
-    # D103 : on n'encaisse qu'une reponse prete. `avant_reglement` calcule la validation
-    # et verifie le registre ; s'il leve `ServiceIndisponible`, rien n'est regle et le
-    # nonce n'est pas memorise : la meme autorisation resservira quand le service revient.
-    if avant_reglement is not None:
-        avant_reglement()
+        # D103 : on n'encaisse qu'une reponse prete. `avant_reglement` calcule la validation
+        # et verifie le registre ; s'il leve `ServiceIndisponible`, rien n'est regle et le
+        # nonce n'est pas memorise : la meme autorisation resservira quand le service revient.
+        if avant_reglement is not None:
+            avant_reglement()
 
-    transaction: str | None = None
-    payer = details["payer"]
-    if settings.x402_require_settlement:
-        ok, reason, transaction, payer = facilitator_settle(payload, requirements)
-        if not ok:
-            logger.warning("paiement x402 refuse (reglement) : %s", reason)
-            return _refus_paiement(reason, version=version)
-    else:  # pragma: no cover - mode diagnostic, jamais en production
-        logger.warning("X402_REQUIRE_SETTLEMENT=false : service rendu sans encaissement")
+        transaction: str | None = None
+        payer = details["payer"]
+        if settings.x402_require_settlement:
+            ok, reason, transaction, payer = facilitator_settle(payload, requirements)
+            if not ok:
+                logger.warning("paiement x402 refuse (reglement) : %s", reason)
+                return _refus_paiement(reason, version=version)
+        else:  # pragma: no cover - mode diagnostic, jamais en production
+            logger.warning("X402_REQUIRE_SETTLEMENT=false : service rendu sans encaissement")
+        regle = True
+    finally:
+        if reserve and not regle:
+            cache.release_nonce(nonce)
 
     # Le nonce n'est mémorisé qu'après un règlement réussi : un échec transitoire
     # reste rejouable par un client honnête.

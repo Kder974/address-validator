@@ -554,3 +554,23 @@ def test_une_adresse_hors_couverture_reste_vendue(facilitator, sans_cache, monke
     assert reponse.status_code == 200, reponse.text
     assert reponse.json()["result"]["degraded"] is True
     assert [suffix for suffix, _ in facilitator].count("/settle") == 1
+
+
+def test_un_paiement_regle_ne_resert_pas_apres_un_redemarrage(facilitator, fake_redis, sans_cache):
+    """D106 : la memoire du processus se perd au redemarrage ; le nonce reste reserve dans Redis."""
+    entete = _header()
+    assert client.post("/validate", json=PAYLOAD, headers={"X-PAYMENT": entete}).status_code == 200
+    x402.reset_nonce_cache()  # le processus redemarre
+    rejeu = client.post("/validate", json=PAYLOAD, headers={"X-PAYMENT": entete})
+    assert rejeu.status_code == 402
+    assert "deja reglee" in rejeu.json()["error"]
+    assert [suffix for suffix, _ in facilitator].count("/settle") == 1
+
+
+def test_un_reglement_echoue_rend_le_nonce(fake_redis, sans_cache, monkeypatch):
+    """D106 : un reglement refuse ne consomme pas l'autorisation : un client honnete reessaie."""
+    monkeypatch.setattr(x402, "_post_facilitator", lambda suffix, body: (
+        {"isValid": True} if suffix == "/verify" else {"success": False, "errorReason": "timeout", "transaction": ""}))
+    entete = _header()
+    assert client.post("/validate", json=PAYLOAD, headers={"X-PAYMENT": entete}).status_code == 402
+    assert not [cle for cle in fake_redis.store if cle.startswith("x402:nonce:")]

@@ -527,3 +527,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D105: CORS lets any site read the API (x402 agents in a browser keep `*` and the exposed payment headers) but never with the client's cookies: no Access-Control-Allow-Credentials
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D105
   EXPECT: DECISION OK D105
+- [ ] D106: an x402 nonce is reserved in Redis (SET NX until validBefore) before settlement, so a settled authorization is refused after a restart; a failed settlement releases it; an HMAC proof whose tx hash is already in the ledger is refused outside test mode
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D106
+  EXPECT: DECISION OK D106

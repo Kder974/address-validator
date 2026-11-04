@@ -237,3 +237,13 @@ def test_the_recette_is_the_only_regime_where_the_shared_secret_serves(
         "la recette déclarée ne doit pas interroger la chaîne : une seule requête, "
         "celle de la tentative refusée hors recette"
     )
+
+
+def test_un_virement_ne_paie_qu_un_appel(production, ledger, monkeypatch):
+    """D106 : rejouer le hash d'un virement deja servi est refuse, meme avec un horodatage frais."""
+    monkeypatch.setattr(onchain, "_rpc", _FakeRpc(_receipt([_transfer_log(WALLET, UNITS)])))
+    assert _post(TX).status_code == 200
+    rejeu = _post(TX)
+    assert rejeu.status_code == 402, rejeu.text
+    assert "deja utilisee" in rejeu.json()["error"]
+    assert len(ledger) == 1

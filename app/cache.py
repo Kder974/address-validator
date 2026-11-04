@@ -50,6 +50,8 @@ CACHE_TTL = 60 * 60 * 24 * 30  # 30 jours — un résultat vérifié, jamais rec
 #: panne ; au-delà, une nouvelle tentative doit pouvoir obtenir une vraie réponse.
 CACHE_TTL_DEGRADED = 5 * 60
 KEY_PREFIX = "addr:"
+#: D106 : nonces x402 reserves, partages par tous les processus et gardes apres un redemarrage.
+NONCE_PREFIX = "x402:nonce:"
 REDIS_RETRY_COOLDOWN = 30.0  # secondes
 
 _lock = threading.Lock()
@@ -91,6 +93,31 @@ def reset_backend_state() -> None:
     with _lock:
         _down_until = 0.0
         _error_count = 0
+
+
+def reserve_nonce(nonce: str, ttl: int) -> bool | None:
+    """D106 : reserve un nonce x402 avant son reglement.
+
+    `True` : reserve. `False` : deja pris, donc un rejeu. `None` : Redis indisponible ;
+    l'anti-rejeu en memoire du processus reste seul, comme avant.
+    """
+    if not _available():
+        return None
+    try:
+        return bool(redis_client.set(f"{NONCE_PREFIX}{nonce}", "1", nx=True, ex=max(1, ttl)))
+    except Exception:
+        _mark_down()
+        return None
+
+
+def release_nonce(nonce: str) -> None:
+    """D106 : rend un nonce dont le reglement n'a pas eu lieu, pour que le client reessaie."""
+    if not _available():
+        return
+    try:
+        redis_client.delete(f"{NONCE_PREFIX}{nonce}")
+    except Exception:
+        _mark_down()
 
 
 def get_cached_result(key: str):

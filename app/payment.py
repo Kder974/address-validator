@@ -185,6 +185,21 @@ def tx_hash_from_proof(proof: str | None) -> str | None:
     return parts[0]
 
 
+def preuve_deja_utilisee(tx_hash: str) -> str | None:
+    """D106 : motif de refus si ce virement a deja paye un appel, ou si le registre ne peut pas le dire."""
+    try:
+        from app.database import engine
+
+        with engine.connect() as conn:
+            deja = conn.execute(
+                text("SELECT 1 FROM payment_transactions WHERE tx_hash = :tx_hash"), {"tx_hash": tx_hash}
+            ).first()
+    except Exception as exc:  # noqa: BLE001 - registre muet = refus, jamais un service gratuit
+        logger.warning("registre injoignable, preuve HMAC non controlee : %s", exc)
+        return "registre injoignable : la preuve ne peut pas etre controlee"
+    return "preuve deja utilisee : ce virement a deja paye un appel" if deja else None
+
+
 def legacy_proof_result(request: Request) -> PaymentDecision:
     """Preuve à secret partagé (D7, D15, D27) — chemin de compatibilité.
 
@@ -250,6 +265,13 @@ def legacy_proof_result(request: Request) -> PaymentDecision:
     if not confirmed:
         logger.warning("Preuve de paiement refusee (on-chain) : %s", reason)
         return PaymentDecision(False, reason, protocol="hmac")
+
+    # D106 : un virement reel ne paie qu'un appel. Sans ce controle, qui detient
+    # API_SECRET_KEY rejouait le meme hash, avec un horodatage frais, pour des appels gratuits.
+    deja = preuve_deja_utilisee(tx_hash)
+    if deja:
+        logger.warning("Preuve de paiement refusee : %s (%s)", deja, tx_hash)
+        return PaymentDecision(False, deja, protocol="hmac")
 
     return PaymentDecision(
         True,
