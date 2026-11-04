@@ -3,7 +3,7 @@
   "name": "io.github.Kder974/address-validator",
   "title": "Address Validator",
   "description": "Valide une adresse de livraison : normalisation, geocodage, score de livrabilite. x402.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "websiteUrl": "https://kder-ai.com",
   "repository": {
     "url": "https://github.com/Kder974/address-validator",
@@ -20,11 +20,17 @@
       "description_longue": "Valide une adresse de livraison brute et renvoie sa forme standardisee, ses coordonnees et un score de livrabilite (residential / commercial / unknown / invalid) avec un niveau de confiance. Paye a l'appel par le protocole x402 (0.02 USDC sur Base).",
       "payment": {
         "protocol": "x402",
-        "version": 1,
-        "network": "base",
+        "version": 2,
+        "network": "eip155:8453",
         "asset": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
         "price_usdc": 0.02,
-        "header": "X-PAYMENT"
+        "header": "PAYMENT-SIGNATURE (v2) / X-PAYMENT (v1)"
+      },
+      "agents": {
+        "page": "https://kder-ai.com/agents#mcp-payer",
+        "snippet": "https://kder-ai.com/agents#mcp-payer",
+        "llms_txt": "https://kder-ai.com/llms.txt",
+        "agents_md": "https://kder-ai.com/AGENTS.md"
       },
       "discovery": {
         "card": "https://kder-ai.com/.well-known/mcp-server",
