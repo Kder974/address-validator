@@ -11,10 +11,14 @@ Conforme à la spec (Phase 4). Ajouts documentés (D14) :
     séparer le revenu réel des essais de recette (D40).
 """
 
+import logging
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -203,5 +207,6 @@ def init_db() -> bool:
             conn.execute(text(DDL))
             conn.commit()
         return True
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - demarrage non bloquant, mais la cause est ecrite (D107)
+        logger.warning("init_db a echoue : %s: %s", type(exc).__name__, exc)
         return False

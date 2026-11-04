@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D106, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D107, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 106
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 107
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -563,7 +563,8 @@ def d14() -> None:
     elapsed = time.perf_counter() - started
     guard(isinstance(result, bool), f"init_db() renvoie {type(result).__name__} au lieu d'un booleen")
     guard(elapsed < 6.0, f"init_db() a mis {elapsed:.2f}s : le demarrage depend de la base")
-    guard(re.search(r"except Exception:\s*\n\s*return False", read("app/database.py")) is not None, "init_db ne retombe pas sur False")
+    guard(re.search(r"except Exception(?: as \w+)?:[^\n]*\n(?:\s*logger\.[^\n]*\n)?\s*return False", read("app/database.py")) is not None,  # D107 : la cause est journalisee
+          "init_db ne retombe pas sur False")
 
 
 def d15() -> None:
@@ -7946,7 +7947,58 @@ def d106() -> None:
     guard(re.search(r"^\| D106 \|", read("DECISIONS.md"), re.M) is not None, "la decision D106 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 107)}
+def d107() -> None:
+    """Exploitation : service cloisonne, docs des agents deployees, secret par defaut refuse, .env.example complet."""
+    import logging as logginglib
+
+    from app import database, main
+    from app.config import Settings
+
+    unite = read("address-validator.service")
+    attente = re.search(r"^RestartSec=(\d+)", unite, re.M)
+    guard(attente is not None and int(attente.group(1)) >= 1, "systemd redemarre l'API sans pause : cinq plantages et elle reste coupee")
+    for ligne in ("NoNewPrivileges=true", "ProtectSystem=full", "ProtectHome=true", "PrivateTmp=true"):
+        guard(ligne in unite.splitlines(), f"address-validator.service n'a plus {ligne}")
+    deploiement = read("scripts/deploy-kder-ai.sh")
+    guard("for f in llms.txt AGENTS.md .well-known/security.txt; do" in deploiement,
+          "--maj ne publie plus les documents que lisent les agents")
+    guard("app scripts docs llms.txt AGENTS.md .well-known" in read("DEPLOIEMENT_VPS.md"),
+          "l'archive documentee n'emporte plus llms.txt ni AGENTS.md")
+    exemple = read(".env.example")
+    absents = [nom.upper() for nom in Settings.model_fields if not re.search(rf"^#?\s*{nom.upper()}=", exemple, re.M)]
+    guard(absents == [], f".env.example ne documente pas {absents}")
+
+    async def demarrer():
+        async with main.lifespan(main.app):
+            pass
+
+    reglages = main.settings.model_copy(update={"environment": "production", "api_secret_key": "change_me"})
+    refuse = False
+    with mock.patch.object(main, "settings", reglages), mock.patch.object(main, "init_db", lambda: True):
+        try:
+            asyncio.run(demarrer())
+        except RuntimeError as exc:
+            refuse = "change_me" in str(exc)
+    guard(refuse, "le service demarre en production avec API_SECRET_KEY=change_me")
+
+    class Moteur:
+        def connect(self):
+            raise RuntimeError("cause-oracle-d107")
+
+    vus: list[str] = []
+    gestionnaire = logginglib.Handler()
+    gestionnaire.emit = lambda enregistrement: vus.append(enregistrement.getMessage())  # type: ignore[method-assign]
+    database.logger.addHandler(gestionnaire)
+    try:
+        with mock.patch.object(database, "engine", Moteur()):
+            guard(database.init_db() is False, "init_db ne signale plus son echec")
+    finally:
+        database.logger.removeHandler(gestionnaire)
+    guard(any("cause-oracle-d107" in message for message in vus), "un echec de init_db ne dit pas sa cause au journal")
+    guard(re.search(r"^\| D107 \|", read("DECISIONS.md"), re.M) is not None, "la decision D107 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 108)}
 
 
 def catalog() -> list[tuple[str, str]]:
