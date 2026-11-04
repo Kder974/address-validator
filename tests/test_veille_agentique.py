@@ -223,3 +223,26 @@ def test_envoyer_email_sans_configuration_ne_ment_pas(monkeypatch):
     envoye, detail = veille.envoyer_email("sujet", "corps")
     assert envoye is False
     assert "SMTP" in detail
+
+
+@pytest.mark.parametrize(("avant", "blocages", "alerte"), [
+    (None, 3, 3),   # premier rapport apres le deploiement
+    (3, 3, 0),      # rien de nouveau
+    (3, 5, 2),      # deux refus de plus
+    (5, 2, 2),      # le service a redemarre : le compteur repart de zero
+])
+def test_la_veille_signale_les_refus_de_la_carte(avant, blocages, alerte):
+    """D109 : Fzed est prevenu par l'email du matin quand Nominatim nous refuse des demandes."""
+    ancien = {} if avant is None else {"carte_blocages": avant}
+    alertes = veille.diff_etat(ancien, {"carte": {"disponible": True, "blocages": blocages, "erreurs": blocages}})
+    carte = [a for a in alertes if a.startswith("carte (Nominatim)")]
+    if alerte:
+        assert carte and carte[0].startswith(f"carte (Nominatim) : {alerte} demande(s) refusee(s)")
+    else:
+        assert carte == []
+
+
+def test_un_rapport_sans_metrics_garde_le_dernier_compte_de_la_carte():
+    etat = veille.preparer_etat({"carte": {"disponible": False, "erreur": "HTTP 502"}}, {"carte_blocages": 4})
+    assert etat["carte_blocages"] == 4
+    assert veille.diff_etat({"carte_blocages": 4}, {"carte": {"disponible": False}}) == []

@@ -55,6 +55,10 @@ class Metrics:
         # webhook est arrive sans secret configure (503, Stripe finit par abandonner).
         "stripe_payments_unmatched",
         "stripe_webhook_unconfigured",
+        # D109 : la carte (Nominatim) n'a pas repondu ; `geocode_blocked` quand elle
+        # nous limite ou nous bloque (429, 403). Lu chaque matin par la veille.
+        "geocode_errors",
+        "geocode_blocked",
         # D45 : le mode cle API. `api_key_requests` sont les appels qui ont
         # presente une cle ; `api_key_validations` ceux qui ont ete servis ;
         # `api_key_denied` les refus (cle inconnue, essai fini, quota du mois

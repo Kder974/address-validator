@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D108, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D109, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 108
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 109
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -8012,7 +8012,61 @@ def d108() -> None:
     guard(re.search(r"^\| D108 \|", read("DECISIONS.md"), re.M) is not None, "la decision D108 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 109)}
+def d109() -> None:
+    """Un refus de Nominatim (la carte) est compte sur /metrics et signale dans l'email du matin."""
+    import httpx
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import veille_agentique as veille
+
+    from app.routes.metrics import metrics
+    from app.validation import geocoder
+
+    class Client:
+        statut = 429
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def get(self, url, params=None, headers=None):
+            return httpx.Response(Client.statut, request=httpx.Request("GET", url))
+
+    avant = metrics.snapshot()
+    with mock.patch.object(geocoder.httpx, "Client", Client):
+        geocoder.geocode({"line1": "1 Main St", "city": "Austin", "country": "US"})
+    apres = metrics.snapshot()
+    guard(apres.get("geocode_blocked", 0) == avant.get("geocode_blocked", 0) + 1, "un 429 de Nominatim n'est pas compte comme un blocage")
+    guard(apres.get("geocode_errors", 0) == avant.get("geocode_errors", 0) + 1, "un refus de Nominatim n'est pas compte comme une erreur")
+
+    class Coupe(Client):
+        def get(self, url, params=None, headers=None):
+            raise httpx.ConnectError("connexion coupee")
+
+    with mock.patch.object(geocoder.httpx, "Client", Coupe):
+        geocoder.geocode({"line1": "1 Main St", "city": "Austin", "country": "US"})
+    coupe = metrics.snapshot()
+    guard(coupe.get("geocode_errors", 0) == apres.get("geocode_errors", 0) + 1
+          and coupe.get("geocode_blocked", 0) == apres.get("geocode_blocked", 0),
+          "une carte injoignable n'est pas comptee, ou passe pour un blocage")
+    for ancien, blocages, attendu in ((None, 3, 3), (3, 3, 0), (3, 5, 2), (5, 2, 2)):
+        alertes = veille.diff_etat({} if ancien is None else {"carte_blocages": ancien},
+                                   {"carte": {"disponible": True, "blocages": blocages}})
+        carte = [alerte for alerte in alertes if alerte.startswith("carte (Nominatim)")]
+        guard(bool(carte) == bool(attendu) and (not attendu or f": {attendu} demande(s)" in carte[0]),
+              f"la veille annonce {carte} pour {blocages} blocage(s) apres {ancien}")
+    guard(veille.preparer_etat({"carte": {"disponible": False}}, {"carte_blocages": 4})["carte_blocages"] == 4,
+          "un rapport sans /metrics oublie le dernier compte de la carte")
+    guard("--email" in read("address-validator-veille.service"), "la veille du matin n'envoie plus d'email")
+    guard(re.search(r"^\| D109 \|", read("DECISIONS.md"), re.M) is not None, "la decision D109 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 110)}
 
 
 def catalog() -> list[tuple[str, str]]:

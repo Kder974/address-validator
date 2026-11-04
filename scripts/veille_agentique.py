@@ -199,6 +199,18 @@ def revenu() -> dict[str, Any]:
     }
 
 
+def carte() -> dict[str, Any]:
+    """D109 : refus de Nominatim (la carte qui donne les coordonnees), lus sur `/metrics`."""
+    donnees, note = _get_json(f"{get_settings().public_base_url.rstrip('/')}/metrics")
+    if not isinstance(donnees, dict):
+        return {"disponible": False, "erreur": note or "metrics illisible"}
+    return {
+        "disponible": True,
+        "blocages": int(donnees.get("geocode_blocked", 0) or 0),
+        "erreurs": int(donnees.get("geocode_errors", 0) or 0),
+    }
+
+
 def _horodatage(evenement: dict) -> datetime | None:
     """`ts` ISO d'un evenement de decouverte, ou `None`."""
     try:
@@ -472,6 +484,18 @@ def diff_etat(ancien: dict[str, Any], nouveau: dict[str, Any]) -> list[str]:
             alertes.append(f"premier releve du solde USDC on-chain : {solde} USDC")
         elif round(float(solde), 6) != round(float(ancien_solde), 6):
             alertes.append(f"solde USDC on-chain : {ancien_solde} -> {solde} USDC")
+    carte_ = nouveau.get("carte") or {}
+    if carte_.get("disponible"):
+        avant = ancien.get("carte_blocages")
+        blocages = int(carte_.get("blocages") or 0)
+        # Compteur plus bas qu'au passage precedent : le service a redemarre, tout est nouveau.
+        nouveaux = blocages if avant is None or blocages < int(avant) else blocages - int(avant)
+        if nouveaux:
+            alertes.append(
+                f"carte (Nominatim) : {nouveaux} demande(s) refusee(s) depuis le dernier rapport ; "
+                "les coordonnees GPS manquent dans ces reponses. Si cela se repete : un service de "
+                "carte payant ou notre propre Nominatim (D109)"
+            )
     ancien_b = ancien.get("bazaar") or {}
     nouveau_b = nouveau.get("bazaar") or {}
     if nouveau_b.get("disponible"):
@@ -639,6 +663,7 @@ def construire_donnees(
     if sans_reseau:
         donnees["ecosysteme"] = {"releases": {}, "index": {"disponible": False, "erreur": "mode --sans-reseau"}, "bazaar": {"disponible": False, "erreur": "mode --sans-reseau"}}
         donnees["onchain"] = {"disponible": False, "erreur": "mode --sans-reseau"}
+        donnees["carte"] = {"disponible": False, "erreur": "mode --sans-reseau"}
         donnees["sources_indisponibles"] = indisponibles + ["ecosysteme : mode --sans-reseau", "on-chain : mode --sans-reseau"]
         return donnees
     donnees["ecosysteme"] = {"releases": releases_github(), "index": index_x402(), "bazaar": bazaar()}
@@ -649,6 +674,9 @@ def construire_donnees(
     donnees["onchain"] = solde_usdc()
     if not donnees["onchain"].get("disponible"):
         indisponibles.append(f"on-chain : {donnees['onchain'].get('erreur')}")
+    donnees["carte"] = carte()
+    if not donnees["carte"].get("disponible"):
+        indisponibles.append(f"carte (/metrics) : {donnees['carte'].get('erreur')}")
     donnees["sources_indisponibles"] = indisponibles
     return donnees
 
@@ -669,6 +697,8 @@ def preparer_etat(donnees: dict[str, Any], ancien: dict[str, Any]) -> dict[str, 
             "valide": ((donnees.get("ecosysteme") or {}).get("bazaar") or {}).get("valide"),
         },
         "refus_402_total": (donnees.get("journal") or {}).get("refus_402_total"),
+        # D109 : un rapport sans /metrics garde le dernier compte connu.
+        "carte_blocages": (donnees.get("carte") or {}).get("blocages", ancien.get("carte_blocages")),
     }
 
 

@@ -263,3 +263,32 @@ def test_seule_une_panne_du_fournisseur_est_injoignable(monkeypatch):
     monkeypatch.setattr(ban, "_call_ban", panne)
     francaise = validation.validate_full({"street": "5 rue des ecoles", "city": "paris", "zip": "75005", "country": "FR"})
     assert francaise["degraded"] is True and francaise["injoignable"] is True
+
+
+@pytest.mark.parametrize(("statut", "bloque"), [(429, 1), (403, 1), (500, 0)])
+def test_un_refus_de_nominatim_est_compte(monkeypatch, statut, bloque):
+    """D109 : 429 et 403 = la carte nous limite ou nous bloque ; la veille du matin le dit."""
+    import httpx
+
+    from app.routes.metrics import metrics
+    from app.validation import geocoder
+
+    class Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def get(self, url, params=None, headers=None):
+            return httpx.Response(statut, request=httpx.Request("GET", url))
+
+    avant = metrics.snapshot()
+    monkeypatch.setattr(geocoder.httpx, "Client", Client)
+    assert geocoder.geocode({"line1": "1 Main St", "city": "Austin", "country": "US"}) == {"lat": None, "lng": None}
+    apres = metrics.snapshot()
+    assert apres["geocode_errors"] == avant.get("geocode_errors", 0) + 1
+    assert apres["geocode_blocked"] == avant.get("geocode_blocked", 0) + bloque
