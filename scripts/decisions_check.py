@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D105, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D106, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 105
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 106
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -1060,7 +1060,8 @@ def d27() -> None:
         def rpc(method: str, params: list) -> object:
             return receipt if method == "eth_getTransactionReceipt" else "0x1005"
 
-        with mock.patch.object(onchain, "_rpc", rpc):
+        # D106 : le registre (ferme ici) dit si ce virement a deja paye un appel.
+        with mock.patch.object(onchain, "_rpc", rpc), mock.patch("app.payment.preuve_deja_utilisee", lambda tx_hash: None):
             ok, reason = onchain.check_usdc_transfer(tx)
             guard(ok is True, f"un transfert USDC confirme est refuse : {reason}")
             guard(
@@ -1826,6 +1827,8 @@ def offline_route():
         ("app.routes.validate.record_transaction", lambda tx, amount, key: True),
         # D103 : le registre est verifie avant le reglement x402.
         ("app.routes.validate.check_db", lambda: "ok"),
+        # D106 : aucune preuve HMAC n'est encore inscrite au registre (ferme ici).
+        ("app.payment.preuve_deja_utilisee", lambda tx_hash: None),
     ):
         stack.enter_context(mock.patch(cible, valeur))
     return stack
@@ -7878,7 +7881,72 @@ def d105() -> None:
     guard(re.search(r"^\| D105 \|", read("DECISIONS.md"), re.M) is not None, "la decision D105 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 106)}
+def d106() -> None:
+    """Un paiement ne sert qu'une fois, meme apres un redemarrage ; un reglement echoue rend l'autorisation."""
+    from contextlib import ExitStack
+
+    from fastapi.testclient import TestClient
+
+    from app import cache, payment, x402
+    from app.main import app
+
+    class Redis:
+        def __init__(self):
+            self.cles: dict = {}
+
+        def set(self, cle, valeur, nx=False, ex=None):
+            if nx and cle in self.cles:
+                return None
+            self.cles[cle] = valeur
+            return True
+
+        def delete(self, cle):
+            return 1 if self.cles.pop(cle, None) is not None else 0
+
+    install_keccak()
+    client = TestClient(app)
+    corps = {"address": {"street": "1 A St", "city": "X", "state": "CA", "zip": "90001"}}
+    redis = Redis()
+
+    def payer(entete: str, facilitateur):
+        with ExitStack() as pile:
+            pile.enter_context(mock.patch.object(cache, "redis_client", redis))
+            pile.enter_context(mock.patch("app.x402._post_facilitator", facilitateur))
+            pile.enter_context(offline_route())
+            return client.post("/validate", json=corps, headers={x402.PAYMENT_HEADER: entete})
+
+    cache.reset_backend_state()
+    x402.reset_nonce_cache()
+    entete = x402_payload()
+    facilitateur = fake_facilitator()
+    guard(payer(entete, facilitateur).status_code == 200, "un paiement x402 valide n'est plus servi")
+    x402.reset_nonce_cache()  # redemarrage : la memoire du processus est vide
+    rejeu = payer(entete, facilitateur)
+    guard(rejeu.status_code == 402 and facilitateur.appels.count("/settle") == 1,
+          f"apres un redemarrage, la meme autorisation est servie une deuxieme fois (HTTP {rejeu.status_code})")
+
+    refus = lambda suffix, body: {"isValid": True} if suffix == "/verify" else {"success": False, "errorReason": "timeout", "transaction": ""}  # noqa: E731
+    x402.reset_nonce_cache()
+    guard(payer(x402_payload(), refus).status_code == 402, "un reglement refuse n'est pas un refus")
+    guard(len([cle for cle in redis.cles if cle.startswith(cache.NONCE_PREFIX)]) == 1,  # seul le premier, regle
+          "un reglement echoue garde l'autorisation reservee : un client honnete ne peut plus reessayer")
+    x402.reset_nonce_cache()
+
+    deja = {"0x" + "ab" * 32}
+    with mock.patch.object(payment, "settings", payment.settings.model_copy(update={"test_mode": False, "x402_onchain_verify": True})), \
+         mock.patch.object(payment, "check_usdc_transfer", lambda tx: (True, "virement confirme")), \
+         mock.patch.object(payment, "preuve_deja_utilisee", lambda tx: "preuve deja utilisee" if tx in deja else None):
+        horodatage = str(time.time())
+        preuve = f"{next(iter(deja))}:{horodatage}:{payment.sign_proof(next(iter(deja)), horodatage)}"
+        requete = mock.Mock(headers={payment.PROOF_HEADER: preuve})
+        decision = payment.legacy_proof_result(requete)
+    guard(not decision.paid and "deja utilisee" in decision.reason, "un virement deja servi paie un deuxieme appel")
+    guard("SELECT 1 FROM payment_transactions WHERE tx_hash" in read("app/payment.py"),
+          "la preuve HMAC n'est plus confrontee au registre")
+    guard(re.search(r"^\| D106 \|", read("DECISIONS.md"), re.M) is not None, "la decision D106 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 107)}
 
 
 def catalog() -> list[tuple[str, str]]:
