@@ -210,7 +210,7 @@ address-validator\.venv\Scripts\python.exe address-validator\scripts\suivi_clien
 
 - **Prélèvement** : rien n'est prélevé à la fin de l'essai. Une offre choisie
   (Starter ou Pro) se paie par carte avec Stripe et elle est prélevée chaque mois
-  jusqu'à son arrêt depuis l'espace client (D91, D97) ; le dire tel quel dans une
+  jusqu'à son arrêt depuis l'espace client (D91, D100) ; le dire tel quel dans une
   relance.
 - **Le paiement à l'appel (x402, 0,02 USDC) s'adresse aux agents**, pas à Tiitoune
   Art : une boutique s'abonne par `X-API-Key`. Ne pas mélanger les deux voies dans

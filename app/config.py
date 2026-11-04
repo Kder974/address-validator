@@ -195,6 +195,9 @@ class Settings(BaseSettings):
     stripe_lien_pro: str = "https://buy.stripe.com/8x26oHaJ2cd0gLher9cwg01"
     stripe_portail: str = ""
     stripe_webhook_secret: str = ""
+    # D99 : lien d'achat Gumroad du Kit Anti-Colis Perdu (29 €). Vide = le bouton de
+    # /kit-anti-colis-perdu dit « Bientôt disponible » et la page n'est pas indexée.
+    gumroad_kit_url: str = ""
 
     class Config:
         env_file = ".env"

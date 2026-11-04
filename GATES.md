@@ -503,3 +503,12 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D97: a daily zero-cost agentic watch (systemd timer 07:10 UTC) writes a digest from the discovery journal, real revenue, Nginx access log, public GitHub releases and x402 index and on-chain USDC transfers; it reports unavailable sources instead of zeros and sends email only when SMTP_* is configured
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D97
   EXPECT: DECISION OK D97
+- [ ] D98: GET /checklist serves the free anti-lost-parcel checklist in French: public cache headers, no script, form or external resource, the 27 points of docs/commercial/produits/01_checklist.md each with a checkbox and label, every figure read from code or configuration, links to the free test, pricing and agents pages, and is linked from the French home, pricing and guide pages
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D98
+  EXPECT: DECISION OK D98
+- [ ] D99: GET /kit-anti-colis-perdu sells the 29 EUR kit: without GUMROAD_KIT_URL both buttons say coming soon and the page is noindex; with it both buttons link to the escaped Gumroad URL; the price and the cost figure come from code; no review, testimonial or guarantee is shown; the kit files are git-ignored (paid product, public repository)
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D99
+  EXPECT: DECISION OK D99
+- [ ] D100: no page, account message, guide error table or API 403 message says there is no automatic charge (Stripe charges a chosen plan monthly); every pricing page says a chosen plan is charged monthly by Stripe until stopped; the welcome email says nothing is charged at the end of the trial and no longer promises a written-consent or on-request upgrade
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D100
+  EXPECT: DECISION OK D100

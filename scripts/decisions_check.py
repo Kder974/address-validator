@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D97, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D100, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 97
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 100
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7514,7 +7514,127 @@ def d97() -> None:
     guard("Veille agentique" in module.formater_markdown({"genere_le": moment.isoformat()}), "le rapport n'a plus de titre")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 98)}
+def d98() -> None:
+    """La Checklist Anti-Colis Perdu : page gratuite /checklist, 27 cases, chiffres du code, liee depuis /, /pricing et /guide."""
+    from fastapi.testclient import TestClient
+
+    from app import accounts, i18n
+    from app.config import get_settings
+    from app.main import app
+    from app.routes import checklist
+
+    client = TestClient(app)
+    reponse = client.get("/checklist")
+    guard(reponse.status_code == 200, f"/checklist : {reponse.status_code}")
+    csp = reponse.headers.get("content-security-policy", "")
+    guard("default-src 'none'" in csp and "script-src" not in csp and reponse.headers.get("cache-control") == "public, max-age=300",
+          f"/checklist : en-tetes inattendus ({csp})")
+    texte = reponse.text
+    for interdit in ("<script", "<img", "src=", "@import", "url(", "<form", "{{"):
+        guard(interdit not in texte, f"/checklist contient {interdit!r}")
+    source = read("docs/commercial/produits/01_checklist.md")
+    numeros = [int(n) for n in re.findall(r"^- \[ \] \*\*(\d+)\.\*\*", source, re.M)]
+    guard(numeros == list(range(1, 28)), f"la source n'a plus ses 27 points : {numeros}")
+    for n in numeros:
+        guard(f'<input type="checkbox" id="point-{n}"><label for="point-{n}">' in texte, f"/checklist : le point {n} n'a plus sa case et son etiquette")
+    guard(texte.count('type="checkbox"') == 27, "/checklist n'a pas exactement 27 cases")
+    reglages = get_settings().model_copy(update={"validate_form_rate_limit_per_day": 7, "x402_price": 0.05})
+    sauve = accounts.PLANS["pro"]
+    accounts.PLANS["pro"] = 7654
+    try:
+        lu = checklist.page(reglages)
+    finally:
+        accounts.PLANS["pro"] = sauve
+    guard("Tester 7 adresses" in lu and "0,05 USDC" in lu and "7 654" in lu, "/checklist : un chiffre n'est plus lu dans le code ou la configuration (D48)")
+    guard(i18n.prix("fr", "colis_rate_fourchette") in texte, "/checklist : le cout d'un echec n'est plus celui de i18n.EUROS")
+    corps = texte[texte.index("<main"):texte.index("</main>")]
+    for page in ("validate-form", "pricing", "agents"):
+        guard(f'href="{i18n.chemin("fr", page)}"' in corps, f"/checklist ne mene plus a /{page} depuis son contenu")
+    for page in ("", "pricing", "guide"):
+        guard('href="/checklist"' in client.get(i18n.chemin("fr", page), headers={"Accept": "text/html"}).text, f"/{page} ne cite plus la checklist")
+    guard(re.search(r"^\| D98 \|", read("DECISIONS.md"), re.M) is not None, "la decision D98 n'est plus consignee dans DECISIONS.md")
+
+
+def d99() -> None:
+    """Page de vente du Kit Anti-Colis Perdu : bouton Gumroad configure ou « Bientot disponible », chiffres du code, ni avis ni garantie inventes."""
+    from decimal import Decimal
+
+    from fastapi.testclient import TestClient
+
+    from app import i18n
+    from app.config import get_settings
+    from app.main import app
+    from app.routes import kit
+
+    reponse = TestClient(app).get("/kit-anti-colis-perdu")
+    guard(reponse.status_code == 200 and reponse.headers.get("cache-control") == "public, max-age=300", f"/kit-anti-colis-perdu : {reponse.status_code}")
+    guard("script-src" not in reponse.headers.get("content-security-policy", ""), "/kit-anti-colis-perdu : CSP inattendue")
+    for interdit in ("<script", "<img", "src=", "<form", "{{", "<!--@"):
+        guard(interdit not in reponse.text, f"/kit-anti-colis-perdu contient {interdit!r}")
+    sans = kit.page(get_settings().model_copy(update={"gumroad_kit_url": ""}))
+    guard(sans.count("Bientôt disponible") == 2 and "Acheter maintenant" not in sans and 'content="noindex, follow"' in sans,
+          "sans lien Gumroad, un bouton d'achat s'affiche ou la page reste indexable")
+    lien = "https://exemple.gumroad.com/l/kit?x=1&y=2"
+    avec = kit.page(get_settings().model_copy(update={"gumroad_kit_url": lien}))
+    guard(avec.count('href="https://exemple.gumroad.com/l/kit?x=1&amp;y=2" rel="noopener">Acheter maintenant') == 2
+          and 'content="index, follow"' in avec, "le lien Gumroad configure ne mene pas les deux boutons d'achat")
+    sauve = kit.PRIX_KIT_EUR
+    kit.PRIX_KIT_EUR = Decimal(41)
+    try:
+        lu = kit.page(get_settings())
+    finally:
+        kit.PRIX_KIT_EUR = sauve
+    guard("41 €" in lu and "29 €" not in lu, "le prix du kit n'est plus lu dans le code (D48)")
+    haut = i18n.prix("fr", "colis_rate_fourchette").split("–")[-1].strip()
+    guard(f"jusqu'à {haut}" in reponse.text, "le titre ne cite plus le haut de la fourchette de Tarifs")
+    bas = reponse.text.lower()
+    for interdit in ("★", "témoign", "avis client", "satisfait ou rembours", "garanti"):
+        guard(interdit not in bas, f"/kit-anti-colis-perdu affiche « {interdit} » : aucun avis ni garantie n'existe encore")
+    regles = read(".gitignore")
+    guard("docs/commercial/produits/kit_anti_colis_final.*" in regles and "docs/commercial/produits/calculateur_pertes.xlsx" in regles,
+          "les fichiers du kit (le produit vendu) peuvent entrer dans le depot public")
+    guard(re.search(r"^\| D99 \|", read("DECISIONS.md"), re.M) is not None, "la decision D99 n'est plus consignee dans DECISIONS.md")
+
+
+def d100() -> None:
+    """Depuis Stripe, le site ne dit plus « aucun prelevement automatique » : rien a la fin de l'essai, une offre est prelevee chaque mois."""
+    from fastapi.testclient import TestClient
+
+    from app import i18n
+    from app.main import app
+
+    faux = {
+        "fr": ("Aucun prélèvement automatique", "prélevé automatiquement", "aucun prélèvement automatique n'a lieu"),
+        "en": ("No automatic charge", "charged automatically", "no automatic charge"),
+        "es": ("cobro automático", "se cobra nada automáticamente"),
+        "zh": ("不会自动扣款",),
+        "hi": ("ऑटोमैटिक कटौती", "अपने आप नहीं कटता"),
+        "ar": ("خصم تلقائي", "مبلغ تلقائيًا"),
+    }
+    for chemin in sorted((ROOT / "app" / "templates").glob("*/*.html")):
+        texte = chemin.read_text(encoding="utf-8")
+        for phrase in faux.get(chemin.stem, ()):
+            guard(phrase not in texte, f"{chemin.parent.name}/{chemin.stem} dit encore « {phrase} » alors que Stripe preleve chaque mois")
+    for module in ("app/routes/signup.py", "app/routes/guide.py", "app/routes/validate.py"):
+        source = read(module)
+        for phrases in faux.values():
+            for phrase in phrases:
+                guard(phrase not in source, f"{module} dit encore « {phrase} »")
+    vrai = {
+        "fr": "prélevée chaque mois par Stripe", "en": "charged monthly by Stripe", "es": "lo cobra Stripe cada mes",
+        "zh": "由 Stripe 每月扣款", "hi": "Stripe हर महीने काटता है", "ar": "يخصمها Stripe كل شهر",
+    }
+    client = TestClient(app)
+    for lang in i18n.LANGUES:
+        page = client.get(i18n.chemin(lang, "pricing")).text
+        guard(vrai[lang] in page, f"{i18n.chemin(lang, 'pricing')} ne dit pas qu'une offre est prelevee chaque mois")
+    email = read("EMAIL_BIENVENUE.md")
+    guard("à la fin de l'essai" in email and "chaque" in email and "accord écrit" not in email and "sur simple demande" not in email,
+          "l'email de bienvenue promet encore un passage sur demande ou un accord ecrit")
+    guard(re.search(r"^\| D100 \|", read("DECISIONS.md"), re.M) is not None, "la decision D100 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 101)}
 
 
 def catalog() -> list[tuple[str, str]]:
