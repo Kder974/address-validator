@@ -57,4 +57,8 @@ def validate_full(raw_address: dict) -> dict:
         "deliverability": score["deliverability"],
         "confidence": score["confidence"],
         "degraded": "error" in verification,
+        # D103 : le fournisseur n'a pas repondu (panne, delai, disjoncteur). Champ interne,
+        # absent de la reponse publique : il dit seulement qu'un paiement x402 ne doit pas
+        # etre regle. Une adresse hors couverture reste `degraded` sans etre `injoignable`.
+        "injoignable": bool(verification.get("injoignable")),
     }

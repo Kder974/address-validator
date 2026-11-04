@@ -142,8 +142,28 @@ def _offline_ledger(monkeypatch):
         return True
 
     monkeypatch.setattr(http_route, "record_transaction", _accepte)
+    # D103 : le registre est verifie avant le reglement ; la base de test est fermee.
+    monkeypatch.setattr(http_route, "check_db", lambda: "ok")
     monkeypatch.setattr(mcp_route, "record_transaction", _accepte)
     yield ecritures
+
+
+@pytest.fixture
+def adresse_verifiee(monkeypatch):
+    """D103 : un fournisseur qui repond.
+
+    Hors ligne, la vraie chaine rend `degraded: true`, et un paiement x402 n'est
+    alors pas regle (`503`). Les tests du paiement ont besoin d'une adresse
+    verifiee : ce double la rend mise en forme par le vrai `standardize`.
+    """
+    import app.routes.validate as http_route
+    from app.validation import parse_address, standardize_address
+
+    def verifiee(raw):
+        return {"validated": True, "standardized": standardize_address(parse_address(raw)), "latitude": None,
+                "longitude": None, "deliverability": "residential", "confidence": 1.0, "degraded": False}
+
+    monkeypatch.setattr(http_route, "validate_full", verifiee)
 
 
 @pytest.fixture

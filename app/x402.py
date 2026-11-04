@@ -59,7 +59,7 @@ import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlparse
 
 import httpx
@@ -345,6 +345,10 @@ def settlement_response(
         body["errorReason"] = motif(error_reason) or "payment_failed"
     return body
 
+
+
+class ServiceIndisponible(RuntimeError):
+    """D103 : la reponse ne peut pas etre servie, donc le paiement n'est pas regle."""
 
 
 class InvalidPayment(ValueError):
@@ -786,7 +790,8 @@ def _refus_paiement(reason: str, version: int | None = None) -> PaymentDecision:
 
 
 def authorize_and_settle(
-    header: str | None, price: float, resource: str | None = None
+    header: str | None, price: float, resource: str | None = None,
+    avant_reglement: Callable[[], None] | None = None,
 ) -> PaymentDecision:
     """Chemin x402 **par en-tête HTTP** : décodage → vérification locale → règlement.
 
@@ -803,11 +808,12 @@ def authorize_and_settle(
         payload = parse_payment_header(header)
     except InvalidPayment as exc:
         return _refus_paiement(str(exc))
-    return settle_payment(payload, price, resource)
+    return settle_payment(payload, price, resource, avant_reglement)
 
 
 def settle_payment(
-    payload: dict[str, Any], price: float, resource: str | None = None
+    payload: dict[str, Any], price: float, resource: str | None = None,
+    avant_reglement: Callable[[], None] | None = None,
 ) -> PaymentDecision:
     """Vérifie hors ligne puis règle un `PaymentPayload` **déjà validé**.
 
@@ -838,6 +844,12 @@ def settle_payment(
         if not ok:
             logger.warning("paiement x402 refuse (facilitateur) : %s", reason)
             return _refus_paiement(reason, version=version)
+
+    # D103 : on n'encaisse qu'une reponse prete. `avant_reglement` calcule la validation
+    # et verifie le registre ; s'il leve `ServiceIndisponible`, rien n'est regle et le
+    # nonce n'est pas memorise : la meme autorisation resservira quand le service revient.
+    if avant_reglement is not None:
+        avant_reglement()
 
     transaction: str | None = None
     payer = details["payer"]

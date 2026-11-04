@@ -19,6 +19,9 @@ from app.config import get_settings
 from app.main import app
 from app.x402 import payment_requirements
 
+#: D103 : un paiement x402 n'est regle que pour une adresse verifiee.
+pytestmark = pytest.mark.usefixtures("adresse_verifiee")
+
 client = TestClient(app)
 settings = get_settings()
 
@@ -482,3 +485,72 @@ def test_402_publie_le_schema_de_sortie_et_le_reseau():
     # L'offre v2, elle, reste au schéma x402 v2 (pas de champ `outputSchema`).
     v2 = _decoded_header(client.post("/validate", json=PAYLOAD).headers["PAYMENT-REQUIRED"])
     assert v2["accepts"][0]["amount"] == body["accepts"][0]["maxAmountRequired"]
+
+
+def _degrade(raw, injoignable=True):
+    return {"validated": False, "standardized": dict(raw), "latitude": None, "longitude": None,
+            "deliverability": "unknown", "confidence": 0.2, "degraded": True, "injoignable": injoignable}
+
+
+@pytest.fixture
+def sans_cache(monkeypatch):
+    from app.routes import validate as route
+
+    monkeypatch.setattr(route, "get_cached_result", lambda key: None)
+    monkeypatch.setattr(route, "store_in_cache", lambda key, value: None)
+    x402.reset_nonce_cache()
+    yield route
+    x402.reset_nonce_cache()
+
+
+def test_un_fournisseur_en_panne_n_est_pas_facture(facilitator, sans_cache, monkeypatch):
+    """D103 : une reponse degradee n'est pas reglee, et l'agent garde son autorisation."""
+    from app.cache import CACHE_TTL_DEGRADED
+
+    verifiee = sans_cache.validate_full
+    monkeypatch.setattr(sans_cache, "validate_full", _degrade)
+    panne = client.post("/validate", json=PAYLOAD, headers={"X-PAYMENT": _header()})
+    assert panne.status_code == 503, panne.text
+    assert panne.headers["Retry-After"] == str(CACHE_TTL_DEGRADED)
+    assert "rien n'a ete encaisse" in panne.json()["error"]
+    assert "fournisseur" in panne.json()["detail"]
+    assert "/settle" not in [suffix for suffix, _ in facilitator]
+
+    # Le fournisseur revient : la meme autorisation est reglee une fois, et servie.
+    monkeypatch.setattr(sans_cache, "validate_full", verifiee)
+    retour = client.post("/validate", json=PAYLOAD, headers={"X-PAYMENT": _header()})
+    assert retour.status_code == 200, retour.text
+    assert [suffix for suffix, _ in facilitator].count("/settle") == 1
+    assert retour.json()["result"]["degraded"] is False
+
+
+def test_un_registre_injoignable_n_est_pas_facture(facilitator, sans_cache, monkeypatch):
+    """D103 : sans registre, un reglement ne pourrait pas etre inscrit (D41) : on ne regle pas."""
+    monkeypatch.setattr(sans_cache, "check_db", lambda: "error: connexion refusee")
+    reponse = client.post("/validate", json=PAYLOAD, headers={"X-PAYMENT": _header()})
+    assert reponse.status_code == 503, reponse.text
+    assert "registre" in reponse.json()["detail"]
+    assert "/settle" not in [suffix for suffix, _ in facilitator]
+
+
+def test_l_outil_mcp_ne_facture_pas_un_fournisseur_en_panne(facilitator, sans_cache, monkeypatch):
+    """D103 : meme regle pour l'outil MCP, en erreur JSON-RPC."""
+    monkeypatch.setattr(sans_cache, "validate_full", _degrade)
+    reponse = client.post("/mcp", headers={"X-PAYMENT": _header()}, json={
+        "jsonrpc": "2.0", "id": 9, "method": "tools/call", "params": {"name": "validate_address", "arguments": PAYLOAD}})
+    assert reponse.status_code == 503, reponse.text
+    assert "rien n'a ete encaisse" in reponse.json()["error"]["message"]
+    assert "/settle" not in [suffix for suffix, _ in facilitator]
+
+
+def test_une_adresse_hors_couverture_reste_vendue(facilitator, sans_cache, monkeypatch):
+    """D103 : `degraded` sans panne (pays que le fournisseur ne sait pas juger, D79) reste servi.
+
+    Un `503` sur une adresse qui ne sera jamais couverte ferait reessayer un agent
+    sans fin : il recoit la reponse honnete, comme avant.
+    """
+    monkeypatch.setattr(sans_cache, "validate_full", lambda raw: _degrade(raw, injoignable=False))
+    reponse = client.post("/validate", json=PAYLOAD, headers={"X-PAYMENT": _header()})
+    assert reponse.status_code == 200, reponse.text
+    assert reponse.json()["result"]["degraded"] is True
+    assert [suffix for suffix, _ in facilitator].count("/settle") == 1

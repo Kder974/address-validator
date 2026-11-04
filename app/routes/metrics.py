@@ -48,6 +48,9 @@ class Metrics:
         # la seule facon de distinguer « personne ne paie » de « on n'arrive plus
         # a inscrire ceux qui paient ».
         "ledger_write_failures_total",
+        # D103 : un agent a presente un paiement, mais la reponse n'etait pas prete
+        # (fournisseur ou registre injoignable) : 503, et rien n'a ete encaisse.
+        "x402_not_charged_unavailable",
         # D45 : le mode cle API. `api_key_requests` sont les appels qui ont
         # presente une cle ; `api_key_validations` ceux qui ont ete servis ;
         # `api_key_denied` les refus (cle inconnue, essai fini, quota du mois

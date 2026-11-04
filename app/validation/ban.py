@@ -122,6 +122,7 @@ def verify_ban(standardized: dict) -> dict:
             "metadata": {},
             "raw": None,
             "error": f"BAN injoignable : {type(exc).__name__}: {exc}",
+            "injoignable": True,  # D103 : une panne, pas une adresse que la BAN ne sait pas juger
         }
 
     if not features:

@@ -35,7 +35,7 @@ def _fournisseur_lent(monkeypatch):
     monkeypatch.setattr(route, "get_cached_result", lambda key: None)
     monkeypatch.setattr(route, "store_in_cache", lambda key, value: None)
     monkeypatch.setattr(route, "payment_result",
-                        lambda request: PaymentDecision(True, "paye", protocol="x402", transaction="0x" + "ab" * 32))
+                        lambda request, **kwargs: PaymentDecision(True, "paye", protocol="x402", transaction="0x" + "ab" * 32))
     monkeypatch.setattr(route, "record_transaction", lambda *args, **kwargs: True)
 
 

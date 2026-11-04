@@ -180,4 +180,5 @@ def verify_address(standardized: Dict) -> Dict:
             "metadata": {},
             "raw": None,
             "error": str(e),
+            "injoignable": True,  # D103 : une panne, pas une adresse hors couverture
         }

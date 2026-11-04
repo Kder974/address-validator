@@ -518,3 +518,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D102: a slow validation no longer freezes the site: no network, database or bcrypt wait runs inside an async route (paid route is `def`, MCP, free test, 402 handler and logins go through asyncio.to_thread); a page answers at once behind a slow validation
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D102
   EXPECT: DECISION OK D102
+- [ ] D103: an x402 payment is settled only once the answer is ready: provider unreachable or ledger down gives a 503 with Retry-After, nothing settled, same authorization reusable; MCP same rule; an out-of-coverage address (degraded, not unreachable) is still sold
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D103
+  EXPECT: DECISION OK D103
