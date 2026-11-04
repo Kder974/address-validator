@@ -58,7 +58,7 @@ async def manifest():
             "livrabilité (residential / commercial / unknown / invalid) avec "
             "niveau de confiance."
         ),
-        "version": "1.0.0",
+        "version": "1.0.1",
         "category": "data",
         "tags": [
             "address",

@@ -20,7 +20,7 @@ name: address-validator
 description: >-
   Valide une adresse de livraison brute et renvoie sa forme standardisee, ses
   coordonnees et un score de livrabilite avec un niveau de confiance.
-version: 1.0.0
+version: 1.0.1
 license: MIT
 repository: https://github.com/Kder974/address-validator
 

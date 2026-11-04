@@ -821,7 +821,7 @@ def d22() -> None:
     guard(payload["database"].startswith("timeout after"), f"sonde non bornee : {payload['database']}")
     guard(payload["redis"].startswith("timeout after"), f"sonde non bornee : {payload['redis']}")
     guard(elapsed < 3.5, f"/health a mis {elapsed:.2f}s avec deux sondes qui pendent 10 s")
-    guard(payload["status"] == "ok" and payload["version"] == "1.0.0", f"charge utile : {payload}")
+    guard(payload["status"] == "ok" and payload["version"] == "1.0.1", f"charge utile : {payload}")
 
 
 def d23() -> None:
@@ -2480,7 +2480,7 @@ def d38() -> None:
         proprietaire.lower() == "io.github.kder974" and depot == "address-validator",
         f"nom de registre inattendu : {serveur['name']} (forme io.github.<proprietaire>/<depot>)",
     )
-    guard(serveur["version"] == "1.0.0", f"version publiee : {serveur['version']}")
+    guard(serveur["version"] == "1.0.1", f"version publiee : {serveur['version']}")
     guard(
         serveur["repository"] == {"url": "https://github.com/Kder974/address-validator", "source": "github"},
         "le depot publie n'est pas celui du projet",

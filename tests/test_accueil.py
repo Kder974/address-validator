@@ -35,7 +35,7 @@ NAVIGATEUR = {"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*
 
 JSON_AVANT = {
     "service": "Address Validator API",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "documentation": "/docs",
     "manifest": "/manifest",
     "health": "/health",

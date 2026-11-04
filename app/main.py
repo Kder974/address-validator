@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Address Validator API",
     description="API de validation d'adresses de livraison avec paiement à la requête",
-    version="1.0.0",
+    version="1.0.1",
     lifespan=lifespan,
 )
 
@@ -207,7 +207,7 @@ async def root(request: Request):
     return JSONResponse(
         {
             "service": "Address Validator API",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "documentation": "/docs",
             "manifest": "/manifest",
             "health": "/health",

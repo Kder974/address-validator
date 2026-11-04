@@ -48,6 +48,6 @@ async def health():
         "status": "ok",
         "database": database,
         "redis": redis_status,
-        "version": "1.0.0",
+        "version": "1.0.1",
     }
 

@@ -87,7 +87,7 @@ MCP_PROTOCOL_VERSION = "2025-06-18"
 SUPPORTED_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26")
 
 SERVER_NAME = "address-validator"
-SERVER_VERSION = "1.0.0"
+SERVER_VERSION = "1.0.1"
 TOOL_NAME = "validate_address"
 TOOL_DESCRIPTION = (
     "Valide une adresse de livraison et renvoie sa forme standardisee, ses "
