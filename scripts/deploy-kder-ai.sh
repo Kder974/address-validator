@@ -363,6 +363,13 @@ for v in API_HOST API_PORT API_SECRET_KEY DATABASE_URL REDIS_URL SMARTY_AUTH_ID 
   grep -q "^$v=" "$PROJET/.env" || die ".env : variable $v absente"
 done
 ok "15 variables attendues presentes"
+# D104 : sans ce secret, /stripe/webhook repond 503 : un client paie et reste en essai.
+# Avertissement seulement : un serveur sans Stripe reste deployable.
+if grep -q '^STRIPE_WEBHOOK_SECRET=..*' "$PROJET/.env"; then
+  ok "STRIPE_WEBHOOK_SECRET renseigne"
+else
+  ko "STRIPE_WEBHOOK_SECRET absent ou vide : les abonnements payes ne s'activeront pas"
+fi
 # SECURITE : 'change_me' est la valeur par defaut d'app/config.py, et avec elle
 # n'importe qui forge une preuve de paiement valide ; un secret court se casse
 # hors ligne. Le script refuse desormais de deployer dans ces deux cas.

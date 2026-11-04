@@ -65,9 +65,12 @@ def _envoyer(evenement: dict, **signature) -> int:
     return client_http.post("/stripe/webhook", content=corps, headers={"Stripe-Signature": _signer(corps, **signature)}).status_code
 
 
-def _paiement(reference, montant=2900, devise="eur", statut="paid", client="cus_123") -> dict:
-    return {"type": "checkout.session.completed", "data": {"object": {
-        "client_reference_id": reference, "amount_total": montant, "currency": devise, "payment_status": statut, "customer": client}}}
+def _paiement(reference, montant=2900, devise="eur", statut="paid", client="cus_123", sous_total=None,
+              genre="checkout.session.completed") -> dict:
+    objet = {"client_reference_id": reference, "amount_total": montant, "currency": devise, "payment_status": statut, "customer": client}
+    if sous_total is not None:
+        objet["amount_subtotal"] = sous_total
+    return {"type": genre, "data": {"object": objet}}
 
 
 def _plan(fabrique, identifiant) -> str:
@@ -179,3 +182,27 @@ def test_sans_offre_la_page_de_la_cle_ne_parle_pas_de_paiement(inscriptions):
     forme = {"email": "essai@shop.re", "password": "un-mot-de-passe-solide-12", "shop_name": "S", "platform": "shopify"}
     page = client_http.post("/signup", data={**forme, "offre": "enterprise"}).text
     assert "https://" not in page and 'class="pay"' not in page
+
+
+@pytest.mark.parametrize(("evenement", "plan"), [
+    (_paiement("{id}", montant=1450, sous_total=2900), "starter"),  # code promo a 50 %
+    (_paiement("{id}", montant=0, sous_total=7900, statut="no_payment_required"), "pro"),  # code promo a 100 %
+    (_paiement("{id}", montant=2900, statut="paid", genre="checkout.session.async_payment_succeeded"), "starter"),  # SEPA
+])
+def test_un_code_promo_ou_un_prelevement_active_quand_meme_l_offre(base, evenement, plan):
+    """D104 : le plan se lit sur le prix catalogue (`amount_subtotal`), pas sur ce qui a ete paye."""
+    fabrique, identifiant = base
+    evenement["data"]["object"]["client_reference_id"] = str(identifiant)
+    assert _envoyer(evenement) == 200
+    assert _plan(fabrique, identifiant) == plan
+
+
+def test_un_paiement_sans_offre_activee_se_voit(base):
+    """D104 : un client qui paie et reste en essai incremente un compteur visible sur /metrics."""
+    from app.routes.metrics import metrics
+
+    avant = metrics.snapshot().get("stripe_payments_unmatched", 0)
+    assert _envoyer(_paiement("1", montant=1234)) == 200
+    assert _envoyer(_paiement("1", devise="usd")) == 200
+    assert metrics.snapshot()["stripe_payments_unmatched"] == avant + 2
+    assert "stripe_payments_unmatched" in client_http.get("/metrics").text

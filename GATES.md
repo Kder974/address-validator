@@ -521,3 +521,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D103: an x402 payment is settled only once the answer is ready: provider unreachable or ledger down gives a 503 with Retry-After, nothing settled, same authorization reusable; MCP same rule; an out-of-coverage address (degraded, not unreachable) is still sold
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D103
   EXPECT: DECISION OK D103
+- [ ] D104: a Stripe subscription is activated from the list price (amount_subtotal): promo code, 100% promo (no_payment_required) and SEPA (async_payment_succeeded) included; a payment that activates no plan is counted on /metrics and logged as an error; the deploy warns when STRIPE_WEBHOOK_SECRET is empty
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D104
+  EXPECT: DECISION OK D104
