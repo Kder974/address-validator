@@ -24,6 +24,7 @@ from app.observability import configure_logging, record_request
 from app.web import public_headers
 from app.routes import (
     accueil,
+    checklist,
     connexion,
     contenu,
     dashboard,
@@ -146,6 +147,8 @@ app.include_router(validate_form.router, tags=["commercial"])
 # indexable, cachable 5 min, sans secret et sans ressource externe : il repond a
 # la question que se pose un client qui vient de recevoir sa cle.
 app.include_router(guide.router, tags=["commercial"])
+# /checklist : la Checklist Anti-Colis Perdu, page gratuite en français (D98).
+app.include_router(checklist.router, tags=["commercial"])
 # /en/, /zh/, /hi/, /es/, /ar/ : la vitrine dans les autres langues (D57), chemins
 # littéraux ; le français reste sur / (route `root` ci-dessous).
 app.include_router(accueil.router, tags=["commercial"])

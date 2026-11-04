@@ -112,7 +112,7 @@ REFUS_MESSAGES = {
         "Compte expiré.",
         "L'essai gratuit est terminé : le service par clé API est suspendu pour ce "
         "compte. Les tarifs et le passage à un plan payant sont indiqués sur la "
-        "page tarifs ; rien n'est prélevé automatiquement.",
+        "page tarifs ; rien n'est prélevé sans votre accord.",
     ),
     accounts.REFUS_QUOTA_ATTEINT: (
         "Quota du mois atteint.",

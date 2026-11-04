@@ -499,3 +499,9 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D96: no page in any of the six languages says HT, hors taxes, excl. VAT, sin IVA or their zh/hi/ar equivalents (franchise en base, VAT not applicable), except the compare page's method sentence about other services' prices; every pricing page shows the art. 293 B VAT-not-applicable mention; the euro billing mention no longer says excl. VAT
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D96
   EXPECT: DECISION OK D96
+- [ ] D97: no page, account message, guide error table or API 403 message says there is no automatic charge (Stripe charges a chosen plan monthly); every pricing page says a chosen plan is charged monthly by Stripe until stopped; the welcome email says nothing is charged at the end of the trial and no longer promises a written-consent or on-request upgrade
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D97
+  EXPECT: DECISION OK D97
+- [ ] D98: GET /checklist serves the free anti-lost-parcel checklist in French: public cache headers, no script, form or external resource, the 27 points of docs/commercial/produits/01_checklist.md each with a checkbox and label, every figure read from code or configuration, links to the free test, pricing and agents pages, and is linked from the French home, pricing and guide pages
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D98
+  EXPECT: DECISION OK D98

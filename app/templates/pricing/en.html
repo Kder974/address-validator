@@ -485,7 +485,7 @@ h2{font-weight:750;letter-spacing:-.028em}
         <p class="promise-h">In every plan</p>
         <ul class="facts">
           <li>No commitment: stop whenever you want. The price shown is the price you pay, VAT not applicable.</li>
-          <li>No automatic charge: you pay by card with Stripe only when you choose a plan.</li>
+          <li>Nothing is charged without your consent: the trial ends on its own, with no card. A plan you choose is charged monthly by Stripe until you stop it.</li>
           <li>No names or emails: checked addresses are kept {{jours_cache}} days to answer faster, then deleted.</li>
           <li>The same API and the same response, whatever the plan.</li>
         </ul>
@@ -681,7 +681,7 @@ h2{font-weight:750;letter-spacing:-.028em}
         </details>
         <details class="qa">
           <summary>What happens if I go over my quota?</summary>
-          <p>The quota is monthly and resets on the 1st of the month (UTC). Once it is reached, the API answers <code class="inline">402</code> with <code class="inline">quota_atteint</code>: nothing extra is billed and no automatic charge takes place. Your usage is visible in your dashboard. To move up to the next plan, write to us.</p>
+          <p>The quota is monthly and resets on the 1st of the month (UTC). Once it is reached, the API answers <code class="inline">402</code> with <code class="inline">quota_atteint</code>: nothing extra is billed, no overage is charged. Your usage is visible in your dashboard. To move up to the next plan, write to us.</p>
         </details>
         <details class="qa">
           <summary>What happens to the addresses I send you?</summary>
