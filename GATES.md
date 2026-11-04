@@ -530,3 +530,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D106: an x402 nonce is reserved in Redis (SET NX until validBefore) before settlement, so a settled authorization is refused after a restart; a failed settlement releases it; an HMAC proof whose tx hash is already in the ledger is refused outside test mode
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D106
   EXPECT: DECISION OK D106
+- [ ] D107: the API unit waits between restarts and is sandboxed; --maj publishes llms.txt, AGENTS.md and security.txt; production refuses API_SECRET_KEY=change_me; init_db logs its cause; .env.example covers every setting
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D107
+  EXPECT: DECISION OK D107

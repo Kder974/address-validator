@@ -56,6 +56,11 @@ async def lifespan(app: FastAPI):
     # D30 : le journal de découverte est ouvert une fois au démarrage quand un
     # chemin est configuré ; sans chemin, rien n'est écrit sur disque.
     configure_logging()
+    # D107 : `change_me` est la valeur par defaut d'API_SECRET_KEY ; avec elle, n'importe qui
+    # forge une preuve de paiement HMAC. Le script de deploiement la refuse deja ; un
+    # demarrage par un autre chemin (Docker, uvicorn a la main) la refuse aussi.
+    if settings.environment == "production" and settings.api_secret_key == "change_me":
+        raise RuntimeError("API_SECRET_KEY vaut 'change_me' en production : generer un secret (openssl rand -hex 32)")
     if init_db():
         logger.info("Schéma de base de données initialisé.")
     else:

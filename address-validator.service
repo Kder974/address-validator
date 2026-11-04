@@ -12,6 +12,14 @@ Environment="PATH=/opt/address-validator/venv/bin"
 # l'exterieur ; ceci ferme aussi l'acces depuis le reseau local du VPS).
 ExecStart=/opt/address-validator/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
 Restart=always
+# D107 : 2 s entre deux redemarrages. Avec les 100 ms par defaut, cinq plantages en
+# 10 s epuisent la limite de systemd, et l'API reste coupee jusqu'a une intervention.
+RestartSec=2
+# D107 : le meme cloisonnement que les autres services du projet (veille, retention, geoip).
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target

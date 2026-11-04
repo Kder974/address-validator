@@ -655,7 +655,7 @@ service ne répond pas.
 # 1. poste Windows - fabriquer l'archive depuis le clone vitrine (copie de travail unique)
 cd C:\Users\kder_\address-validator-vitrine
 git status --short          # l'arbre doit être propre, ou ne contenir que ce que vous déployez
-tar -czf "$env:TEMP\av-maj.tgz" app scripts docs
+tar -czf "$env:TEMP\av-maj.tgz" app scripts docs llms.txt AGENTS.md .well-known
 scp -i $env:USERPROFILE\.ssh\address_validator_vps "$env:TEMP\av-maj.tgz" root@87.76.197.38:/tmp/
 
 # 2. serveur - un seul geste, et un code retour exploitable
@@ -663,8 +663,9 @@ ssh -i ~/.ssh/address_validator_vps root@87.76.197.38 \
   'bash /opt/address-validator/deploy-kder-ai.sh --maj /tmp/av-maj.tgz'
 ```
 
-L'archive ne contient **que** `app/`, `scripts/` et `docs/` : ni `venv/`, ni
-`.env`, ni les journaux, ni les `.exe`. Le serveur garde les siens.
+L'archive ne contient **que** `app/`, `scripts/`, `docs/` et les documents que
+lisent les agents (`llms.txt`, `AGENTS.md`, `.well-known/security.txt`, D107) : ni
+`venv/`, ni `.env`, ni les journaux, ni les `.exe`. Le serveur garde les siens.
 
 Deux variantes utiles : `SOURCE=/chemin/de/code bash deploy-kder-ai.sh --maj`
 (le code est déjà sur le serveur, par exemple dans

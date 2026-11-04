@@ -38,3 +38,49 @@ def test_un_site_tiers_lit_l_api_mais_jamais_avec_les_cookies():
     assert preflight.status_code == 200
     assert "access-control-allow-credentials" not in preflight.headers
     assert "PAYMENT-RESPONSE" in client.get("/robots.txt", headers=tiers).headers.get("access-control-expose-headers", "")
+
+
+def test_le_service_refuse_de_demarrer_en_production_avec_le_secret_par_defaut(monkeypatch):
+    """D107 : un demarrage hors script de deploiement refuse aussi `change_me`."""
+    import asyncio
+
+    import pytest
+
+    from app import main
+
+    reglages = main.settings.model_copy(update={"environment": "production", "api_secret_key": "change_me"})
+    monkeypatch.setattr(main, "settings", reglages)
+    monkeypatch.setattr(main, "init_db", lambda: True)
+
+    async def demarrer():
+        async with main.lifespan(main.app):
+            pass
+
+    with pytest.raises(RuntimeError, match="change_me"):
+        asyncio.run(demarrer())
+
+
+def test_chaque_reglage_est_documente_dans_env_example():
+    """D107 : un reglage de app/config.py absent de .env.example est invisible a l'installation."""
+    import re
+    from pathlib import Path
+
+    from app.config import Settings
+
+    exemple = (Path(__file__).resolve().parents[1] / ".env.example").read_text(encoding="utf-8")
+    absents = [nom.upper() for nom in Settings.model_fields if not re.search(rf"^#?\s*{nom.upper()}=", exemple, re.M)]
+    assert absents == []
+
+
+def test_un_echec_de_init_db_dit_pourquoi(monkeypatch, caplog):
+    """D107 : le demarrage reste non bloquant, mais la cause de l'echec est au journal."""
+    from app import database
+
+    class Moteur:
+        def connect(self):
+            raise RuntimeError("base injoignable")
+
+    monkeypatch.setattr(database, "engine", Moteur())
+    with caplog.at_level("WARNING", logger="app.database"):
+        assert database.init_db() is False
+    assert "base injoignable" in caplog.text

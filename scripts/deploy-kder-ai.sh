@@ -200,6 +200,21 @@ maj_du_code(){
   done
   ok "lecture accordee a www-data sur le code copie (chmod a+rX)"
 
+  # D107 : les documents que lisent les agents sont a la racine du projet, servis par
+  # nginx (nginx-discovery.conf). Avant, --maj ne les publiait jamais. L'ancienne
+  # version est gardee dans la sauvegarde ; une archive sans eux garde la version en ligne.
+  etape "M4b. Documents publics des agents (llms.txt, AGENTS.md, security.txt)"
+  for f in llms.txt AGENTS.md .well-known/security.txt; do
+    if [ -f "$SOURCE/$f" ]; then
+      if [ -f "$PROJET/$f" ]; then
+        mkdir -p "$SAUVEGARDE/racine/$(dirname "$f")" && cp -a "$PROJET/$f" "$SAUVEGARDE/racine/$f"
+      fi
+      install -D -m 644 "$SOURCE/$f" "$PROJET/$f" && ok "$f publie"
+    else
+      note "$f absent de l'archive : version en ligne conservee"
+    fi
+  done
+
   etape "M5. Fichiers en trop (listes, jamais supprimes)"
   liste="$SAUVEGARDE/fichiers-en-trop.txt"
   : > "$liste"
