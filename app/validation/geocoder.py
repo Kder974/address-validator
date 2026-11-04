@@ -16,6 +16,7 @@ from typing import Dict
 import httpx
 
 from app.config import get_settings
+from app.routes.metrics import metrics
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 USER_AGENT = f"AddressValidator/1.0 ({get_settings().contact_email})"
@@ -49,7 +50,13 @@ def geocode(standardized: Dict) -> Dict:
                     "lat": float(data[0]["lat"]),
                     "lng": float(data[0]["lon"]),
                 }
+    except httpx.HTTPStatusError as exc:
+        # D109 : 429 ou 403, Nominatim nous limite ou nous bloque. Les coordonnees
+        # manquent alors dans les reponses ; la veille du matin le signale.
+        metrics.incr("geocode_errors")
+        if exc.response.status_code in (403, 429):
+            metrics.incr("geocode_blocked")
     except Exception:
-        pass
+        metrics.incr("geocode_errors")
 
     return {"lat": None, "lng": None}

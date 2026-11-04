@@ -536,3 +536,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D108: tests and the decision ledger run on every PR, offline and without secrets; mcp-publisher is pinned to a version and checked against its SHA-256
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D108
   EXPECT: DECISION OK D108
+- [ ] D109: a Nominatim refusal (429/403) is counted as geocode_blocked on /metrics, and the morning watch email reports new refusals since the previous report (a lower counter means a restart)
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D109
+  EXPECT: DECISION OK D109
