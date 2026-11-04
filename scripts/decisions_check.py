@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D104, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D105, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 104
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 105
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7855,7 +7855,30 @@ def d104() -> None:
     guard(re.search(r"^\| D104 \|", read("DECISIONS.md"), re.M) is not None, "la decision D104 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 105)}
+def d105() -> None:
+    """CORS ouvert aux agents x402 dans un navigateur, mais jamais avec les cookies d'un client."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app)
+    tiers = {"Origin": "https://autre-site.example"}
+    for reponse in (
+        client.get("/robots.txt", headers={**tiers, "Cookie": "av_session=x"}),
+        client.options("/validate", headers={**tiers, "Access-Control-Request-Method": "POST",
+                                             "Access-Control-Request-Headers": "x-payment"}),
+    ):
+        guard(reponse.headers.get("access-control-allow-credentials") is None,
+              "un site tiers peut lire l'API avec les cookies du client (Access-Control-Allow-Credentials)")
+    ouvert = client.get("/robots.txt", headers=tiers).headers
+    guard(ouvert.get("access-control-allow-origin") == "*", "un agent x402 dans un navigateur ne peut plus lire l'API")
+    exposes = {nom.strip() for nom in ouvert.get("access-control-expose-headers", "").split(",")}
+    guard({"PAYMENT-REQUIRED", "PAYMENT-RESPONSE", "X-PAYMENT-RESPONSE"} <= exposes,
+          f"l'offre ou le recu x402 ne sont plus lisibles depuis un navigateur (D77) : {sorted(exposes)}")
+    guard(re.search(r"^\| D105 \|", read("DECISIONS.md"), re.M) is not None, "la decision D105 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 106)}
 
 
 def catalog() -> list[tuple[str, str]]:

@@ -524,3 +524,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D104: a Stripe subscription is activated from the list price (amount_subtotal): promo code, 100% promo (no_payment_required) and SEPA (async_payment_succeeded) included; a payment that activates no plan is counted on /metrics and logged as an error; the deploy warns when STRIPE_WEBHOOK_SECRET is empty
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D104
   EXPECT: DECISION OK D104
+- [ ] D105: CORS lets any site read the API (x402 agents in a browser keep `*` and the exposed payment headers) but never with the client's cookies: no Access-Control-Allow-Credentials
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D105
+  EXPECT: DECISION OK D105
