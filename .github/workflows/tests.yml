@@ -1,0 +1,28 @@
+name: Tests
+
+# D107 : les tests et le registre des decisions tournent sur chaque PR, et plus
+# seulement sur le poste de l'exploitant. Hors ligne : aucun fournisseur, aucune base,
+# aucun secret (les doubles sont dans tests/conftest.py et scripts/decisions_check.py).
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Dependances
+        run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Tests
+        run: python -m pytest -p no:cacheprovider -q
+      - name: Registre des decisions
+        run: python scripts/decisions_check.py --all
