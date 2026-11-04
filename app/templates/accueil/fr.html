@@ -550,21 +550,21 @@ pre{margin:0;padding:18px 20px;font:500 .86rem/1.65 var(--mono);color:#e7ecff;ov
       <div class="ba">
         <div class="card">
           <p class="card-lbl"><i class="dot" style="background:var(--coral)"></i>Ce que votre client a tapé</p>
-          <p class="typed" dir="ltr"><span class="tw">100 stewart st, <span class="typo">seatle</span> wa</span><span class="missing">code postal manquant</span></p>
+          <p class="typed" dir="ltr"><span class="tw">5 rue des <span class="typo">ecoles</span>, 75005 paris</span><span class="missing">accent manquant</span></p>
         </div>
         <p class="flow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M5 13l7 7 7-7"/></svg>On vérifie en une ou deux secondes</p>
         <div class="card result">
           <p class="card-lbl"><i class="dot" style="background:var(--aqua)"></i>Ce que nous renvoyons</p>
-          <p class="fixed" dir="ltr">100 <span class="fix">Stewart Street</span><br><span class="fix d2">Seattle</span>, WA <span class="fix d3">98101</span></p>
+          <p class="fixed" dir="ltr">5 <span class="fix">Rue des Écoles</span><br>75005 <span class="fix d2">Paris</span></p>
           <div class="verdicts">
             <span class="tag ok"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5 6.5 12 13 4.5"/></svg>Un colis peut arriver ici</span>
-            <span class="tag info">C'est une entreprise</span>
+            <span class="tag info">Adresse officielle</span>
             <span class="tag info">Sûr à 100 %</span>
           </div>
         </div>
         <div class="mapmini" aria-hidden="true">
           <div class="map"><svg viewBox="0 0 24 24"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z" fill="#1f3bff"/><circle cx="12" cy="10" r="2.6" fill="#fff"/></svg></div>
-          <div class="map-cap" dir="ltr">47.6105, −122.3411 <span>CARTE</span></div>
+          <div class="map-cap" dir="ltr">48.8475, 2.3521 <span>CARTE</span></div>
         </div>
       </div>
     </div>
@@ -607,8 +607,8 @@ pre{margin:0;padding:18px 20px;font:500 .86rem/1.65 var(--mono);color:#e7ecff;ov
   <div class="wrap">
     <div class="sec-h"><p class="eyebrow">Comment ça marche</p><h2>Trois étapes. C'est tout.</h2><p class="sub">Aucun carnet d'adresses à tenir à jour, aucune règle à écrire. Votre site, votre application ou votre robot pose simplement la question.</p></div>
     <div class="steps">
-      <div class="step"><span class="n">1</span><h3>Vous envoyez l'adresse</h3><p>Exactement comme votre client l'a tapée, fautes comprises.</p><span class="chip" dir="ltr">100 stewart st, seatle wa</span></div>
-      <div class="step"><span class="n">2</span><h3>On le vérifie</h3><p>On le compare à la liste officielle des adresses postales américaines, et on corrige ce qui ne va pas.</p><span class="chip" dir="ltr">seatle → Seattle · + 98101</span></div>
+      <div class="step"><span class="n">1</span><h3>Vous envoyez l'adresse</h3><p>Exactement comme votre client l'a tapée, fautes comprises.</p><span class="chip" dir="ltr">5 rue des ecoles, 75005 paris</span></div>
+      <div class="step"><span class="n">2</span><h3>On la vérifie</h3><p>On la compare à la liste officielle des adresses de France ou des États-Unis, et on corrige ce qui ne va pas.</p><span class="chip" dir="ltr">rue des ecoles → Rue des Écoles</span></div>
       <div class="step"><span class="n">3</span><h3>Vous recevez la réponse</h3><p>L'adresse bien écrite, oui ou non pour la livraison, et sa place sur la carte.</p><span class="chip g">Un colis peut arriver ici</span></div>
     </div>
   </div>
@@ -619,9 +619,9 @@ pre{margin:0;padding:18px 20px;font:500 .86rem/1.65 var(--mono);color:#e7ecff;ov
     <div class="sec-h"><p class="eyebrow">Ce que vous recevez</p><h2>Cinq réponses simples.</h2><p class="sub">Pour chaque adresse, les cinq mêmes réponses. Votre boutique ou votre code les lit et décide.</p></div>
     <div class="answers">
       <div class="ans"><p class="q">Est-ce un vrai lieu ?</p><p class="a ok">Oui</p><p class="why">Un colis envoyé à un lieu qui n'existe pas revient.</p></div>
-      <div class="ans"><p class="q">L'adresse, bien écrite</p><p class="a" dir="ltr">100 Stewart Street, Seattle, WA 98101</p><p class="why">Orthographe, type de voie et code postal corrigés.</p></div>
-      <div class="ans"><p class="q">Où est-ce sur une carte ?</p><p class="a" dir="ltr">47.6105, −122.3411</p><p class="why">Pour les tournées de livraison et les cartes.</p></div>
-      <div class="ans"><p class="q">Un logement ou une entreprise ?</p><p class="a">Entreprise</p><p class="why">Certains transporteurs facturent plus cher une livraison à domicile.</p></div>
+      <div class="ans"><p class="q">L'adresse, bien écrite</p><p class="a" dir="ltr">5 Rue des Écoles, 75005 Paris</p><p class="why">Orthographe, accents et majuscules corrigés.</p></div>
+      <div class="ans"><p class="q">Où est-ce sur une carte ?</p><p class="a" dir="ltr">48.8475, 2.3521</p><p class="why">Pour les tournées de livraison et les cartes.</p></div>
+      <div class="ans"><p class="q">Un logement ou une entreprise ?</p><p class="a">Aux États-Unis</p><p class="why">La poste américaine le précise, la base française non. Certains transporteurs facturent plus cher une livraison à domicile.</p></div>
       <div class="ans"><p class="q">À quel point sommes-nous sûrs ?</p><p class="a">100%</p><p class="why">En dessous du niveau que vous choisissez, demandez à votre client de vérifier.</p></div>
     </div>
   </div>
@@ -633,7 +633,7 @@ pre{margin:0;padding:18px 20px;font:500 .86rem/1.65 var(--mono);color:#e7ecff;ov
     <div class="who">
       <article><img src="/images/commercante-colis.jpg" alt="Une commerçante prépare un colis"><div class="t"><h3>Boutiques en ligne</h3><p>Vérifiez l'adresse au moment du paiement, avant l'envoi. Votre développeur l'ajoute à Shopify, WooCommerce ou à votre propre site : il n'y a pas d'application à installer.</p></div></article>
       <article><img src="/images/developpeur.jpg" alt="Un développeur au travail"><div class="t"><h3>Développeurs</h3><p>Une requête, une réponse JSON propre, toujours de la même forme. Votre clé gratuite dès l'inscription, sans carte bancaire.</p></div></article>
-      <article><div class="agent" aria-hidden="true" dir="ltr"><span>agent → POST /validate</span><span>← 402 Payment Required</span><span>agent pays <i>{{prix_x402}} USDC</i></span><span>← 200 OK <i>✓ deliverable</i></span></div><div class="t"><h3>Agents IA</h3><p>Votre agent nous trouve, paie seul {{prix_x402}} USDC par vérification (x402 ou MCP) et reçoit la réponse. Sans compte.</p></div></article>
+      <article><div class="agent" aria-hidden="true" dir="ltr"><span>l'agent → POST /validate</span><span>← 402 paiement demandé</span><span>l'agent paie <i>{{prix_x402}} USDC</i></span><span>← 200 OK <i>✓ livrable</i></span></div><div class="t"><h3>Agents IA</h3><p>Votre agent nous trouve, paie seul {{prix_x402}} USDC par vérification (x402 ou MCP) et reçoit la réponse. Sans compte.</p></div></article>
     </div>
   </div>
 </section>
@@ -673,17 +673,17 @@ pre{margin:0;padding:18px 20px;font:500 .86rem/1.65 var(--mono);color:#e7ecff;ov
     </div>
     <div class="code" dir="ltr">
       <div class="code-h"><span class="m">POST</span>/validate<span class="s">● 200 OK</span></div>
-<pre><span class="c"># request: POST /validate, header X-API-Key: sk_live_…</span>
-{<span class="k">"address"</span>: {<span class="k">"street"</span>: <span class="v">"100 stewart st"</span>, <span class="k">"city"</span>: <span class="v">"seatle"</span>,
-             <span class="k">"state"</span>: <span class="v">"wa"</span>, <span class="k">"zip"</span>: <span class="v">"98101"</span>}}
+<pre><span class="c"># requête : POST /validate, en-tête X-API-Key: sk_live_…</span>
+{<span class="k">"address"</span>: {<span class="k">"street"</span>: <span class="v">"5 rue des ecoles"</span>, <span class="k">"city"</span>: <span class="v">"paris"</span>,
+             <span class="k">"zip"</span>: <span class="v">"75005"</span>, <span class="k">"country"</span>: <span class="v">"FR"</span>}}
 
-<span class="c"># answer</span>
+<span class="c"># réponse</span>
 {<span class="k">"result"</span>: {
   <span class="k">"validated"</span>: <span class="gr">true</span>,
-  <span class="k">"standardized"</span>: {<span class="k">"line1"</span>: <span class="v">"100 Stewart Street"</span>,
-     <span class="k">"city"</span>: <span class="v">"Seattle"</span>, <span class="k">"state"</span>: <span class="v">"WA"</span>, <span class="k">"zip"</span>: <span class="v">"98101"</span>},
-  <span class="k">"latitude"</span>: <span class="v">47.6105</span>, <span class="k">"longitude"</span>: <span class="v">-122.3411</span>,
-  <span class="k">"deliverability"</span>: <span class="v">"commercial"</span>,
+  <span class="k">"standardized"</span>: {<span class="k">"line1"</span>: <span class="v">"5 Rue des Écoles"</span>,
+     <span class="k">"city"</span>: <span class="v">"Paris"</span>, <span class="k">"zip"</span>: <span class="v">"75005"</span>, <span class="k">"country"</span>: <span class="v">"FR"</span>},
+  <span class="k">"latitude"</span>: <span class="v">48.8475</span>, <span class="k">"longitude"</span>: <span class="v">2.3521</span>,
+  <span class="k">"deliverability"</span>: <span class="v">"residential"</span>,
   <span class="k">"confidence"</span>: <span class="v">1.0</span>
 }}</pre>
     </div>

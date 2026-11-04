@@ -212,3 +212,13 @@ def test_les_chiffres_sont_ceux_du_code_dans_chaque_langue(lang):
     assert texte.count(i18n.nombre(lang, reglages.x402_price)) >= 4
     assert i18n.mention_euros(lang) in texte
     assert seo.hors_bloc(texte).count(reglages.contact_email) >= 2
+
+
+def test_l_accueil_francais_montre_une_adresse_francaise_sans_anglais():
+    """D101 : l'exemple de la page française est français, vérifié par la BAN, et rien n'y reste en anglais."""
+    page = client.get("/", headers=NAVIGATEUR).text
+    assert "5 rue des ecoles, 75005 paris" in page and "5 Rue des Écoles, 75005 Paris" in page
+    for anglais in ("stewart", "Seattle", "Payment Required", "agent pays", "deliverable", "# request", "# answer"):
+        assert anglais not in page, anglais
+    assert '"latitude"</span>' in page  # les noms des champs JSON restent ceux de l'API
+    assert "100 stewart st" in client.get("/en/", headers=NAVIGATEUR).text  # les autres langues gardent leur exemple
