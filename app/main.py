@@ -30,6 +30,7 @@ from app.routes import (
     dashboard,
     guide,
     health,
+    kit,
     manifest,
     mcp,
     metrics,
@@ -149,6 +150,8 @@ app.include_router(validate_form.router, tags=["commercial"])
 app.include_router(guide.router, tags=["commercial"])
 # /checklist : la Checklist Anti-Colis Perdu, page gratuite en français (D98).
 app.include_router(checklist.router, tags=["commercial"])
+# /kit-anti-colis-perdu : la page de vente du kit à 29 € (D99), lien Gumroad en configuration.
+app.include_router(kit.router, tags=["commercial"])
 # /en/, /zh/, /hi/, /es/, /ar/ : la vitrine dans les autres langues (D57), chemins
 # littéraux ; le français reste sur / (route `root` ci-dessous).
 app.include_router(accueil.router, tags=["commercial"])

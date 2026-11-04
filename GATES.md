@@ -505,3 +505,6 @@ D44 a créé les comptes, D45 a écrit les règles qui décident de servir, D46 
 - [ ] D98: GET /checklist serves the free anti-lost-parcel checklist in French: public cache headers, no script, form or external resource, the 27 points of docs/commercial/produits/01_checklist.md each with a checkbox and label, every figure read from code or configuration, links to the free test, pricing and agents pages, and is linked from the French home, pricing and guide pages
   CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D98
   EXPECT: DECISION OK D98
+- [ ] D99: GET /kit-anti-colis-perdu sells the 29 EUR kit: without GUMROAD_KIT_URL both buttons say coming soon and the page is noindex; with it both buttons link to the escaped Gumroad URL; the price and the cost figure come from code; no review, testimonial or guarantee is shown; the kit files are git-ignored (paid product, public repository)
+  CHECK: .\.venv\Scripts\python.exe scripts\decisions_check.py D99
+  EXPECT: DECISION OK D99
