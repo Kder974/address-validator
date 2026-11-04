@@ -51,6 +51,10 @@ class Metrics:
         # D103 : un agent a presente un paiement, mais la reponse n'etait pas prete
         # (fournisseur ou registre injoignable) : 503, et rien n'a ete encaisse.
         "x402_not_charged_unavailable",
+        # D104 : un client a paye par Stripe et aucune offre n'a ete activee, ou le
+        # webhook est arrive sans secret configure (503, Stripe finit par abandonner).
+        "stripe_payments_unmatched",
+        "stripe_webhook_unconfigured",
         # D45 : le mode cle API. `api_key_requests` sont les appels qui ont
         # presente une cle ; `api_key_validations` ceux qui ont ete servis ;
         # `api_key_denied` les refus (cle inconnue, essai fini, quota du mois

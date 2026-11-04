@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Oracle mecanique des decisions D1..D103, adosse au ledger GATES.md.
+"""Oracle mecanique des decisions D1..D104, adosse au ledger GATES.md.
 
 Les decisions de `DECISIONS.md` n'etaient verifiables que par lecture humaine :
 chaque ligne du ledger demandait au relecteur de comparer deux fichiers a l'oeil.
@@ -9,7 +9,7 @@ de paiement, disjoncteur sous 8 threads, cooldown du cache Redis, /health borne,
 ORM compare au DDL, degradation du geocodeur, signature EIP-712 x402).
 
     .venv\\Scripts\\python.exe scripts\\decisions_check.py D7      # une decision
-    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 103
+    .venv\\Scripts\\python.exe scripts\\decisions_check.py --all   # les 104
     .venv\\Scripts\\python.exe scripts\\decisions_check.py --list
 
 Sortie (ASCII, une ligne par porte) :
@@ -7796,7 +7796,66 @@ def d103() -> None:
     guard(re.search(r"^\| D103 \|", read("DECISIONS.md"), re.M) is not None, "la decision D103 n'est plus consignee dans DECISIONS.md")
 
 
-CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 104)}
+def d104() -> None:
+    """Un abonnement Stripe s'active sur le prix catalogue (code promo, promo a 100 %, SEPA) ; un paiement sans offre se voit."""
+    import hashlib as hashlib_
+    import hmac as hmac_
+    import json as jsonlib
+    import tempfile
+    from pathlib import Path
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app import accounts
+    from app.config import get_settings
+    from app.main import app
+    from app.models import Customer, CustomerValidation
+    from app.routes import stripe_webhook
+    from app.routes.metrics import metrics
+
+    secret = "whsec_oracle_" + "0" * 24
+    moteur = create_engine(f"sqlite:///{Path(tempfile.mkdtemp()) / 'stripe.sqlite'}")
+    Customer.__table__.create(moteur)
+    CustomerValidation.__table__.create(moteur)
+    fabrique = sessionmaker(bind=moteur)
+    with fabrique() as session:
+        compte, _cle = accounts.create_customer(session, email="oracle@example.re", password="un-mot-de-passe-solide-12",
+                                                shop_name="Oracle", platform="shopify")
+        identifiant = compte.id
+    reglages = get_settings().model_copy(update={"stripe_webhook_secret": secret})
+    client = TestClient(app)
+
+    def envoyer(genre: str, statut: str, total: int, sous_total: int) -> tuple[int, str]:
+        corps = jsonlib.dumps({"type": genre, "data": {"object": {
+            "client_reference_id": str(identifiant), "amount_total": total, "amount_subtotal": sous_total,
+            "currency": "eur", "payment_status": statut, "customer": "cus_oracle"}}}).encode()
+        horodatage = int(time.time())
+        signature = f"t={horodatage},v1=" + hmac_.new(secret.encode(), f"{horodatage}.".encode() + corps, hashlib_.sha256).hexdigest()
+        with mock.patch.object(stripe_webhook, "_session", fabrique), mock.patch.object(stripe_webhook, "get_settings", lambda: reglages):
+            code = client.post("/stripe/webhook", content=corps, headers={"Stripe-Signature": signature}).status_code
+        with fabrique() as session:
+            return code, session.get(Customer, identifiant).plan
+
+    for genre, statut, total, sous_total, attendu in (
+        ("checkout.session.completed", "paid", 1450, 2900, "starter"),
+        ("checkout.session.completed", "no_payment_required", 0, 7900, "pro"),
+        ("checkout.session.async_payment_succeeded", "paid", 2900, 2900, "starter"),
+    ):
+        code, plan = envoyer(genre, statut, total, sous_total)
+        guard(code == 200 and plan == attendu,
+              f"{genre} ({statut}, paye {total}, prix {sous_total}) donne le plan {plan!r} au lieu de {attendu!r}")
+    avant = metrics.snapshot().get("stripe_payments_unmatched", 0)
+    envoyer("checkout.session.completed", "paid", 1234, 1234)
+    guard(metrics.snapshot().get("stripe_payments_unmatched", 0) == avant + 1, "un client qui paie sans offre activee ne se voit pas")
+    guard("stripe_webhook_unconfigured" in client.get("/metrics").text, "/metrics ne publie plus le webhook Stripe sans secret")
+    guard("STRIPE_WEBHOOK_SECRET absent ou vide" in read("scripts/deploy-kder-ai.sh"),
+          "le deploiement ne previent plus d'un webhook Stripe sans secret")
+    guard(re.search(r"^\| D104 \|", read("DECISIONS.md"), re.M) is not None, "la decision D104 n'est plus consignee dans DECISIONS.md")
+
+
+CHECKS = {f"D{index}": globals()[f"d{index}"] for index in range(1, 105)}
 
 
 def catalog() -> list[tuple[str, str]]:

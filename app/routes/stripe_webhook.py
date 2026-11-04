@@ -33,6 +33,7 @@ from fastapi.responses import JSONResponse
 from app import accounts
 from app.config import get_settings
 from app.database import SessionLocal
+from app.routes.metrics import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -60,11 +61,21 @@ def _session():
 
 router = APIRouter()
 
+#: D104 : un paiement par carte arrive en `completed` ; un prelevement SEPA, plus tard,
+#: en `async_payment_succeeded`. Les deux activent l'offre.
+EVENEMENTS_PAIEMENT = ("checkout.session.completed", "checkout.session.async_payment_succeeded")
+#: D104 : un code promo a 100 % ne fait rien payer le premier mois (`no_payment_required`).
+STATUTS_PAYES = ("paid", "no_payment_required")
+
 
 @router.post("/stripe/webhook", include_in_schema=False)
 async def webhook(request: Request) -> JSONResponse:
     secret = get_settings().stripe_webhook_secret
     if not secret:
+        # D104 : Stripe reessaie trois jours puis abandonne ; sans ce compteur, un client
+        # qui paie resterait en essai sans que personne le voie.
+        metrics.incr("stripe_webhook_unconfigured")
+        logger.error("webhook Stripe recu sans STRIPE_WEBHOOK_SECRET : abonnement non active (503)")
         return JSONResponse({"error": "webhook Stripe non configure"}, status_code=503)
     corps = await request.body()
     if not signature_valide(corps, request.headers.get("stripe-signature", ""), secret):
@@ -77,12 +88,20 @@ async def webhook(request: Request) -> JSONResponse:
     objet = (evenement.get("data") or {}).get("object") or {}
     session = _session()
     try:
-        if genre == "checkout.session.completed" and objet.get("payment_status") == "paid" and objet.get("currency") == "eur":
+        if genre in EVENEMENTS_PAIEMENT and objet.get("payment_status") in STATUTS_PAYES:
             reference = str(objet.get("client_reference_id") or "")
-            montant = int(objet.get("amount_total") or 0)
-            client = accounts.activer_abonnement(session, int(reference), montant, str(objet.get("customer") or "")) if reference.isdigit() else None
+            # D104 : le prix catalogue, avant remise et taxe. Avec un code promo,
+            # `amount_total` ne vaut plus 2900 ni 7900, et le client payait sans etre active.
+            montant = int(objet.get("amount_subtotal") or objet.get("amount_total") or 0)
+            client = (
+                accounts.activer_abonnement(session, int(reference), montant, str(objet.get("customer") or ""))
+                if reference.isdigit() and objet.get("currency") == "eur" else None
+            )
             if client is None:
-                logger.warning("paiement Stripe sans compte ou montant connu : reference=%r montant=%s", reference, montant)
+                # D104 : un client a paye, et aucune offre n'a change : a rattraper a la main.
+                metrics.incr("stripe_payments_unmatched")
+                logger.error("paiement Stripe sans abonnement active : reference=%r montant=%s devise=%r",
+                             reference, montant, objet.get("currency"))
             else:
                 logger.info("abonnement active : compte %s, plan %s", client.id, client.plan)
         elif genre == "customer.subscription.deleted":
